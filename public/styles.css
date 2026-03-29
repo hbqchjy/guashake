@@ -425,7 +425,7 @@ body {
 
 .summary-actions {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
   margin-top: 14px;
 }
@@ -813,6 +813,13 @@ body {
   color: var(--muted);
 }
 
+.report-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 6px 0 2px;
+}
+
 .report-ocr-snippet {
   padding: 12px 14px;
   border-radius: 16px;
@@ -923,6 +930,10 @@ body {
   box-shadow: var(--shadow);
 }
 
+.detail-dialog {
+  width: min(760px, 96vw);
+}
+
 .records-dialog::backdrop {
   background: rgba(13, 23, 20, 0.24);
   backdrop-filter: blur(4px);
@@ -964,12 +975,24 @@ body {
   gap: 12px;
 }
 
+.record-detail-body,
+.share-body {
+  margin-top: 12px;
+}
+
 .record-item {
   border: 1px solid rgba(20, 36, 31, 0.08);
   border-radius: 22px;
   padding: 16px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 249, 0.94) 100%);
   box-shadow: 0 12px 28px rgba(18, 28, 24, 0.05);
+}
+
+.record-detail-card {
+  border: 1px solid rgba(20, 36, 31, 0.08);
+  border-radius: 22px;
+  padding: 18px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 249, 0.94) 100%);
 }
 
 .record-item p {
@@ -1059,6 +1082,54 @@ body {
   margin-top: 8px;
   color: var(--muted);
   line-height: 1.6;
+}
+
+.detail-section {
+  margin-top: 16px;
+}
+
+.detail-section h4 {
+  margin: 0 0 10px;
+  font-size: 15px;
+  color: var(--text);
+}
+
+.detail-file-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.detail-file-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(20, 36, 31, 0.04);
+}
+
+.detail-file-item strong {
+  font-size: 14px;
+  color: var(--text);
+}
+
+.detail-file-item span {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.share-text {
+  width: 100%;
+  min-height: 220px;
+  border: 2px solid rgba(20, 36, 31, 0.16);
+  border-radius: 20px;
+  padding: 14px 16px;
+  resize: none;
+  font: inherit;
+  line-height: 1.7;
+  color: var(--text);
+  background: #f8faf9;
 }
 
 .record-actions {

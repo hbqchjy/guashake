@@ -678,6 +678,9 @@ function setResultViewMode(mode) {
 function buildReportSummaryCard(summary, filePath = '') {
   const highlights = (summary.highlights || []).map((item) => `<li>${escapeHtml(item)}</li>`).join('');
   const ocrBadge = summary.ocrMode === 'webhook' ? 'OCR 已识别' : '基础摘要';
+  const metrics = (summary.keyMetrics || [])
+    .map((item) => `<span class="record-chip metric-chip">${escapeHtml(item)}</span>`)
+    .join('');
   return addRow(
     'bot',
     [
@@ -689,6 +692,7 @@ function buildReportSummaryCard(summary, filePath = '') {
       `<p class="report-summary-title">${escapeHtml(summary.title || '补充材料')}</p>`,
       `<p>文件：${escapeHtml(summary.fileName || '-')} · ${escapeHtml(summary.sizeText || '-')}</p>`,
       `<p>建议先重点看：${escapeHtml((summary.highlights || []).join('、'))}</p>`,
+      metrics ? `<div class="report-metrics">${metrics}</div>` : '',
       `<p>${escapeHtml(summary.nextStep || '')}</p>`,
       summary.ocrText ? `<p class="report-ocr-snippet">识别到的文字：${escapeHtml(summary.ocrText)}</p>` : '',
       `<p class="report-summary-note">${escapeHtml(summary.disclaimer || '')}</p>`,
@@ -697,6 +701,32 @@ function buildReportSummaryCard(summary, filePath = '') {
       '</div>',
     ].join('')
   );
+}
+
+function buildFamilySummaryText() {
+  if (!state.triageResult || !state.cost || !state.booking) return '';
+  const triage = state.triageResult.layeredOutput;
+  const checks = (triage.core.firstChecks || []).map((item) => item.name).slice(0, 4).join('、');
+  const risks = (triage.riskReminder || []).slice(0, 1).join('');
+  return [
+    '给家属看的简版摘要',
+    `1. 现在更建议先去：${triage.core.suggestHospital}`,
+    `2. 优先挂：${triage.core.suggestDepartment}`,
+    `3. 第一轮先做：${checks || '基础检查'}`,
+    `4. 预计先花：${state.cost.simple.costRange}`,
+    `5. 医保参考：${state.cost.simple.insuranceCoverage}`,
+    `6. 去之前记得带：${(state.booking.preparation || []).slice(0, 4).join('、')}`,
+    risks ? `7. 风险提醒：${risks}` : '',
+    '',
+    '说明：这份内容只作为看病前的辅助参考，不能替代医生面诊。',
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
+function openShareDialog() {
+  $('shareSummaryText').value = buildFamilySummaryText();
+  $('shareDialog').showModal();
 }
 
 function buildCheckListHtml(items = []) {
@@ -766,6 +796,7 @@ async function renderResultCards() {
     '<div class="summary-actions">',
     '<button class="result-action primary" data-action="summary-booking">现在去挂号</button>',
     '<button class="result-action" data-action="summary-expand">查看完整建议</button>',
+    '<button class="result-action" data-action="summary-share">给家属看简版</button>',
     '</div>',
     '</div>',
   ].join('');
@@ -784,6 +815,9 @@ async function renderResultCards() {
       node.open = true;
     });
     setResultViewMode('full');
+  };
+  summaryRow.querySelector('[data-action="summary-share"]').onclick = () => {
+    openShareDialog();
   };
   summaryRow.querySelectorAll('[data-mode-toggle]').forEach((button) => {
     button.onclick = () => {
@@ -818,6 +852,7 @@ async function renderResultCards() {
       '<div class="result-actions">',
       '<button class="result-action primary" data-action="booking">去挂号</button>',
       '<button class="result-action" data-action="save">保存记录</button>',
+      '<button class="result-action" data-action="share">给家属看简版</button>',
       '<button class="result-action" data-action="records">查看记录</button>',
       '<button class="result-action" data-action="restart">重新咨询</button>',
       '</div>',
@@ -835,6 +870,9 @@ async function renderResultCards() {
   };
   actionRow.querySelector('[data-action="save"]').onclick = () => {
     saveRecord().catch((err) => alert(err.message));
+  };
+  actionRow.querySelector('[data-action="share"]').onclick = () => {
+    openShareDialog();
   };
   actionRow.querySelector('[data-action="records"]').onclick = () => {
     $('recordsDialog').showModal();
@@ -1015,10 +1053,14 @@ async function listRecords() {
             .join('')}</div>`
         : '',
       '<div class="record-actions">',
+      `<button class="record-action" data-detail="${record.id}">查看详情</button>`,
       `<a class="record-action" target="_blank" href="/archive/export?userId=${encodeURIComponent(userId)}&recordId=${record.id}">导出 PDF</a>`,
       `<button class="record-action" data-delete="${record.id}">删除</button>`,
       '</div>',
     ].join('');
+    item.querySelector('[data-detail]').onclick = () => {
+      openRecordDetail(record);
+    };
     item.querySelector('[data-delete]').onclick = async () => {
       await api(`/archive/${encodeURIComponent(userId)}/${record.id}`, {
         method: 'DELETE',
@@ -1027,6 +1069,38 @@ async function listRecords() {
     };
     list.appendChild(item);
   });
+}
+
+function openRecordDetail(record) {
+  const files = Array.isArray(record.files) ? record.files : [];
+  $('recordDetailBody').innerHTML = [
+    '<div class="record-detail-card">',
+    `<div class="record-tags"><span class="record-tag">记录详情</span>${record.department ? `<span class="record-tag subtle">${escapeHtml(
+      record.department
+    )}</span>` : ''}</div>`,
+    `<p class="record-title">${escapeHtml(record.summary || '-')}</p>`,
+    '<div class="record-metrics">',
+    `<div class="record-metric"><span>首轮费用</span><strong>${escapeHtml(record.costRange || '-')}</strong></div>`,
+    `<div class="record-metric"><span>保存时间</span><strong>${escapeHtml((record.createdAt || '-').slice(0, 16).replace('T', ' '))}</strong></div>`,
+    `<div class="record-metric"><span>材料数量</span><strong>${files.length} 份</strong></div>`,
+    '</div>',
+    record.firstChecks?.length
+      ? `<div class="detail-section"><h4>第一步检查</h4><div class="record-checks">${record.firstChecks
+          .map((item) => `<span class="record-chip">${escapeHtml(item.name)}</span>`)
+          .join('')}</div></div>`
+      : '',
+    files.length
+      ? `<div class="detail-section"><h4>已保存材料</h4><div class="detail-file-list">${files
+          .map(
+            (file) => `<div class="detail-file-item"><strong>${escapeHtml(file.originalName || '-')}</strong>${
+              file.summary?.title ? `<span>${escapeHtml(file.summary.title)}</span>` : '<span>未生成摘要</span>'
+            }</div>`
+          )
+          .join('')}</div></div>`
+      : '',
+    '</div>',
+  ].join('');
+  $('recordDetailDialog').showModal();
 }
 
 async function handleComposerSubmit() {
@@ -1088,8 +1162,22 @@ function bindEvents() {
   });
 
   $('closeRecordsBtn').onclick = () => $('recordsDialog').close();
+  $('closeRecordDetailBtn').onclick = () => $('recordDetailDialog').close();
+  $('closeShareDialogBtn').onclick = () => $('shareDialog').close();
   $('listRecordsBtn').onclick = () => {
     listRecords().catch((err) => alert(err.message));
+  };
+  $('copyShareBtn').onclick = async () => {
+    const text = $('shareSummaryText').value.trim();
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      addBotText('简版摘要已经复制好了，你可以直接发给家属。');
+      $('shareDialog').close();
+    } catch (_error) {
+      $('shareSummaryText').focus();
+      $('shareSummaryText').select();
+    }
   };
 }
 

@@ -62,6 +62,8 @@
 - `GET /api/health`
 - `POST /triage/session`
 - `POST /triage/answer`
+- `POST /triage/supplement`
+- `POST /triage/supplement-file`
 - `GET /triage/result/:id`
 - `POST /cost/estimate`
 - `GET /booking/options?sessionId=...`
@@ -130,6 +132,33 @@
 - Phase 2：增强追问逻辑（条件分支、反问澄清、历史上下文）
 - Phase 3：地区化医保/费用规则数据管道（月度更新 + 覆盖等级）
 - Phase 4：接入 OCR 与 LLM，总结质量和档案结构化提升
+
+## 10.1 OCR Webhook 契约（已预留）
+当前后端已经支持 `OCR_WEBHOOK_URL` 环境变量。
+
+如果配置了：
+```bash
+export OCR_WEBHOOK_URL="https://your-ocr-service.example.com/ocr"
+```
+
+后端会在上传补充材料时，向该地址发送 `multipart/form-data`：
+- 字段名：`file`
+- 内容：用户上传的原始文件
+
+期望 OCR 服务返回 JSON，满足以下任一种字段即可：
+```json
+{ "text": "这里是识别出的文字" }
+```
+或
+```json
+{ "ocrText": "这里是识别出的文字" }
+```
+或
+```json
+{ "content": "这里是识别出的文字" }
+```
+
+当前如果未配置 OCR，系统会自动退回 `fallback` 模式，只根据文件名和材料类型生成基础摘要。
 
 ## 11. 运行方式
 ```bash

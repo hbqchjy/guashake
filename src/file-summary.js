@@ -75,6 +75,37 @@ function pickHighlightsFromText(text = '') {
   return [...new Set(candidates)].slice(0, 3);
 }
 
+function extractKeyMetrics(text = '') {
+  const compact = normalizeText(text);
+  if (!compact) return [];
+
+  const rules = [
+    { label: '白细胞', pattern: /(白细胞|WBC)[^0-9]{0,6}([0-9]+(?:\.[0-9]+)?)/i },
+    { label: '血红蛋白', pattern: /(血红蛋白|HGB)[^0-9]{0,6}([0-9]+(?:\.[0-9]+)?)/i },
+    { label: '血小板', pattern: /(血小板|PLT)[^0-9]{0,6}([0-9]+(?:\.[0-9]+)?)/i },
+    { label: '肌酐', pattern: /(肌酐)[^0-9]{0,6}([0-9]+(?:\.[0-9]+)?)/i },
+    { label: '尿酸', pattern: /(尿酸)[^0-9]{0,6}([0-9]+(?:\.[0-9]+)?)/i },
+    { label: '心率', pattern: /(心率)[^0-9]{0,6}([0-9]+(?:\.[0-9]+)?)/i },
+    { label: '收缩压', pattern: /(收缩压)[^0-9]{0,6}([0-9]+(?:\.[0-9]+)?)/i },
+    { label: '舒张压', pattern: /(舒张压)[^0-9]{0,6}([0-9]+(?:\.[0-9]+)?)/i },
+  ];
+
+  const metrics = [];
+  for (const rule of rules) {
+    const match = compact.match(rule.pattern);
+    if (match?.[2]) {
+      metrics.push(`${rule.label} ${match[2]}`);
+    }
+  }
+
+  const abnormalHints = compact.match(/(偏高|偏低|升高|降低|阳性|阴性)/g) || [];
+  for (const hint of abnormalHints.slice(0, 2)) {
+    metrics.push(`提示 ${hint}`);
+  }
+
+  return [...new Set(metrics)].slice(0, 4);
+}
+
 function inferSummaryFromText(text = '', fallbackTitle = '检查报告') {
   const compact = normalizeText(text);
   if (!compact) return null;
@@ -139,6 +170,7 @@ async function summarizeFile(file, label = '补充材料') {
   }
 
   const inferred = inferSummaryFromText(ocrText, base.title) || base;
+  const keyMetrics = ocrText ? extractKeyMetrics(ocrText) : [];
 
   return {
     kind: label,
@@ -147,6 +179,7 @@ async function summarizeFile(file, label = '补充材料') {
     sizeText: formatSize(file.size),
     title: inferred.title,
     highlights: inferred.highlights,
+    keyMetrics,
     nextStep: inferred.nextStep,
     ocrText: ocrText ? ocrText.slice(0, 220) : '',
     ocrMode: ocrText ? 'webhook' : 'fallback',

@@ -74,6 +74,31 @@
       <div id="recordsList" class="records-list"></div>
     </dialog>
 
+    <dialog id="recordDetailDialog" class="records-dialog detail-dialog">
+      <div class="dialog-head">
+        <div>
+          <h3>记录详情</h3>
+          <p class="dialog-subcopy">查看这次建议、检查和已保存材料。</p>
+        </div>
+        <button id="closeRecordDetailBtn" class="text-btn">关闭</button>
+      </div>
+      <div id="recordDetailBody" class="record-detail-body"></div>
+    </dialog>
+
+    <dialog id="shareDialog" class="records-dialog detail-dialog">
+      <div class="dialog-head">
+        <div>
+          <h3>给家属的简版摘要</h3>
+          <p class="dialog-subcopy">适合转发给家属或陪诊人，先看重点。</p>
+        </div>
+        <button id="closeShareDialogBtn" class="text-btn">关闭</button>
+      </div>
+      <div class="share-body">
+        <textarea id="shareSummaryText" class="share-text" rows="8" readonly></textarea>
+        <button id="copyShareBtn" class="send-btn wide">复制这段摘要</button>
+      </div>
+    </dialog>
+
     <input id="reportInput" class="hidden" type="file" accept="image/*,.pdf" />
     <input id="cameraInput" class="hidden" type="file" accept="image/*" capture="environment" />
     <input id="imageInput" class="hidden" type="file" accept="image/*" />
