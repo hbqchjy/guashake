@@ -137,34 +137,27 @@ app.post('/triage/session', (req, res) => {
       current: 1,
       total: scenario.questions.length,
     },
-    stopRule: '回答满6轮以上、用户跳过、或命中急症信号时停止追问',
+    stopRule: '回答完整组追问后进入确认和补充阶段；命中急症信号时优先提示尽快就医',
     scenario: scenario.label,
   });
 });
 
 app.post('/triage/answer', (req, res) => {
-  const { sessionId, questionId, answer, skip } = req.body;
+  const { sessionId, questionId, answer } = req.body;
   const session = getSession(sessionId);
   if (!session) {
     return res.status(404).json({ error: 'session not found' });
   }
 
   const answers = { ...(session.answers || {}) };
-  if (!skip && questionId && answer) {
+  if (questionId && answer) {
     answers[questionId] = answer;
   }
 
   let stepIndex = Number(session.stepIndex || 0) + 1;
   const reachedMax = stepIndex >= session.scenario.questions.length;
-  const userSkip = Boolean(skip);
 
-  const updated = upsertSession(sessionId, { answers, stepIndex });
-
-  if (userSkip) {
-    const triageResult = buildTriageResult(updated);
-    upsertSession(sessionId, { triageResult });
-    return res.json({ done: true, triageResult });
-  }
+  upsertSession(sessionId, { answers, stepIndex });
 
   if (reachedMax) {
     return res.json({

@@ -204,12 +204,6 @@ body {
   transition: transform 120ms ease, border-color 120ms ease, background 120ms ease, box-shadow 120ms ease;
 }
 
-.choice-btn[data-kind="unknown"],
-.choice-btn[data-kind="skip"] {
-  background: linear-gradient(180deg, #f6faf8 0%, #f3f6f5 100%);
-  color: #59636b;
-}
-
 .choice-btn:hover {
   transform: translateY(-1px);
   border-color: rgba(7, 193, 96, 0.28);
@@ -227,6 +221,26 @@ body {
   margin-top: 10px;
   color: var(--muted);
   font-size: 14px;
+}
+
+.status-shell {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: rgba(7, 193, 96, 0.08);
+  border: 1px solid rgba(7, 193, 96, 0.14);
+  color: var(--brand-dark);
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .result-card h3 {

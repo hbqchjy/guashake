@@ -34,6 +34,8 @@ const SCENARIOS = {
       { id: 'breath', text: '最近活动后会不会更喘？', options: ['不会', '有一点', '明显会'] },
       { id: 'frequency', text: '这种心慌或胸闷出现得频繁吗？', options: ['偶尔一次', '一天几次', '几乎每天都有'] },
       { id: 'dizzy', text: '有没有头晕、眼前发黑或者快晕倒？', options: ['没有', '偶尔有', '比较明显'] },
+      { id: 'palpitationTime', text: '心慌更容易在什么时候出现？', options: ['活动后', '休息时', '晚上更明显', '说不准'] },
+      { id: 'sweat', text: '发作时会不会冒冷汗、手发抖或者心里发慌？', options: ['不会', '偶尔会', '比较明显'] },
       { id: 'history', text: '以前有高血压/心脏病吗？', options: ['没有', '有高血压', '有心脏病', '两者都有'] },
     ],
   },
@@ -60,6 +62,7 @@ const SCENARIOS = {
       { id: 'trauma', text: '最近有扭伤、搬重物或外伤吗？', options: ['没有', '有'] },
       { id: 'duration', text: '这个腰酸腰痛持续多久了？', options: ['不到3天', '3-7天', '超过1周', '反复超过1个月'] },
       { id: 'movePain', text: '动一动会更痛，还是休息时也明显？', options: ['动一动更痛', '休息时也明显', '差不多'] },
+      { id: 'morning', text: '早上起床时会不会更僵、更酸？', options: ['不会', '有一点', '比较明显'] },
       { id: 'numbness', text: '有没有腿麻或走路发软？', options: ['没有', '有一点', '明显有'] },
     ],
   },
@@ -87,6 +90,8 @@ const SCENARIOS = {
       { id: 'fever', text: '有没有发热或反复呕吐？', options: ['没有', '有发热', '有呕吐', '两者都有'] },
       { id: 'appetite', text: '最近食欲怎么样？', options: ['和平时差不多', '有点差', '明显吃不下'] },
       { id: 'bloat', text: '有没有反酸、胀气或者烧心？', options: ['没有', '有一点', '比较明显'] },
+      { id: 'meal', text: '最近是油腻辛辣后更明显，还是和平时差不多？', options: ['油腻辛辣后更明显', '和平时差不多', '说不清'] },
+      { id: 'nightPain', text: '晚上或者空腹时会不会更不舒服？', options: ['不会', '有一点', '比较明显'] },
     ],
   },
   urinary: {
@@ -113,6 +118,7 @@ const SCENARIOS = {
       { id: 'duration', text: '症状持续多久了？', options: ['不到3天', '3-7天', '超过1周', '反复超过1个月'] },
       { id: 'night', text: '晚上起夜次数比平时多吗？', options: ['没有明显变化', '多一点', '明显多很多'] },
       { id: 'repeat', text: '以前有没有反复出现过这种情况？', options: ['没有', '偶尔有过', '经常反复'] },
+      { id: 'water', text: '多喝水以后，症状会不会稍微缓一点？', options: ['会', '变化不大', '反而更不舒服'] },
     ],
   },
   respiratory: {
@@ -139,6 +145,8 @@ const SCENARIOS = {
       { id: 'chronic', text: '有没有慢性肺病/哮喘史？', options: ['没有', '有'] },
       { id: 'throat', text: '有没有明显嗓子痛或鼻塞流涕？', options: ['没有', '有一点', '比较明显'] },
       { id: 'days', text: '咳嗽大概持续多久了？', options: ['不到3天', '3-7天', '超过1周', '超过1个月'] },
+      { id: 'nightCough', text: '晚上躺下后咳嗽会不会更明显？', options: ['不会', '有一点', '比较明显'] },
+      { id: 'contact', text: '最近周围有没有人也在发热、咳嗽？', options: ['没有', '有', '不确定'] },
     ],
   },
   skinTrauma: {
@@ -165,6 +173,7 @@ const SCENARIOS = {
       { id: 'duration', text: '这个问题持续多久了？', options: ['不到1天', '1-3天', '超过3天'] },
       { id: 'spread', text: '范围是在扩大，还是差不多？', options: ['差不多', '有一点扩大', '明显扩大'] },
       { id: 'itchPain', text: '更偏痒还是更偏痛？', options: ['更痒', '更痛', '又痒又痛'] },
+      { id: 'medicine', text: '最近有没有换过药、护肤品、洗涤用品？', options: ['没有', '有', '不确定'] },
     ],
   },
 };

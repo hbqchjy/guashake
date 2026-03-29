@@ -23,6 +23,7 @@ const state = {
   autoLocateTried: false,
   followUpProgress: null,
   generationReady: false,
+  supplementCount: 0,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -93,6 +94,10 @@ async function addBotText(text) {
   const p = row.querySelector('p');
   await typeTextInto(p, text);
   return row;
+}
+
+function addStatusPill(text) {
+  return addRow('bot', `<div class="status-pill">${escapeHtml(text)}</div>`, 'status-shell');
 }
 
 function addUserText(text) {
@@ -167,24 +172,16 @@ function renderQuickSymptoms() {
   });
 }
 
-function askQuestion(question, note = '如果你不想继续回答，也可以直接生成建议。') {
+function askQuestion(question, note = '请按实际情况选择最接近的一项。') {
   state.currentQuestion = question;
   const progress = state.followUpProgress
     ? `第 ${state.followUpProgress.current} / ${state.followUpProgress.total} 步`
     : '一步一步来';
   addChoiceBlock(
     question.text,
-    [
-      ...question.options.map((label) => ({ label, type: 'answer' })),
-      { label: '我不清楚', type: 'unknown' },
-      { label: '直接给建议', type: 'skip' },
-    ],
+    question.options.map((label) => ({ label, type: 'answer' })),
     async (option) => {
-      if (option.type === 'skip') {
-        await directResult();
-        return;
-      }
-      await answerQuestion(option.type === 'unknown' ? '我不清楚' : option.label);
+      await answerQuestion(option.label);
     },
     note,
     progress
@@ -223,6 +220,7 @@ function resetConversation() {
   state.speechBuffer = '';
   state.followUpProgress = null;
   state.generationReady = false;
+  state.supplementCount = 0;
   state.profile = {
     province: '',
     city: '',
@@ -267,16 +265,18 @@ async function submitText(text) {
 
   if (state.awaitingContext === 'supplement') {
     addUserText(value);
-    await api('/triage/supplement', {
+    const data = await api('/triage/supplement', {
       method: 'POST',
       body: JSON.stringify({
         sessionId: state.sessionId,
         supplement: value,
       }),
     });
+    state.supplementCount = data.supplements.length;
     state.awaitingContext = null;
+    addStatusPill(`已补充 ${state.supplementCount} 条信息`);
     await addBotText('补充信息我记下了。现在可以生成总结了。');
-    showGenerationConfirmCard('如果你还有别的信息，也可以继续补充一条。');
+    showGenerationConfirmCard('如果你还有别的信息，也可以继续补充一条。补充越完整，结果越准确。');
     return;
   }
 
@@ -321,15 +321,12 @@ async function answerQuestion(answer) {
   }
 
   state.followUpProgress = data.progress || null;
-  askQuestion(data.nextQuestion, '如果你已经不想继续答了，也可以直接生成建议。');
+  askQuestion(data.nextQuestion);
 }
 
 async function directResult() {
-  const data = await api('/triage/answer', {
-    method: 'POST',
-    body: JSON.stringify({ sessionId: state.sessionId, skip: true }),
-  });
-  state.triageResult = data.triageResult;
+  const data = await api(`/triage/result/${encodeURIComponent(state.sessionId)}`);
+  state.triageResult = data;
   state.followUpProgress = null;
   state.generationReady = false;
   await ensureContextAndRenderResult();
@@ -653,6 +650,8 @@ function handlePickedFile(file, label) {
   if (!file) return;
   addUserText(`${label}：${file.name}`);
   if (state.awaitingContext === 'supplement') {
+    state.supplementCount += 1;
+    addStatusPill(`已补充 ${state.supplementCount} 条信息`);
     addBotText('图片或文件我先记下了。当前演示版会先把它作为补充材料记录下来。');
     showGenerationConfirmCard('如果你还想补充文字，可以再发一条；也可以现在直接生成。');
     return;
