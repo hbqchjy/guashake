@@ -23,6 +23,12 @@ const state = {
 
 const $ = (id) => document.getElementById(id);
 
+const ICONS = {
+  mic: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4a3 3 0 0 1 3 3v5a3 3 0 1 1-6 0V7a3 3 0 0 1 3-3Z"></path><path d="M19 11a7 7 0 0 1-14 0"></path><path d="M12 18v3"></path><path d="M8 21h8"></path></svg>',
+  keyboard: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2"></rect><path d="M7 10h.01M11 10h.01M15 10h.01M17 10h.01M7 14h.01M10 14h.01M13 14h4"></path></svg>',
+  plus: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>',
+};
+
 function escapeHtml(value) {
   return String(value)
     .replaceAll('&', '&amp;')
@@ -115,14 +121,8 @@ function addIntroCard() {
     [
       '<div class="eyebrow">看病前先把方向问清楚</div>',
       '<div class="intro-card-inner">',
-      '<h1>先说哪里不舒服，其他信息我会在需要的时候再问。</h1>',
-      '<p>我先帮你判断挂什么科、先做哪些基础检查。到了需要推荐医院和估费用的时候，我再问地区和医保。</p>',
-      '<div class="intro-tags">',
-      '<span>不先填表</span>',
-      '<span>一步一步问</span>',
-      '<span>先结论再解释</span>',
-      '<span>只收必要信息</span>',
-      '</div>',
+      '<p class="intro-title">先告诉我哪里不舒服。</p>',
+      '<p>比如心慌、胸闷、肚子痛。我先听症状，再一步步追问；到了需要推荐医院和费用时，我再补问地区和医保。</p>',
       '</div>',
     ].join(''),
     'intro-card'
@@ -182,7 +182,7 @@ function setComposerState(mode) {
     return;
   }
 
-  $('composerInput').placeholder = '直接说哪里不舒服，例如：最近心慌、胸闷、头晕';
+  $('composerInput').placeholder = '说症状，例如：心慌、头晕';
   $('composerHint').textContent = '我会先问最必要的问题，不会一上来堆很多选项。';
 }
 
@@ -193,7 +193,8 @@ function setComposerMode(mode) {
   $('composerInput').classList.toggle('hidden', isVoice);
   $('voiceCaptureBtn').classList.toggle('hidden', !isVoice);
   $('sendBtn').classList.toggle('hidden', isVoice);
-  $('modeToggleBtn').textContent = isVoice ? '⌨' : '🎤';
+  $('modeToggleBtn').innerHTML = isVoice ? ICONS.keyboard : ICONS.mic;
+  $('plusBtn').innerHTML = ICONS.plus;
 
   if (isVoice) {
     $('composerHint').textContent = state.speechListening ? '正在听你说话，再点一次结束。' : '点中间按钮开始语音输入。';
@@ -223,7 +224,6 @@ function resetConversation() {
   $('plusMenu').classList.add('hidden');
   setComposerMode('text');
   addIntroCard();
-  addBotText('直接告诉我哪里不舒服。我先听你说，再一步步追问。');
   renderQuickSymptoms();
   setComposerState('symptom');
 }
