@@ -143,3 +143,24 @@ npm start
 - 数据准确性：前台显示更新时间与覆盖等级
 - 审核策略：敏感词、疾病断言、夸大疗效必须拦截
 - 隐私安全：上线前补齐鉴权、加密存储、访问审计
+
+## 13. Git 提交流程（本仓库固定方式）
+本仓库已配置为 **SSH 推送 GitHub**，远程地址：
+- `origin = git@github.com:hbqchjy/guashake.git`
+
+后续每次开发完成，统一用：
+```bash
+git add .
+git commit -m "feat: 本次改动说明"
+git push
+```
+
+首次校验（仅排障时需要）：
+```bash
+git remote -v
+ssh -T git@github.com
+```
+
+说明：
+- 已在当前 VPS 生成并配置 SSH key，可直接 push。
+- 不再使用 HTTPS + PAT 方式。
