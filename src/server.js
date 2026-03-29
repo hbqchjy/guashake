@@ -10,7 +10,7 @@ const {
   buildBookingSuggestion,
 } = require('./rules');
 const { searchRegions } = require('./regions');
-const { upsertSession, getSession, saveArchive, getArchives, deleteArchive } = require('./store');
+const { upsertSession, getSession, saveArchive, getArchive, getArchives, deleteArchive } = require('./store');
 const { buildArchivePdf } = require('./pdf');
 const { summarizeFile } = require('./file-summary');
 
@@ -28,6 +28,36 @@ const storage = multer.diskStorage({
   filename: (_req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`),
 });
 const upload = multer({ storage });
+
+function buildArchiveContextText(record, session) {
+  const parts = [];
+  const firstChecks = (record.firstChecks || []).map((item) => item.name).filter(Boolean);
+  const fileSummaries = (record.files || [])
+    .map((file) => file.summary?.title || file.originalName)
+    .filter(Boolean);
+
+  if (record.summary) parts.push(`之前一次问诊总结：${record.summary}`);
+  if (session?.chiefComplaint) parts.push(`当时主诉：${session.chiefComplaint}`);
+  if (record.department) parts.push(`上次建议科室：${record.department}`);
+  if (record.costRange) parts.push(`上次首轮费用：${record.costRange}`);
+  if (firstChecks.length) parts.push(`上次建议先做的检查：${firstChecks.join('、')}`);
+  if (session?.answers && Object.keys(session.answers).length) {
+    const qaText = Object.entries(session.answers)
+      .map(([questionId, answer]) => {
+        const question = session.scenario?.questions?.find((item) => item.id === questionId);
+        return question ? `${question.text}：${answer}` : '';
+      })
+      .filter(Boolean)
+      .join('；');
+    if (qaText) parts.push(`上次追问回答：${qaText}`);
+  }
+  if (Array.isArray(session?.supplements) && session.supplements.length) {
+    parts.push(`上次补充信息：${session.supplements.join('；')}`);
+  }
+  if (fileSummaries.length) parts.push(`上次还上传过这些材料：${fileSummaries.join('、')}`);
+
+  return parts.join('\n');
+}
 
 app.get('/api/health', (_req, res) => {
   res.json({
@@ -338,6 +368,23 @@ app.get('/archive/list', (req, res) => {
   const userId = req.query.userId || 'guest';
   const records = getArchives(userId);
   return res.json({ userId, total: records.length, records });
+});
+
+app.get('/archive/:userId/:recordId/context', (req, res) => {
+  const { userId, recordId } = req.params;
+  const record = getArchive(userId, recordId);
+  if (!record) {
+    return res.status(404).json({ error: 'record not found' });
+  }
+
+  const session = record.sessionId ? getSession(record.sessionId) : null;
+  const contextText = buildArchiveContextText(record, session);
+  return res.json({
+    ok: true,
+    recordId,
+    contextText,
+    record,
+  });
 });
 
 app.delete('/archive/:userId/:recordId', (req, res) => {

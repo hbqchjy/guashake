@@ -32,9 +32,18 @@ const state = {
   resultViewMode: 'simple',
   sharedView: false,
   resultAnchor: 'summary',
+  auth: {
+    loggedIn: false,
+    provider: '',
+    userId: '',
+    nickname: '',
+  },
+  recordsMode: 'browse',
 };
 
 let botTextQueue = Promise.resolve();
+let pendingAfterLogin = null;
+const AUTH_STORAGE_KEY = 'guashake-auth-v1';
 
 const $ = (id) => document.getElementById(id);
 
@@ -75,6 +84,79 @@ function escapeHtml(value) {
 
 function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function createDemoWechatAuth() {
+  const randomPart =
+    typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID().slice(0, 8)
+      : Math.random().toString(36).slice(2, 10);
+  return {
+    loggedIn: true,
+    provider: 'wechat',
+    userId: `wx_demo_${randomPart}`,
+    nickname: '微信用户',
+  };
+}
+
+function loadAuthState() {
+  try {
+    const raw = localStorage.getItem(AUTH_STORAGE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (parsed && parsed.loggedIn && parsed.userId) {
+      state.auth = {
+        loggedIn: true,
+        provider: parsed.provider || 'wechat',
+        userId: parsed.userId,
+        nickname: parsed.nickname || '微信用户',
+      };
+    }
+  } catch (_error) {
+  }
+}
+
+function saveAuthState() {
+  localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(state.auth));
+}
+
+function getAuthDisplayName() {
+  if (!state.auth.loggedIn) return '未登录';
+  return `${state.auth.nickname || '微信用户'} · ${state.auth.userId}`;
+}
+
+function syncAuthUi() {
+  if ($('recordsLoginState')) {
+    $('recordsLoginState').textContent = getAuthDisplayName();
+  }
+  if ($('recordsLoginBtn')) {
+    $('recordsLoginBtn').textContent = state.auth.loggedIn ? '已登录' : '微信登录';
+    $('recordsLoginBtn').disabled = state.auth.loggedIn;
+  }
+}
+
+async function performWechatLogin() {
+  await wait(180);
+  state.auth = createDemoWechatAuth();
+  saveAuthState();
+  syncAuthUi();
+  $('loginDialog').close();
+  await addBotText('微信登录已完成。后面保存记录和调用历史记录都会用这个账号。');
+  if (typeof pendingAfterLogin === 'function') {
+    const next = pendingAfterLogin;
+    pendingAfterLogin = null;
+    await next();
+  }
+}
+
+async function requireLogin(nextAction) {
+  if (state.auth.loggedIn) {
+    return true;
+  }
+  pendingAfterLogin = nextAction || null;
+  syncAuthUi();
+  $('loginDialog').showModal();
+  return false;
 }
 
 async function api(url, options = {}) {
@@ -379,6 +461,25 @@ function resetConversation() {
   addIntroCard();
   renderQuickSymptoms();
   setComposerState('symptom');
+}
+
+function updateRecordsDialogCopy() {
+  syncAuthUi();
+  const browseMode = state.recordsMode !== 'context';
+  $('recordsSubcopy').textContent = browseMode
+    ? '这里会保存你之前的总结、材料和导出记录。'
+    : '选择一条之前保存的记录，发到当前对话里，作为这次咨询的补充上下文。';
+  $('listRecordsBtn').textContent = browseMode ? '刷新列表' : '刷新记录';
+}
+
+async function openRecordsDialog(mode = 'browse') {
+  if (!(await requireLogin(() => openRecordsDialog(mode)))) {
+    return;
+  }
+  state.recordsMode = mode;
+  updateRecordsDialogCopy();
+  $('recordsDialog').showModal();
+  await listRecords();
 }
 
 async function startSymptomSession(symptomText) {
@@ -1005,7 +1106,7 @@ async function renderResultCards() {
   };
   if (actionRow.querySelector('[data-action="records"]')) {
     actionRow.querySelector('[data-action="records"]').onclick = () => {
-      $('recordsDialog').showModal();
+      openRecordsDialog('browse').catch((err) => alert(err.message));
     };
   }
   if (actionRow.querySelector('[data-action="restart"]')) {
@@ -1030,9 +1131,12 @@ async function saveRecord() {
     return;
   }
 
-  const userId = $('userId').value.trim() || prompt('输入用户ID（为空用 guest）', 'guest') || 'guest';
+  if (!(await requireLogin(() => saveRecord()))) {
+    return;
+  }
+
   const formData = new FormData();
-  formData.append('userId', userId);
+  formData.append('userId', state.auth.userId);
   formData.append('sessionId', state.sessionId);
 
   await api('/archive/upload', {
@@ -1068,11 +1172,6 @@ async function handlePickedFile(file, label) {
     return;
   }
   await addBotText('这份材料我先记下了。等你完成这次咨询后，可以一起保存进健康档案。');
-}
-
-async function handleLocationShare() {
-  addUserText('使用当前位置');
-  await promptRegionConfirmation(true);
 }
 
 function syncVoiceButton() {
@@ -1155,9 +1254,46 @@ function stopVoiceCapture(event) {
   }
 }
 
+function buildRecordContextPreview(record) {
+  const checks = (record.firstChecks || []).slice(0, 3).map((item) => item.name).filter(Boolean);
+  return [
+    record.summary || '',
+    record.department ? `上次建议科室：${record.department}` : '',
+    record.costRange ? `上次首轮费用：${record.costRange}` : '',
+    checks.length ? `上次首轮检查：${checks.join('、')}` : '',
+  ]
+    .filter(Boolean)
+    .join('；');
+}
+
+async function sendRecordAsContext(record) {
+  if (!state.sessionId) {
+    alert('先开始一次咨询，再引用历史记录。');
+    return;
+  }
+
+  const data = await api(`/archive/${encodeURIComponent(state.auth.userId)}/${record.id}/context`);
+  const contextText = data.contextText || buildRecordContextPreview(record);
+  addUserText(`引用记录：${record.summary || '历史记录'}`);
+  await api('/triage/supplement', {
+    method: 'POST',
+    body: JSON.stringify({
+      sessionId: state.sessionId,
+      supplement: contextText,
+    }),
+  });
+  state.supplementStats.text += 1;
+  state.supplementCount += 1;
+  addStatusPill(getSupplementStatusText());
+  $('recordsDialog').close();
+  await addBotText(`我已经把这条历史记录加到这次咨询的上下文里了：${buildRecordContextPreview(record) || '已补充历史记录'}`);
+  if (state.generationReady) {
+    await showGenerationConfirmCard('历史记录已经补进来了。你还可以继续补充，或者现在直接生成总结。');
+  }
+}
+
 async function listRecords() {
-  const userId = $('userId').value.trim() || 'guest';
-  const data = await api(`/archive/list?userId=${encodeURIComponent(userId)}`);
+  const data = await api(`/archive/list?userId=${encodeURIComponent(state.auth.userId)}`);
   const list = $('recordsList');
   list.innerHTML = '';
 
@@ -1191,15 +1327,21 @@ async function listRecords() {
         : '',
       '<div class="record-actions">',
       `<button class="record-action" data-detail="${record.id}">查看详情</button>`,
-      `<a class="record-action" target="_blank" href="/archive/export?userId=${encodeURIComponent(userId)}&recordId=${record.id}">导出 PDF</a>`,
+      state.recordsMode === 'context' ? `<button class="record-action" data-send-context="${record.id}">发送到当前对话</button>` : '',
+      `<a class="record-action" target="_blank" href="/archive/export?userId=${encodeURIComponent(state.auth.userId)}&recordId=${record.id}">导出 PDF</a>`,
       `<button class="record-action" data-delete="${record.id}">删除</button>`,
       '</div>',
     ].join('');
     item.querySelector('[data-detail]').onclick = () => {
       openRecordDetail(record);
     };
+    if (item.querySelector('[data-send-context]')) {
+      item.querySelector('[data-send-context]').onclick = () => {
+        sendRecordAsContext(record).catch((err) => alert(err.message));
+      };
+    }
     item.querySelector('[data-delete]').onclick = async () => {
-      await api(`/archive/${encodeURIComponent(userId)}/${record.id}`, {
+      await api(`/archive/${encodeURIComponent(state.auth.userId)}/${record.id}`, {
         method: 'DELETE',
       });
       await listRecords();
@@ -1275,8 +1417,8 @@ function bindEvents() {
       if (action === 'report') $('reportInput').click();
       if (action === 'camera') $('cameraInput').click();
       if (action === 'image') $('imageInput').click();
-      if (action === 'location') {
-        handleLocationShare().catch((err) => alert(err.message));
+      if (action === 'records') {
+        openRecordsDialog('context').catch((err) => alert(err.message));
       }
     };
   });
@@ -1300,6 +1442,19 @@ function bindEvents() {
 
   $('closeRecordsBtn').onclick = () => $('recordsDialog').close();
   $('closeRecordDetailBtn').onclick = () => $('recordDetailDialog').close();
+  $('closeLoginBtn').onclick = () => {
+    pendingAfterLogin = null;
+    $('loginDialog').close();
+  };
+  $('recordsLoginBtn').onclick = () => {
+    requireLogin(async () => {
+      syncAuthUi();
+      await listRecords();
+    }).catch((err) => alert(err.message));
+  };
+  $('wechatLoginBtn').onclick = () => {
+    performWechatLogin().catch((err) => alert(err.message));
+  };
   $('listRecordsBtn').onclick = () => {
     listRecords().catch((err) => alert(err.message));
   };
@@ -1318,7 +1473,9 @@ async function loadSharedSession(sessionId) {
 }
 
 async function bootstrap() {
+  loadAuthState();
   renderQuickSymptoms();
+  syncAuthUi();
   bindEvents();
   const params = new URLSearchParams(window.location.search);
   const sharedSessionId = params.get('session');

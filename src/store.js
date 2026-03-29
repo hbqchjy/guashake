@@ -47,6 +47,12 @@ function getArchives(userId) {
   return db.archives[userId] || [];
 }
 
+function getArchive(userId, recordId) {
+  const db = readDb();
+  const records = db.archives[userId] || [];
+  return records.find((record) => record.id === recordId) || null;
+}
+
 function deleteArchive(userId, recordId) {
   const db = readDb();
   const before = db.archives[userId] || [];
@@ -59,6 +65,7 @@ module.exports = {
   upsertSession,
   getSession,
   saveArchive,
+  getArchive,
   getArchives,
   deleteArchive,
 };

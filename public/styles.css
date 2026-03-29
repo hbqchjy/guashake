@@ -853,7 +853,7 @@ body {
   background: linear-gradient(180deg, #34d399 0%, #10b981 100%);
 }
 
-.plus-item-icon.location {
+.plus-item-icon.records {
   background: linear-gradient(180deg, #78a6ff 0%, #5b87f5 100%);
 }
 
@@ -1056,6 +1056,10 @@ body {
   box-shadow: var(--shadow);
 }
 
+.login-dialog {
+  width: min(460px, 94vw);
+}
+
 .detail-dialog {
   width: min(760px, 96vw);
 }
@@ -1084,9 +1088,73 @@ body {
   line-height: 1.6;
 }
 
-.dialog-label {
-  display: block;
+.login-state-card,
+.login-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(20, 36, 31, 0.04);
+  border: 1px solid rgba(20, 36, 31, 0.08);
+}
+
+.login-card {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.login-state-label {
+  margin: 0 0 4px;
+  font-size: 12px;
   color: var(--muted);
+}
+
+.login-state-value,
+.login-card-title,
+.login-card-copy {
+  margin: 0;
+}
+
+.login-state-value,
+.login-card-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.login-card-copy {
+  margin-top: 4px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+.login-wechat-mark {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.login-wechat-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 18px;
+  background: rgba(7, 193, 96, 0.12);
+  color: var(--brand-dark);
+}
+
+.login-wechat-icon svg {
+  width: 28px;
+  height: 28px;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .wide {
