@@ -3,146 +3,41 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>挂啥科 - Agent 咨询</title>
+  <title>挂啥科</title>
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
-  <main class="app">
-    <header class="topbar glass">
-      <div class="brand">
-        <span class="dot"></span>
-        <div>
-          <h1>挂啥科</h1>
-          <p>看病前先问清楚</p>
+  <main class="app-shell">
+    <section class="chat-shell glass">
+      <div id="chatViewport" class="chat-viewport">
+        <div id="chatFeed" class="chat-feed"></div>
+      </div>
+
+      <div class="composer-wrap">
+        <div id="quickRow" class="quick-row"></div>
+        <div class="composer">
+          <textarea
+            id="composerInput"
+            rows="1"
+            placeholder="直接说哪里不舒服，例如：最近心慌、胸闷、头晕"
+          ></textarea>
+          <button id="sendBtn" class="send-btn">发送</button>
         </div>
-      </div>
-      <div class="top-actions">
-        <button id="openProfileBtn" class="ghost">基础信息</button>
-        <button id="openRecordsBtn" class="ghost">历史记录</button>
-      </div>
-    </header>
-
-    <section class="hero-panel glass">
-      <div class="hero-copy">
-        <p class="eyebrow">就医前先把方向问清楚</p>
-        <h2>不知道挂什么科、先查什么、花多少钱，就从这里开始。</h2>
-        <p class="hero-text">先说哪里不舒服，我会一步步追问。默认只问必要问题，不会一上来给你堆一大页表单。</p>
-      </div>
-      <div class="hero-tags">
-        <span>挂科建议</span>
-        <span>基础检查</span>
-        <span>费用参考</span>
-        <span>医保提示</span>
+        <p id="composerHint" class="composer-hint">我会先问最必要的问题，不会一上来堆很多选项。</p>
       </div>
     </section>
 
-    <section id="profilePanel" class="panel glass">
-      <div class="panel-head">
-        <h2>基础信息（可选）</h2>
-        <button id="closeProfileBtn" class="link">收起</button>
-      </div>
-
-      <div class="fields two">
-        <label>年龄
-          <input id="age" type="number" placeholder="如 58" />
-        </label>
-        <label>性别</label>
-      </div>
-      <div id="genderGroup" class="seg">
-        <button data-value="男" class="seg-btn">男</button>
-        <button data-value="女" class="seg-btn">女</button>
-      </div>
-
-      <label class="mt">地区（输入县/区/市名即可）</label>
-      <div class="region-wrap">
-        <input id="regionInput" type="text" placeholder="如 隆回县 / 朝阳区 / 杭州" autocomplete="off" />
-        <div id="regionSuggest" class="suggest hidden"></div>
-      </div>
-      <p id="regionResolved" class="tip"></p>
-
-      <label class="mt">医保类型</label>
-      <div id="insuranceGroup" class="seg wrap">
-        <button data-value="无医保" class="seg-btn">无医保</button>
-        <button data-value="体制内医保" class="seg-btn">体制内医保</button>
-        <button data-value="城镇职工医保" class="seg-btn">城镇职工医保</button>
-        <button data-value="城乡居民医保" class="seg-btn">城乡居民医保</button>
-      </div>
-    </section>
-
-    <section id="chat" class="chat"></section>
-
-    <section id="optionDock" class="option-dock hidden">
-      <div id="options" class="options"></div>
-      <button id="directResultBtn" class="ghost wide">不想继续问了，直接给建议</button>
-    </section>
-
-    <section class="composer glass">
-      <div class="quick-row" id="quickSymptoms"></div>
-      <div class="input-row">
-        <textarea id="chiefComplaint" rows="2" placeholder="直接说：哪里不舒服？例如 心慌、胸闷、头晕"></textarea>
-        <button id="sendBtn" class="send">发送</button>
-      </div>
-      <p class="risk-inline">紧急情况（胸痛加重、呼吸困难、意识模糊等）请直接去急诊。</p>
-    </section>
-
-    <section id="resultSheet" class="result-sheet hidden">
-      <div class="sheet-head">
-        <h2>初步建议</h2>
-        <button id="closeResultBtn" class="link">关闭</button>
-      </div>
-
-      <article class="card strong">
-        <h3>先去哪个科</h3>
-        <p id="coreText"></p>
-        <ul id="coreList"></ul>
-      </article>
-
-      <article class="card">
-        <h3>第一步检查</h3>
-        <ul id="checkList"></ul>
-      </article>
-
-      <article class="card">
-        <h3>费用与医保</h3>
-        <ul id="costSimple"></ul>
-      </article>
-
-      <article class="card">
-        <h3>去医院前带什么</h3>
-        <ul id="prepList"></ul>
-      </article>
-
-      <article class="card risk">
-        <h3>风险提醒</h3>
-        <ul id="riskList"></ul>
-      </article>
-
-      <details class="card">
-        <summary>展开详细解释</summary>
-        <p id="detailText"></p>
-        <ul id="detailList"></ul>
-      </details>
-
-      <div class="sheet-actions">
-        <button id="bookingBtn" class="send">去挂号</button>
-        <button id="saveBtn" class="ghost">保存记录</button>
-        <button id="viewRecordsBtn" class="ghost">查看记录</button>
-        <button id="restartBtn" class="ghost">重新咨询</button>
-      </div>
-    </section>
-
-    <dialog id="recordsDialog">
-      <div class="panel-head">
+    <dialog id="recordsDialog" class="records-dialog">
+      <div class="dialog-head">
         <h3>历史记录</h3>
-        <button id="closeRecordsBtn" class="link">关闭</button>
+        <button id="closeRecordsBtn" class="text-btn">关闭</button>
       </div>
-      <label>用户ID（为空用 guest）
+      <label class="dialog-label">
+        用户ID（为空用 guest）
         <input id="userId" type="text" placeholder="wx_user_001" />
       </label>
-      <div class="sheet-actions">
-        <button id="listRecordsBtn" class="send">刷新列表</button>
-      </div>
-      <div id="recordsList"></div>
+      <button id="listRecordsBtn" class="send-btn wide">刷新列表</button>
+      <div id="recordsList" class="records-list"></div>
     </dialog>
   </main>
 
