@@ -1,5 +1,5 @@
 const QUICK_SYMPTOMS = ['心慌', '胸闷', '头晕', '腰酸', '肚子痛', '咳嗽', '尿频尿急', '皮肤/外伤'];
-const INSURANCE_OPTIONS = ['无医保', '体制内医保', '城镇职工医保', '城乡居民医保'];
+const INSURANCE_OPTIONS = ['城镇职工医保', '城乡居民医保', '其他商业医保', '无医保'];
 
 const state = {
   sessionId: null,
@@ -19,6 +19,8 @@ const state = {
   composerMode: 'text',
   speechRecognition: null,
   speechListening: false,
+  speechBuffer: '',
+  autoLocateTried: false,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -119,10 +121,10 @@ function addIntroCard() {
   const row = addRow(
     'bot',
     [
-      '<div class="eyebrow">看病前先把方向问清楚</div>',
+      '<div class="eyebrow">不舒服，问<strong>小科</strong>，快速了解看病流程与费用</div>',
       '<div class="intro-card-inner">',
-      '<p class="intro-title">先告诉我哪里不舒服。</p>',
-      '<p>比如心慌、胸闷、肚子痛。我先听症状，再一步步追问；到了需要推荐医院和费用时，我再补问地区和医保。</p>',
+      '<p class="intro-title"><strong>先告诉我哪里不舒服。</strong></p>',
+      '<p>我是小科。你先说症状，我一步一步问；到了需要推荐医院和费用时，我再补问地区和医保。</p>',
       '</div>',
     ].join(''),
     'intro-card'
@@ -171,8 +173,8 @@ function setComposerState(mode) {
   state.inputMode = mode;
 
   if (mode === 'region') {
-    $('composerInput').placeholder = '输入县 / 区 / 市名，例如：隆回县、朝阳区、杭州';
-    $('composerHint').textContent = '只输入一个地区名就行，我会自动匹配省市区。';
+    $('composerInput').placeholder = '更改地区，例如：隆回县、朝阳区、杭州';
+    $('composerHint').textContent = '只输入一个地区名就行，小科会自动匹配省市区。';
     return;
   }
 
@@ -195,9 +197,10 @@ function setComposerMode(mode) {
   $('sendBtn').classList.toggle('hidden', isVoice);
   $('modeToggleBtn').innerHTML = isVoice ? ICONS.keyboard : ICONS.mic;
   $('plusBtn').innerHTML = ICONS.plus;
+  syncVoiceButton();
 
   if (isVoice) {
-    $('composerHint').textContent = state.speechListening ? '正在听你说话，再点一次结束。' : '点中间按钮开始语音输入。';
+    $('composerHint').textContent = state.speechListening ? '松开后自动发送。' : '按住说话，松开后自动发送。';
     return;
   }
 
@@ -212,6 +215,9 @@ function resetConversation() {
   state.cost = null;
   state.awaitingContext = null;
   state.activeChoiceBlock = null;
+  state.autoLocateTried = false;
+  state.speechListening = false;
+  state.speechBuffer = '';
   state.profile = {
     province: '',
     city: '',
@@ -276,9 +282,7 @@ async function ensureContextAndRenderResult() {
 
   if (!state.profile.district) {
     state.awaitingContext = 'region';
-    addBotText('为了给你推荐就近医院和费用范围，我还差一个地区。你直接输入县、区或市名就行。');
-    setComposerState('region');
-    $('composerInput').focus();
+    await promptRegionConfirmation();
     return;
   }
 
@@ -292,7 +296,7 @@ async function ensureContextAndRenderResult() {
 }
 
 function askInsuranceType() {
-  addBotText('再告诉我你的医保类型，我就把费用和报销参考补全。');
+  addBotText('再告诉我你的医保类型，小科就把费用和报销参考补全。');
   addChoiceBlock(
     '选择一个最接近的医保类型',
     INSURANCE_OPTIONS.map((label) => ({ label })),
@@ -331,12 +335,83 @@ async function handleRegionInput(text) {
   );
 }
 
+function formatRegion(region) {
+  const city = region.city === '市辖区' || region.city === region.province ? '' : region.city;
+  return `${region.province}${city}${region.district}`;
+}
+
+async function detectCurrentRegion() {
+  if (!navigator.geolocation) {
+    return null;
+  }
+
+  const position = await new Promise((resolve) => {
+    navigator.geolocation.getCurrentPosition(
+      (result) => resolve(result),
+      () => resolve(null),
+      { enableHighAccuracy: false, timeout: 8000, maximumAge: 300000 }
+    );
+  });
+
+  if (!position) {
+    return null;
+  }
+
+  const { latitude, longitude } = position.coords;
+  const data = await api(`/api/region/reverse?lat=${encodeURIComponent(latitude)}&lon=${encodeURIComponent(longitude)}`);
+  return data.region || null;
+}
+
+async function promptRegionConfirmation(forceRetry = false) {
+  if (!forceRetry && state.autoLocateTried) {
+    addBotText('为了给你推荐就近医院和费用范围，你可以确认一下地区，或者手动改。');
+    setComposerState('region');
+    $('composerInput').focus();
+    return;
+  }
+
+  state.autoLocateTried = true;
+  addBotText('我先按你现在的位置补一个地区，你确认一下。');
+
+  try {
+    const region = await detectCurrentRegion();
+    if (!region) {
+      addBotText('我这次没拿到准确地区。你可以直接改成县、区或市名。');
+      setComposerState('region');
+      $('composerInput').focus();
+      return;
+    }
+
+    addChoiceBlock(
+      '这是你现在的地区吗',
+      [
+        { label: `确认 ${formatRegion(region)}`, type: 'confirm', region },
+        { label: '更改地址', type: 'change' },
+      ],
+      async (option) => {
+        if (option.type === 'confirm') {
+          await selectRegion(option.region);
+          return;
+        }
+        addBotText('你直接输入县、区或市名就行，我会自动补全。');
+        setComposerState('region');
+        $('composerInput').focus();
+      },
+      '如果定位不准，你再改。'
+    );
+  } catch (_error) {
+    addBotText('定位没有成功。你可以直接输入县、区或市名。');
+    setComposerState('region');
+    $('composerInput').focus();
+  }
+}
+
 async function selectRegion(region) {
   state.profile.province = region.province;
   state.profile.city = region.city;
   state.profile.district = region.district;
   state.awaitingContext = null;
-  addBotText(`地区已确认：${region.province}${region.city}${region.district}`);
+  addBotText(`地区已确认：${formatRegion(region)}`);
   setComposerState('symptom');
   await ensureContextAndRenderResult();
 }
@@ -461,24 +536,14 @@ function handlePickedFile(file, label) {
   addBotText('我先记下这个文件。后面你保存记录时，可以继续把它们整理进健康档案。');
 }
 
-function handleLocationShare() {
-  if (!navigator.geolocation) {
-    addBotText('当前浏览器不支持定位。你可以直接输入县、区或市名。');
-    return;
-  }
+async function handleLocationShare() {
+  addUserText('使用当前位置');
+  await promptRegionConfirmation(true);
+}
 
-  addBotText('正在获取你的位置。');
-  navigator.geolocation.getCurrentPosition(
-    (position) => {
-      const { latitude, longitude } = position.coords;
-      addUserText(`我的位置：${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
-      addBotText('位置坐标我收到了。如果要做医院推荐，最好再补一个县区名称，这样更准。');
-    },
-    () => {
-      addBotText('定位没有成功。你可以直接输入县、区或市名。');
-    },
-    { enableHighAccuracy: false, timeout: 6000 }
-  );
+function syncVoiceButton() {
+  $('voiceCaptureBtn').textContent = state.speechListening ? '松开发送' : '按住说话';
+  $('voiceCaptureBtn').classList.toggle('active', state.speechListening);
 }
 
 function ensureSpeechRecognition() {
@@ -493,19 +558,72 @@ function ensureSpeechRecognition() {
   recognition.onresult = (event) => {
     const transcript = event.results?.[0]?.[0]?.transcript?.trim();
     if (!transcript) return;
+    state.speechBuffer = transcript;
     $('composerInput').value = transcript;
-    setComposerMode('text');
-    $('sendBtn').click();
   };
   recognition.onend = () => {
     state.speechListening = false;
+    syncVoiceButton();
+    const transcript = state.speechBuffer.trim();
+    state.speechBuffer = '';
     if (state.composerMode === 'voice') {
-      $('composerHint').textContent = '点中间按钮开始语音输入。';
-      $('voiceCaptureBtn').textContent = '按一下开始语音';
+      $('composerHint').textContent = '按住说话，松开后自动发送。';
+    }
+    if (transcript) {
+      $('composerInput').value = transcript;
+      setComposerMode('text');
+      $('sendBtn').click();
+    }
+  };
+  recognition.onerror = () => {
+    state.speechListening = false;
+    syncVoiceButton();
+    if (state.composerMode === 'voice') {
+      $('composerHint').textContent = '语音没有成功，你可以再试一次，或者直接打字。';
     }
   };
   state.speechRecognition = recognition;
   return recognition;
+}
+
+function startVoiceCapture(event) {
+  event.preventDefault();
+  const recognition = ensureSpeechRecognition();
+  if (!recognition) {
+    addBotText('当前浏览器不支持语音识别。你可以继续直接打字。');
+    setComposerMode('text');
+    return;
+  }
+
+  if (state.speechListening) {
+    return;
+  }
+
+  state.speechBuffer = '';
+  state.speechListening = true;
+  syncVoiceButton();
+  $('composerHint').textContent = '松开发送。';
+  try {
+    recognition.start();
+  } catch (_error) {
+    state.speechListening = false;
+    syncVoiceButton();
+  }
+}
+
+function stopVoiceCapture(event) {
+  if (event) event.preventDefault();
+  if (!state.speechListening) {
+    return;
+  }
+
+  const recognition = ensureSpeechRecognition();
+  if (recognition) {
+    recognition.stop();
+  } else {
+    state.speechListening = false;
+    syncVoiceButton();
+  }
 }
 
 async function listRecords() {
@@ -576,27 +694,11 @@ function bindEvents() {
     setComposerMode(state.composerMode === 'text' ? 'voice' : 'text');
   };
 
-  $('voiceCaptureBtn').onclick = () => {
-    const recognition = ensureSpeechRecognition();
-    if (!recognition) {
-      addBotText('当前浏览器不支持语音识别。你可以继续直接打字。');
-      setComposerMode('text');
-      return;
-    }
-
-    if (state.speechListening) {
-      recognition.stop();
-      state.speechListening = false;
-      $('voiceCaptureBtn').textContent = '按一下开始语音';
-      $('composerHint').textContent = '点中间按钮开始语音输入。';
-      return;
-    }
-
-    state.speechListening = true;
-    $('voiceCaptureBtn').textContent = '点一下结束语音';
-    $('composerHint').textContent = '正在听你说话，再点一次结束。';
-    recognition.start();
-  };
+  $('voiceCaptureBtn').addEventListener('pointerdown', startVoiceCapture);
+  $('voiceCaptureBtn').addEventListener('pointerup', stopVoiceCapture);
+  $('voiceCaptureBtn').addEventListener('pointercancel', stopVoiceCapture);
+  $('voiceCaptureBtn').addEventListener('pointerleave', stopVoiceCapture);
+  $('voiceCaptureBtn').addEventListener('click', (event) => event.preventDefault());
 
   $('plusBtn').onclick = () => {
     $('plusMenu').classList.toggle('hidden');
@@ -609,16 +711,16 @@ function bindEvents() {
 
       if (action === 'report') $('reportInput').click();
       if (action === 'camera') $('cameraInput').click();
-      if (action === 'file') $('fileInput').click();
       if (action === 'image') $('imageInput').click();
-      if (action === 'location') handleLocationShare();
+      if (action === 'location') {
+        handleLocationShare().catch((err) => alert(err.message));
+      }
     };
   });
 
   $('reportInput').onchange = (event) => handlePickedFile(event.target.files?.[0], '检验报告');
   $('cameraInput').onchange = (event) => handlePickedFile(event.target.files?.[0], '拍照');
-  $('imageInput').onchange = (event) => handlePickedFile(event.target.files?.[0], '图片');
-  $('fileInput').onchange = (event) => handlePickedFile(event.target.files?.[0], '文件');
+  $('imageInput').onchange = (event) => handlePickedFile(event.target.files?.[0], '相册');
 
   $('composerInput').addEventListener('keydown', (event) => {
     if (event.key === 'Enter' && !event.shiftKey) {

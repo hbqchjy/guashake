@@ -16,11 +16,30 @@
       <div class="composer-wrap">
         <div id="quickRow" class="quick-row"></div>
         <div id="plusMenu" class="plus-menu hidden">
-          <button class="plus-item" data-menu-action="report">检验报告</button>
-          <button class="plus-item" data-menu-action="camera">拍照</button>
-          <button class="plus-item" data-menu-action="file">文件</button>
-          <button class="plus-item" data-menu-action="image">发送图片</button>
-          <button class="plus-item" data-menu-action="location">我的位置</button>
+          <button class="plus-item" data-menu-action="report">
+            <span class="plus-item-icon report">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h7l4 4v12H7z"></path><path d="M14 4v4h4"></path><path d="M9 13h6"></path><path d="M9 17h4"></path></svg>
+            </span>
+            <span class="plus-item-label">检验报告</span>
+          </button>
+          <button class="plus-item" data-menu-action="image">
+            <span class="plus-item-icon album">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="3"></rect><path d="M8 13l2.5-2.5 2.5 2.5 3-3 3 4"></path><circle cx="9" cy="9" r="1.2"></circle></svg>
+            </span>
+            <span class="plus-item-label">相册</span>
+          </button>
+          <button class="plus-item" data-menu-action="camera">
+            <span class="plus-item-icon camera">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 8h2l1.2-2h3.6L15 8h2a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2Z"></path><circle cx="12" cy="13" r="3.2"></circle></svg>
+            </span>
+            <span class="plus-item-label">拍照</span>
+          </button>
+          <button class="plus-item" data-menu-action="location">
+            <span class="plus-item-icon location">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s6-4.35 6-10a6 6 0 1 0-12 0c0 5.65 6 10 6 10Z"></path><circle cx="12" cy="10" r="2.4"></circle></svg>
+            </span>
+            <span class="plus-item-label">位置</span>
+          </button>
         </div>
         <div class="composer">
           <button id="modeToggleBtn" class="icon-btn" aria-label="语音切换"></button>
@@ -30,7 +49,7 @@
               rows="1"
               placeholder="说症状，例如：心慌、头晕"
             ></textarea>
-            <button id="voiceCaptureBtn" class="voice-capture hidden">按一下开始语音</button>
+            <button id="voiceCaptureBtn" class="voice-capture hidden">按住说话</button>
           </div>
           <button id="plusBtn" class="icon-btn plus-btn" aria-label="更多功能"></button>
           <button id="sendBtn" class="send-btn">发送</button>
@@ -55,7 +74,6 @@
     <input id="reportInput" class="hidden" type="file" accept="image/*,.pdf" />
     <input id="cameraInput" class="hidden" type="file" accept="image/*" capture="environment" />
     <input id="imageInput" class="hidden" type="file" accept="image/*" />
-    <input id="fileInput" class="hidden" type="file" />
   </main>
 
   <script src="/app.js"></script>

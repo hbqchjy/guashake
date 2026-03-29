@@ -43,6 +43,60 @@ app.get('/api/region/search', (req, res) => {
   res.json({ q, regions });
 });
 
+app.get('/api/region/reverse', async (req, res) => {
+  const { lat, lon } = req.query;
+  const latitude = Number(lat);
+  const longitude = Number(lon);
+
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    return res.status(400).json({ error: 'lat and lon are required' });
+  }
+
+  try {
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=jsonv2&accept-language=zh-CN&lat=${encodeURIComponent(latitude)}&lon=${encodeURIComponent(longitude)}`,
+      {
+        headers: {
+          'User-Agent': 'guashake-mvp/1.0 (reverse geocode)',
+        },
+      }
+    );
+
+    if (!response.ok) {
+      return res.status(502).json({ error: 'reverse geocode failed' });
+    }
+
+    const payload = await response.json();
+    const address = payload.address || {};
+    const candidates = [
+      address.county,
+      address.city_district,
+      address.district,
+      address.suburb,
+      address.town,
+      address.city,
+      address.state,
+    ].filter(Boolean);
+
+    let region = null;
+    for (const candidate of candidates) {
+      const match = searchRegions(candidate, 1)[0];
+      if (match) {
+        region = match;
+        break;
+      }
+    }
+
+    return res.json({
+      ok: true,
+      displayName: payload.display_name || '',
+      region,
+    });
+  } catch (error) {
+    return res.status(502).json({ error: 'reverse geocode failed', detail: error.message });
+  }
+});
+
 app.post('/triage/session', (req, res) => {
   const {
     age,
