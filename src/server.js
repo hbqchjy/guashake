@@ -12,6 +12,7 @@ const {
 const { searchRegions } = require('./regions');
 const { upsertSession, getSession, saveArchive, getArchives, deleteArchive } = require('./store');
 const { buildArchivePdf } = require('./pdf');
+const { summarizeFile } = require('./file-summary');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -124,6 +125,7 @@ app.post('/triage/session', (req, res) => {
     insuranceType,
     chiefComplaint,
     supplements: [],
+    supplementFiles: [],
     scenario,
     stepIndex: 0,
     answers: {},
@@ -200,6 +202,37 @@ app.post('/triage/supplement', (req, res) => {
   });
 });
 
+app.post('/triage/supplement-file', upload.single('file'), (req, res) => {
+  const { sessionId, label = '补充材料' } = req.body;
+  const session = getSession(sessionId);
+  if (!session) {
+    return res.status(404).json({ error: 'session not found' });
+  }
+  if (!req.file) {
+    return res.status(400).json({ error: 'file is required' });
+  }
+
+  const fileRecord = {
+    originalName: req.file.originalname,
+    filename: req.file.filename,
+    path: `/uploads/${req.file.filename}`,
+    size: req.file.size,
+    mimetype: req.file.mimetype,
+    label,
+    uploadedAt: new Date().toISOString(),
+    summary: summarizeFile(req.file, label),
+  };
+
+  const supplementFiles = [...(session.supplementFiles || []), fileRecord];
+  upsertSession(sessionId, { supplementFiles });
+
+  return res.json({
+    ok: true,
+    file: fileRecord,
+    total: supplementFiles.length,
+  });
+});
+
 app.get('/triage/result/:id', (req, res) => {
   const session = getSession(req.params.id);
   if (!session) {
@@ -253,12 +286,21 @@ app.post('/archive/upload', upload.array('files', 10), (req, res) => {
     department: triageResult?.layeredOutput?.core?.suggestDepartment || '',
     costRange: triageResult?.layeredOutput?.core?.firstCostRange || '',
     firstChecks: triageResult?.layeredOutput?.core?.firstChecks || [],
-    files: (req.files || []).map((f) => ({
-      originalName: f.originalname,
-      filename: f.filename,
-      path: `/uploads/${f.filename}`,
-      size: f.size,
-    })),
+    files: [
+      ...((session?.supplementFiles || []).map((f) => ({
+        originalName: f.originalName,
+        filename: f.filename,
+        path: f.path,
+        size: f.size,
+        summary: f.summary || null,
+      })) || []),
+      ...(req.files || []).map((f) => ({
+        originalName: f.originalname,
+        filename: f.filename,
+        path: `/uploads/${f.filename}`,
+        size: f.size,
+      })),
+    ],
   };
 
   saveArchive(userId, record);

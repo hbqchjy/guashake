@@ -29,6 +29,7 @@ const state = {
     image: 0,
     report: 0,
   },
+  resultViewMode: 'simple',
 };
 
 let botTextQueue = Promise.resolve();
@@ -39,6 +40,26 @@ const ICONS = {
   mic: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4a3 3 0 0 1 3 3v5a3 3 0 1 1-6 0V7a3 3 0 0 1 3-3Z"></path><path d="M19 11a7 7 0 0 1-14 0"></path><path d="M12 18v3"></path><path d="M8 21h8"></path></svg>',
   keyboard: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2"></rect><path d="M7 10h.01M11 10h.01M15 10h.01M17 10h.01M7 14h.01M10 14h.01M13 14h4"></path></svg>',
   plus: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>',
+};
+
+const QUICK_SYMPTOM_ICONS = {
+  心慌: 'heartbeat',
+  胸闷: 'chest',
+  头晕: 'head',
+  腰酸: 'waist',
+  肚子痛: 'stomach',
+  咳嗽: 'lung',
+  尿频尿急: 'drop',
+  '皮肤/外伤': 'bandage',
+};
+
+const RESULT_CARD_ICONS = {
+  '第一步检查': 'clipboard',
+  '费用与医保': 'wallet',
+  '去医院前带什么': 'bag',
+  '风险提醒': 'alert',
+  '为什么这样建议': 'spark',
+  '材料基础摘要': 'scan',
 };
 
 function escapeHtml(value) {
@@ -217,10 +238,45 @@ function renderQuickSymptoms() {
   QUICK_SYMPTOMS.forEach((symptom) => {
     const button = document.createElement('button');
     button.className = 'quick-chip';
-    button.textContent = symptom;
+    const iconName = QUICK_SYMPTOM_ICONS[symptom] || 'spark';
+    button.innerHTML = `<span class="quick-chip-icon">${getInlineIcon(iconName)}</span><span>${escapeHtml(symptom)}</span>`;
     button.onclick = () => submitText(symptom).catch((err) => alert(err.message));
     row.appendChild(button);
   });
+}
+
+function getInlineIcon(name) {
+  const icons = {
+    heartbeat:
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l2-4 3 8 2-4h7"></path></svg>',
+    chest:
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 6c0-1.1.9-2 2-2h6c1.1 0 2 .9 2 2v12H7z"></path><path d="M10 8h4M10 12h4"></path></svg>',
+    head:
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4a6 6 0 0 1 6 6c0 2.6-1.4 4.1-2.5 5.1-.7.7-1.1 1.1-1.1 1.9H9.6c0-.8-.4-1.2-1.1-1.9C7.4 14.1 6 12.6 6 10a6 6 0 0 1 6-6Z"></path><path d="M10 20h4"></path></svg>',
+    waist:
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 6c1.6 1.5 2 3 2 5s-.4 3.5-2 5"></path><path d="M17 6c-1.6 1.5-2 3-2 5s.4 3.5 2 5"></path><path d="M9 11h6"></path></svg>',
+    stomach:
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 4c0 2 .5 3 2 4 1.8 1.2 4 2.3 4 5.5A4.5 4.5 0 0 1 11.5 18c-2.8 0-4.5-1.7-4.5-4.3 0-2.4 1.4-3.8 2.5-4.9.9-.9 1.5-1.6 1.5-3.8Z"></path></svg>',
+    lung:
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4v7c0 1.4-1.1 2.5-2.5 2.5S6 12.4 6 11V8c0-1.7 1-3.2 2.6-3.8L11 4Z"></path><path d="M13 4v7c0 1.4 1.1 2.5 2.5 2.5S18 12.4 18 11V8c0-1.7-1-3.2-2.6-3.8L13 4Z"></path></svg>',
+    drop:
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4s5 5 5 8.5A5 5 0 1 1 7 12.5C7 9 12 4 12 4Z"></path></svg>',
+    bandage:
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6 18 16"></path><path d="M6 8 16 18"></path><rect x="4" y="9" width="16" height="6" rx="2" transform="rotate(-45 12 12)"></rect></svg>',
+    clipboard:
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4h6v3H9z"></path><path d="M7 7h10a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z"></path><path d="M9 12h6M9 16h4"></path></svg>',
+    wallet:
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z"></path><path d="M16 13h5"></path><path d="M6 7V6a2 2 0 0 1 2-2h9"></path></svg>',
+    bag:
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9h12l-1 10H7z"></path><path d="M9 9V7a3 3 0 1 1 6 0v2"></path></svg>',
+    alert:
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4 3 20h18L12 4Z"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg>',
+    spark:
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3Z"></path></svg>',
+    scan:
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4H5a2 2 0 0 0-2 2v2"></path><path d="M17 4h2a2 2 0 0 1 2 2v2"></path><path d="M7 20H5a2 2 0 0 1-2-2v-2"></path><path d="M17 20h2a2 2 0 0 0 2-2v-2"></path><path d="M8 12h8"></path></svg>',
+  };
+  return icons[name] || icons.spark;
 }
 
 function getQuestionReason(question) {
@@ -302,6 +358,7 @@ function resetConversation() {
     image: 0,
     report: 0,
   };
+  state.resultViewMode = 'simple';
   state.profile = {
     province: '',
     city: '',
@@ -581,20 +638,58 @@ async function selectRegion(region) {
 }
 
 function buildResultCard(title, contentHtml, extraClass = '') {
+  const iconName = RESULT_CARD_ICONS[title] || 'spark';
   return addRow(
     'bot',
-    `<div class="result-card ${extraClass}"><h3>${escapeHtml(title)}</h3>${contentHtml}</div>`
+    `<div class="result-card ${extraClass}"><div class="result-card-head"><span class="result-card-icon">${getInlineIcon(
+      iconName
+    )}</span><h3>${escapeHtml(title)}</h3></div>${contentHtml}</div>`
   );
 }
 
 function buildCollapsibleResultCard(title, preview, contentHtml, extraClass = '') {
+  const iconName = RESULT_CARD_ICONS[title] || 'spark';
   return addRow(
     'bot',
     [
       `<details class="result-collapse ${extraClass}">`,
-      `<summary class="result-collapse-summary"><span class="result-collapse-title">${escapeHtml(title)}</span><span class="result-collapse-preview">${escapeHtml(preview)}</span></summary>`,
+      `<summary class="result-collapse-summary"><span class="result-collapse-head"><span class="result-card-icon">${getInlineIcon(
+        iconName
+      )}</span><span class="result-collapse-title">${escapeHtml(title)}</span></span><span class="result-collapse-preview">${escapeHtml(
+        preview
+      )}</span></summary>`,
       `<div class="result-card collapse-inner ${extraClass}">${contentHtml}</div>`,
       '</details>',
+    ].join('')
+  );
+}
+
+function setResultViewMode(mode) {
+  state.resultViewMode = mode;
+  document.querySelectorAll('[data-result-view]').forEach((node) => {
+    const isDetail = node.dataset.resultView === 'full';
+    node.classList.toggle('hidden', mode === 'simple' && isDetail);
+  });
+  document.querySelectorAll('[data-mode-toggle]').forEach((button) => {
+    button.classList.toggle('active', button.dataset.modeToggle === mode);
+  });
+}
+
+function buildReportSummaryCard(summary, filePath = '') {
+  const highlights = (summary.highlights || []).map((item) => `<li>${escapeHtml(item)}</li>`).join('');
+  return addRow(
+    'bot',
+    [
+      '<div class="result-card report-summary-card">',
+      `<div class="result-card-head"><span class="result-card-icon">${getInlineIcon('scan')}</span><h3>材料基础摘要</h3></div>`,
+      `<p class="report-summary-title">${escapeHtml(summary.title || '补充材料')}</p>`,
+      `<p>文件：${escapeHtml(summary.fileName || '-')} · ${escapeHtml(summary.sizeText || '-')}</p>`,
+      `<p>建议先重点看：${escapeHtml((summary.highlights || []).join('、'))}</p>`,
+      `<p>${escapeHtml(summary.nextStep || '')}</p>`,
+      `<p class="report-summary-note">${escapeHtml(summary.disclaimer || '')}</p>`,
+      filePath ? `<a class="record-action report-link" target="_blank" href="${escapeHtml(filePath)}">打开这份材料</a>` : '',
+      highlights ? `<ul>${highlights}</ul>` : '',
+      '</div>',
     ].join('')
   );
 }
@@ -639,6 +734,10 @@ async function renderResultCards() {
       triage.core.suggestHospital
     )}挂${escapeHtml(triage.core.suggestDepartment)}，先把这轮基础检查做完，再决定要不要加更贵的检查。</strong></div>`,
     '</div>',
+    '<div class="result-mode-toggle">',
+    '<button class="result-mode-btn active" data-mode-toggle="simple">只看重点</button>',
+    '<button class="result-mode-btn" data-mode-toggle="full">查看完整版</button>',
+    '</div>',
     '<div class="summary-metrics">',
     `<div class="summary-metric"><span class="summary-label">建议医院</span><strong>${escapeHtml(triage.core.suggestHospital)}</strong></div>`,
     `<div class="summary-metric"><span class="summary-label">首轮费用</span><strong>${escapeHtml(triage.core.firstCostRange)}</strong></div>`,
@@ -664,20 +763,31 @@ async function renderResultCards() {
     document.querySelectorAll('.result-collapse').forEach((node) => {
       node.open = true;
     });
-    scrollToBottom();
+    setResultViewMode('full');
   };
+  summaryRow.querySelectorAll('[data-mode-toggle]').forEach((button) => {
+    button.onclick = () => {
+      const mode = button.dataset.modeToggle;
+      setResultViewMode(mode);
+    };
+  });
 
-  buildResultCard('第一步检查', `<ul>${firstChecks}</ul>`);
-  buildResultCard('费用与医保', `<ul>${costItems}</ul>`);
-  buildCollapsibleResultCard('去医院前带什么', '身份证、医保卡、近期检查结果', `<ul>${prepItems}</ul>`);
-  buildCollapsibleResultCard('风险提醒', '有胸痛加重或呼吸困难要尽快急诊', `<ul>${riskItems}</ul>`, 'risk');
-  buildCollapsibleResultCard(
+  const essentialChecks = buildResultCard('第一步检查', `<ul>${firstChecks}</ul>`);
+  essentialChecks.dataset.resultView = 'simple';
+  const essentialCost = buildResultCard('费用与医保', `<ul>${costItems}</ul>`);
+  essentialCost.dataset.resultView = 'simple';
+  const prepCard = buildCollapsibleResultCard('去医院前带什么', '身份证、医保卡、近期检查结果', `<ul>${prepItems}</ul>`);
+  prepCard.dataset.resultView = 'full';
+  const riskCard = buildCollapsibleResultCard('风险提醒', '有胸痛加重或呼吸困难要尽快急诊', `<ul>${riskItems}</ul>`, 'risk');
+  riskCard.dataset.resultView = 'full';
+  const detailCard = buildCollapsibleResultCard(
     '为什么这样建议',
     '查看具体判断逻辑和后续路径',
     `<div class="result-card-title-wrap"><h3>为什么这样建议</h3><p>${escapeHtml(triage.detail.whyDepartment)}</p></div><ul>${detailItems}</ul>`
   );
+  detailCard.dataset.resultView = 'full';
 
-  addRow(
+  const actionRow = addRow(
     'bot',
     [
       '<div class="result-card action-card">',
@@ -694,8 +804,7 @@ async function renderResultCards() {
       '</div>',
     ].join('')
   );
-
-  const actionRow = $('chatFeed').lastElementChild;
+  actionRow.dataset.resultView = 'simple';
   actionRow.querySelector('[data-action="booking"]').onclick = () => {
     const target = state.booking?.bookingLinks?.[0]?.url;
     if (!target) {
@@ -713,6 +822,11 @@ async function renderResultCards() {
   actionRow.querySelector('[data-action="restart"]').onclick = () => {
     resetConversation();
   };
+
+  setResultViewMode('simple');
+  requestAnimationFrame(() => {
+    summaryRow.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  });
 }
 
 async function saveRecord() {
@@ -734,10 +848,18 @@ async function saveRecord() {
   addBotText('这次结果已经帮你保存了。');
 }
 
-function handlePickedFile(file, label) {
+async function handlePickedFile(file, label) {
   if (!file) return;
   addUserText(`${label}：${file.name}`);
   if (state.awaitingContext === 'supplement') {
+    const formData = new FormData();
+    formData.append('sessionId', state.sessionId);
+    formData.append('label', label);
+    formData.append('file', file);
+    const uploadResult = await api('/triage/supplement-file', {
+      method: 'POST',
+      body: formData,
+    });
     if (label === '检验报告') {
       state.supplementStats.report += 1;
     } else {
@@ -745,11 +867,12 @@ function handlePickedFile(file, label) {
     }
     state.supplementCount += 1;
     addStatusPill(getSupplementStatusText());
-    addBotText('图片或文件我先记下了。当前演示版会先把它作为补充材料记录下来。');
-    showGenerationConfirmCard('如果你还想补充文字，可以再发一条；也可以现在直接生成。');
+    buildReportSummaryCard(uploadResult.file.summary, uploadResult.file.path);
+    await addBotText('这份材料我先做了一个基础摘要。你可以继续补充文字，也可以直接生成总结。');
+    await showGenerationConfirmCard('如果你还想补充文字，可以再发一条；也可以现在直接生成。');
     return;
   }
-  addBotText('我先记下这个文件。后面你保存记录时，可以继续把它们整理进健康档案。');
+  await addBotText('这份材料我先记下了。等你完成这次咨询后，可以一起保存进健康档案。');
 }
 
 async function handleLocationShare() {
@@ -911,9 +1034,9 @@ function bindEvents() {
     };
   });
 
-  $('reportInput').onchange = (event) => handlePickedFile(event.target.files?.[0], '检验报告');
-  $('cameraInput').onchange = (event) => handlePickedFile(event.target.files?.[0], '拍照');
-  $('imageInput').onchange = (event) => handlePickedFile(event.target.files?.[0], '相册');
+  $('reportInput').onchange = (event) => handlePickedFile(event.target.files?.[0], '检验报告').catch((err) => alert(err.message));
+  $('cameraInput').onchange = (event) => handlePickedFile(event.target.files?.[0], '拍照').catch((err) => alert(err.message));
+  $('imageInput').onchange = (event) => handlePickedFile(event.target.files?.[0], '相册').catch((err) => alert(err.message));
 
   $('composerInput').addEventListener('keydown', (event) => {
     if (event.key === 'Enter' && !event.shiftKey) {

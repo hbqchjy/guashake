@@ -310,6 +310,40 @@ body {
   color: var(--text);
 }
 
+.result-card-head,
+.result-collapse-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.result-card-icon,
+.quick-chip-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+.result-card-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  background: rgba(7, 193, 96, 0.1);
+  color: var(--brand-dark);
+}
+
+.result-card-icon svg,
+.quick-chip-icon svg {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .summary-shell {
   background: transparent;
   border: none;
@@ -394,6 +428,35 @@ body {
   grid-template-columns: 1fr 1fr;
   gap: 10px;
   margin-top: 14px;
+}
+
+.result-mode-toggle {
+  display: inline-grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: 14px;
+  padding: 4px;
+  border-radius: 16px;
+  background: rgba(20, 36, 31, 0.06);
+}
+
+.result-mode-btn {
+  appearance: none;
+  border: none;
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.result-mode-btn.active {
+  background: #ffffff;
+  color: var(--text);
+  box-shadow: 0 8px 18px rgba(18, 28, 24, 0.06);
 }
 
 .summary-metric {
@@ -620,6 +683,9 @@ body {
 }
 
 .quick-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   flex: 0 0 auto;
   min-height: 38px;
   padding: 8px 14px;
@@ -630,6 +696,36 @@ body {
   font-size: 15px;
   font-weight: 600;
   box-shadow: 0 6px 16px rgba(18, 28, 24, 0.04);
+}
+
+.quick-chip-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: rgba(7, 193, 96, 0.1);
+  color: var(--brand-dark);
+}
+
+.report-summary-card {
+  border-color: rgba(7, 193, 96, 0.16);
+}
+
+.report-summary-title {
+  margin-top: 4px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.report-summary-note {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.report-link {
+  display: inline-flex;
+  margin-top: 12px;
 }
 
 .composer {

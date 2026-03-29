@@ -34,6 +34,9 @@ function buildArchivePdf(record, res) {
     doc.fontSize(12);
     for (const file of record.files) {
       doc.text(`- ${file.originalName}`);
+      if (file.summary?.title) {
+        doc.text(`  摘要: ${file.summary.title}`);
+      }
     }
   }
 
