@@ -7,106 +7,132 @@
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
-  <main class="app">
-    <header class="hero">
-      <h1>挂啥科</h1>
-      <p>看病前先弄明白：去哪看、挂啥科、先做哪些检查、大概花多少钱</p>
-      <p class="disclaimer">仅作就医前咨询参考，不能替代医生面诊</p>
-    </header>
+  <main class="appShell">
+    <section id="homePage" class="page active">
+      <header class="hero">
+        <div class="badge">看病前信息助手</div>
+        <h1>挂啥科</h1>
+        <p class="subtitle">先帮你搞清楚挂什么科、先查什么、大概多少钱</p>
+      </header>
 
-    <section class="card" id="intakeCard">
-      <h2>1. 先填基础信息</h2>
-      <div class="grid">
-        <label>年龄<input id="age" type="number" placeholder="例如 58" /></label>
-        <label>性别
-          <select id="gender">
-            <option value="">请选择</option>
-            <option>男</option>
-            <option>女</option>
-          </select>
-        </label>
-        <label>省<input id="province" type="text" placeholder="例如 湖南省" /></label>
-        <label>市<input id="city" type="text" placeholder="例如 邵阳市" /></label>
-        <label>区县<input id="district" type="text" placeholder="例如 隆回县" /></label>
-        <label>医保类型
-          <select id="insuranceType">
-            <option value="">请选择</option>
-            <option>无医保</option>
-            <option>体制内医保</option>
-            <option>城镇职工医保</option>
-            <option>城乡居民医保</option>
-          </select>
-        </label>
+      <section class="panel">
+        <h2>先说哪里不舒服</h2>
+        <textarea id="chiefComplaint" rows="3" placeholder="例如：最近心慌、胸闷，爬楼会喘"></textarea>
+        <div class="chips" id="quickSymptoms"></div>
+      </section>
+
+      <section class="panel compact">
+        <h3>基础信息（可选）</h3>
+        <div class="grid2">
+          <label>年龄<input id="age" type="number" placeholder="58" /></label>
+          <label>性别
+            <select id="gender">
+              <option value="">请选择</option>
+              <option>男</option>
+              <option>女</option>
+            </select>
+          </label>
+          <label>省<input id="province" type="text" placeholder="湖南省" /></label>
+          <label>市<input id="city" type="text" placeholder="邵阳市" /></label>
+          <label>区县<input id="district" type="text" placeholder="隆回县" /></label>
+          <label>医保类型
+            <select id="insuranceType">
+              <option value="">请选择</option>
+              <option>无医保</option>
+              <option>体制内医保</option>
+              <option>城镇职工医保</option>
+              <option>城乡居民医保</option>
+            </select>
+          </label>
+        </div>
+      </section>
+
+      <div class="actions stickyBottom">
+        <button id="startBtn" class="btn primary">开始咨询</button>
+        <button id="openRecordsBtn" class="btn">查看记录</button>
       </div>
-      <label class="full">主要不舒服
-        <textarea id="chiefComplaint" rows="3" placeholder="例如：最近总是心慌、胸闷，爬楼会喘"></textarea>
-      </label>
-      <button class="btn primary" id="startBtn">开始预诊追问</button>
+
+      <p class="riskHint">紧急情况（胸痛加重、呼吸困难、意识模糊等）请直接去急诊。</p>
     </section>
 
-    <section class="card hidden" id="questionCard">
-      <h2>2. 逐步追问（单题）</h2>
-      <p class="tag" id="scenarioTag"></p>
-      <p id="questionText" class="question"></p>
-      <div id="options" class="options"></div>
-      <div class="actionRow">
-        <button class="btn" id="skipBtn">不想继续，直接出结果</button>
-      </div>
+    <section id="chatPage" class="page">
+      <header class="topBar">
+        <button id="backHomeBtn" class="linkBtn">返回</button>
+        <div class="titleWrap">
+          <h2>挂啥科助手</h2>
+          <p id="progressText">第1步 / 共5步</p>
+        </div>
+      </header>
+
+      <div class="progress"><span id="progressBar"></span></div>
+
+      <section id="chatBox" class="chatBox"></section>
+
+      <section class="optionDock">
+        <div id="options" class="options"></div>
+        <div class="actions">
+          <button id="directResultBtn" class="btn">直接给建议</button>
+        </div>
+      </section>
     </section>
 
-    <section class="card hidden" id="resultCard">
-      <h2>3. 预诊结果</h2>
-      <div id="riskBanner" class="risk normal"></div>
-      <div class="resultBlock">
-        <h3>核心结论</h3>
+    <section id="resultPage" class="page">
+      <header class="topBar">
+        <button id="restartBtn" class="linkBtn">重新咨询</button>
+        <div class="titleWrap">
+          <h2>你的就医建议</h2>
+          <p>先结论，再细节</p>
+        </div>
+      </header>
+
+      <section class="resultCard strong">
+        <h3>先去哪个科</h3>
         <p id="coreText"></p>
         <ul id="coreList"></ul>
-      </div>
-      <details class="resultBlock">
-        <summary>展开说明</summary>
-        <p id="whyDepartment"></p>
-        <ul id="detailList"></ul>
-      </details>
-      <div class="resultBlock">
+      </section>
+
+      <section class="resultCard">
+        <h3>第一步检查</h3>
+        <ul id="checkList"></ul>
+      </section>
+
+      <section class="resultCard">
+        <h3>费用和医保</h3>
+        <ul id="costSimple"></ul>
+      </section>
+
+      <section class="resultCard">
+        <h3>去医院前带什么</h3>
+        <ul id="prepList"></ul>
+      </section>
+
+      <section class="resultCard risk">
         <h3>风险提醒</h3>
         <ul id="riskList"></ul>
-      </div>
-    </section>
+      </section>
 
-    <section class="card hidden" id="costCard">
-      <h2>4. 费用与医保参考</h2>
-      <div class="resultBlock">
-        <h3>简版</h3>
-        <ul id="costSimple"></ul>
-      </div>
-      <details class="resultBlock" open>
-        <summary>分步费用路径（如果...那么...）</summary>
-        <ul id="costExpanded"></ul>
+      <details class="resultCard">
+        <summary>展开详细解释</summary>
+        <p id="detailText"></p>
+        <ul id="detailList"></ul>
       </details>
+
+      <div class="actions stickyBottom">
+        <button id="bookingBtn" class="btn primary">去挂号</button>
+        <button id="saveBtn" class="btn">保存记录</button>
+        <button id="viewRecordsBtn" class="btn">查看记录</button>
+      </div>
     </section>
 
-    <section class="card hidden" id="bookingCard">
-      <h2>5. 辅助挂号</h2>
-      <ul id="bookingList"></ul>
-      <div id="bookingLinks" class="linkGrid"></div>
-    </section>
-
-    <section class="card hidden" id="archiveCard">
-      <h2>6. 健康档案（可选注册）</h2>
-      <p>问诊可不注册。要保存档案时，填写一个用户ID（模拟微信授权后的唯一ID）。</p>
-      <div class="grid">
-        <label>用户ID<input id="userId" type="text" placeholder="例如 wx_user_001" /></label>
-        <label>医生补充建议<input id="doctorAdvice" type="text" placeholder="可留空" /></label>
+    <dialog id="recordsDialog">
+      <div class="dialogHead">
+        <h3>我的记录</h3>
+        <button id="closeRecordsBtn" class="linkBtn">关闭</button>
       </div>
-      <label class="full">上传病历/报告/处方图片
-        <input id="files" type="file" multiple accept="image/*,.pdf" />
-      </label>
-      <div class="actionRow">
-        <button class="btn primary" id="saveArchiveBtn">保存本次记录</button>
-        <button class="btn" id="listArchiveBtn">查看我的档案</button>
-      </div>
-      <div id="archiveList"></div>
-    </section>
+      <label>用户ID<input id="userId" type="text" placeholder="wx_user_001（为空则guest）" /></label>
+      <div class="actions"><button id="listRecordsBtn" class="btn primary">刷新列表</button></div>
+      <div id="recordsList"></div>
+    </dialog>
   </main>
 
   <script src="/app.js"></script>

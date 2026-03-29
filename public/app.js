@@ -1,25 +1,68 @@
+const QUICK_SYMPTOMS = ['心慌', '胸闷', '头晕', '腰酸', '肚子痛', '咳嗽', '尿频尿急', '皮肤/外伤'];
+
 const state = {
   sessionId: null,
   currentQuestion: null,
+  questionCount: 0,
+  maxQuestions: 5,
   triageResult: null,
+  booking: null,
+  cost: null,
 };
 
 const $ = (id) => document.getElementById(id);
+
+function setPage(pageId) {
+  ['homePage', 'chatPage', 'resultPage'].forEach((id) => {
+    $(id).classList.toggle('active', id === pageId);
+  });
+}
 
 async function api(url, options = {}) {
   const res = await fetch(url, {
     headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
     ...options,
   });
+
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.error || '请求失败');
   }
+
   return res.json();
 }
 
-function show(id) {
-  $(id).classList.remove('hidden');
+function renderQuickSymptoms() {
+  const box = $('quickSymptoms');
+  box.innerHTML = '';
+
+  QUICK_SYMPTOMS.forEach((symptom) => {
+    const btn = document.createElement('button');
+    btn.className = 'chip';
+    btn.textContent = symptom;
+    btn.onclick = () => {
+      const input = $('chiefComplaint');
+      const old = input.value.trim();
+      input.value = old ? `${old}、${symptom}` : symptom;
+      input.focus();
+    };
+    box.appendChild(btn);
+  });
+}
+
+function updateProgress() {
+  const done = Math.max(1, state.questionCount + 1);
+  const text = `第${Math.min(done, state.maxQuestions)}步 / 共${state.maxQuestions}步`;
+  $('progressText').textContent = text;
+  $('progressBar').style.width = `${Math.min(100, Math.round((done / state.maxQuestions) * 100))}%`;
+}
+
+function addMessage(role, text) {
+  const row = document.createElement('div');
+  row.className = `msg ${role}`;
+  row.innerHTML = `<div class="bubble">${text}</div>`;
+  $('chatBox').appendChild(row);
+  $('chatBox').scrollTop = $('chatBox').scrollHeight;
 }
 
 function fillList(el, items) {
@@ -31,35 +74,43 @@ function fillList(el, items) {
   });
 }
 
-function renderQuestion(question) {
-  state.currentQuestion = question;
-  $('questionText').textContent = question.text;
-  const optionsBox = $('options');
-  optionsBox.innerHTML = '';
-  question.options.forEach((opt) => {
+function renderOptions(options) {
+  const box = $('options');
+  box.innerHTML = '';
+
+  options.forEach((opt) => {
     const btn = document.createElement('button');
     btn.className = 'btn';
     btn.textContent = opt;
-    btn.onclick = () => answerQuestion(opt);
-    optionsBox.appendChild(btn);
+    btn.onclick = () => answerQuestion(opt).catch((e) => alert(e.message));
+    box.appendChild(btn);
   });
 }
 
-async function startTriage() {
-  const payload = {
-    age: $('age').value,
-    gender: $('gender').value,
-    province: $('province').value,
-    city: $('city').value,
-    district: $('district').value,
-    insuranceType: $('insuranceType').value,
-    chiefComplaint: $('chiefComplaint').value,
-  };
+function renderQuestion(question) {
+  state.currentQuestion = question;
+  state.questionCount += 1;
+  updateProgress();
+  addMessage('bot', question.text);
+  renderOptions(question.options || []);
+}
 
-  if (!payload.chiefComplaint.trim()) {
-    alert('请先填写“主要不舒服”');
+async function startConsultation() {
+  const chiefComplaint = $('chiefComplaint').value.trim();
+  if (!chiefComplaint) {
+    alert('请先输入哪里不舒服');
     return;
   }
+
+  const payload = {
+    chiefComplaint,
+    age: $('age').value || undefined,
+    gender: $('gender').value || undefined,
+    province: $('province').value || undefined,
+    city: $('city').value || undefined,
+    district: $('district').value || undefined,
+    insuranceType: $('insuranceType').value || undefined,
+  };
 
   const data = await api('/triage/session', {
     method: 'POST',
@@ -67,163 +118,189 @@ async function startTriage() {
   });
 
   state.sessionId = data.sessionId;
-  $('scenarioTag').textContent = `匹配场景：${data.scenario}`;
-  show('questionCard');
+  state.currentQuestion = null;
+  state.questionCount = 0;
+  state.triageResult = null;
+  state.booking = null;
+  state.cost = null;
+
+  setPage('chatPage');
+  $('chatBox').innerHTML = '';
+
+  addMessage('bot', `收到，你的情况先按“${data.scenario}”方向来判断。`);
+  addMessage('bot', '我每次只问一个问题，尽量简单。');
   renderQuestion(data.nextQuestion);
 }
 
-async function answerQuestion(answer, skip = false) {
-  const payload = {
-    sessionId: state.sessionId,
-    skip,
-  };
+async function answerQuestion(answer) {
+  if (!state.currentQuestion || !state.sessionId) return;
 
-  if (!skip) {
-    payload.questionId = state.currentQuestion.id;
-    payload.answer = answer;
-  }
+  addMessage('user', answer);
 
   const data = await api('/triage/answer', {
     method: 'POST',
-    body: JSON.stringify(payload),
+    body: JSON.stringify({
+      sessionId: state.sessionId,
+      questionId: state.currentQuestion.id,
+      answer,
+    }),
   });
 
   if (data.done) {
     state.triageResult = data.triageResult;
-    renderTriageResult(data.triageResult);
-    await loadCostAndBooking();
+    await showResult();
     return;
   }
 
   renderQuestion(data.nextQuestion);
 }
 
-function renderTriageResult(result) {
-  show('resultCard');
-  const riskBanner = $('riskBanner');
-  riskBanner.className = `risk ${result.riskLevel === 'urgent' ? 'urgent' : 'normal'}`;
-  riskBanner.textContent = `风险等级：${result.confidence}`;
+async function directResult() {
+  if (!state.sessionId) return;
+
+  const data = await api('/triage/answer', {
+    method: 'POST',
+    body: JSON.stringify({ sessionId: state.sessionId, skip: true }),
+  });
+
+  if (data.done) {
+    state.triageResult = data.triageResult;
+    await showResult();
+  }
+}
+
+async function showResult() {
+  const [cost, booking] = await Promise.all([
+    api('/cost/estimate', {
+      method: 'POST',
+      body: JSON.stringify({ sessionId: state.sessionId }),
+    }),
+    api(`/booking/options?sessionId=${state.sessionId}`),
+  ]);
+
+  state.cost = cost;
+  state.booking = booking;
+
+  const result = state.triageResult;
+  setPage('resultPage');
 
   $('coreText').textContent = result.layeredOutput.core.text;
   fillList($('coreList'), [
-    `建议医院：${result.layeredOutput.core.suggestHospital}`,
     `建议科室：${result.layeredOutput.core.suggestDepartment}`,
+    `建议医院：${result.layeredOutput.core.suggestHospital}`,
     `首轮费用：${result.layeredOutput.core.firstCostRange}`,
   ]);
 
-  $('whyDepartment').textContent = result.layeredOutput.detail.whyDepartment;
-  fillList($('detailList'), result.layeredOutput.detail.stepByStep);
-  fillList($('riskList'), result.layeredOutput.riskReminder);
-}
+  fillList(
+    $('checkList'),
+    (result.layeredOutput.core.firstChecks || []).map((i) => `${i.name}（${i.min}~${i.max}元）`)
+  );
 
-async function loadCostAndBooking() {
-  const cost = await api('/cost/estimate', {
-    method: 'POST',
-    body: JSON.stringify({ sessionId: state.sessionId }),
-  });
-  show('costCard');
   fillList($('costSimple'), [
-    `先花多少钱：${cost.simple.costRange}`,
+    `大概先花：${cost.simple.costRange}`,
     `医保参考：${cost.simple.insuranceCoverage}`,
-    `哪里更划算：${cost.simple.costEffectivePlan}`,
-    `是否追加检查：${cost.simple.needMoreChecks}`,
+    `更划算建议：${cost.simple.costEffectivePlan}`,
+    cost.expanded.insuranceGuide,
   ]);
 
-  fillList($('costExpanded'), [
-    ...cost.expanded.feeItems.map((i) => `${i.name}: ${i.min}~${i.max}元`),
-    ...cost.expanded.ifThen,
-    `医保说明：${cost.expanded.insuranceGuide}`,
-    `更新时间：${cost.updatedAt}，覆盖等级：${cost.coverageTier}`,
-    cost.expanded.disclaimer,
-  ]);
+  fillList($('prepList'), booking.preparation || []);
+  fillList($('riskList'), result.layeredOutput.riskReminder || []);
 
-  const booking = await api(`/booking/options?sessionId=${state.sessionId}`);
-  show('bookingCard');
-  fillList($('bookingList'), [
-    `建议医院：${booking.hospitalSuggestion}`,
-    `建议科室：${booking.department}`,
-    `建议号别：${booking.ticketType}`,
-    `就诊时机：${booking.urgency}`,
-    `去前准备：${booking.preparation.join('、')}`,
-  ]);
-
-  const linkBox = $('bookingLinks');
-  linkBox.innerHTML = '';
-  booking.bookingLinks.forEach((l) => {
-    const a = document.createElement('a');
-    a.target = '_blank';
-    a.rel = 'noopener noreferrer';
-    a.href = l.url;
-    a.textContent = l.label;
-    linkBox.appendChild(a);
-  });
-
-  show('archiveCard');
+  $('detailText').textContent = result.layeredOutput.detail.whyDepartment;
+  fillList($('detailList'), result.layeredOutput.detail.stepByStep || []);
 }
 
-async function saveArchive() {
+async function saveRecord() {
   if (!state.sessionId || !state.triageResult) {
-    alert('请先完成预诊');
+    alert('请先完成咨询');
     return;
   }
 
-  const formData = new FormData();
-  formData.append('userId', $('userId').value || 'guest');
-  formData.append('sessionId', state.sessionId);
-  formData.append('doctorAdvice', $('doctorAdvice').value || '');
+  const userId = $('userId').value.trim() || prompt('输入用户ID（为空用guest）', 'guest') || 'guest';
 
-  const files = $('files').files;
-  for (const file of files) {
-    formData.append('files', file);
-  }
+  const formData = new FormData();
+  formData.append('userId', userId);
+  formData.append('sessionId', state.sessionId);
 
   const res = await fetch('/archive/upload', {
     method: 'POST',
     body: formData,
   });
+
   const data = await res.json();
   if (!res.ok) {
     alert(data.error || '保存失败');
     return;
   }
 
-  alert('保存成功');
-  await listArchive();
+  alert('已保存');
 }
 
-async function listArchive() {
-  const userId = $('userId').value || 'guest';
+function openRecords() {
+  $('recordsDialog').showModal();
+}
+
+function closeRecords() {
+  $('recordsDialog').close();
+}
+
+async function listRecords() {
+  const userId = $('userId').value.trim() || 'guest';
   const data = await api(`/archive/list?userId=${encodeURIComponent(userId)}`);
-  const box = $('archiveList');
+
+  const box = $('recordsList');
+  box.innerHTML = '';
 
   if (!data.records.length) {
-    box.innerHTML = '<p>暂无档案记录</p>';
+    box.innerHTML = '<p>暂无记录</p>';
     return;
   }
 
-  box.innerHTML = '';
   data.records.forEach((record) => {
-    const item = document.createElement('div');
-    item.className = 'resultBlock';
-    const fileText = (record.files || []).map((f) => f.originalName).join('、') || '无';
-    item.innerHTML = `
-      <p><strong>记录：</strong>${record.summary}</p>
+    const node = document.createElement('div');
+    node.className = 'recordItem';
+
+    node.innerHTML = `
+      <p><strong>记录：</strong>${record.summary || '-'}</p>
       <p><strong>科室：</strong>${record.department || '-'}</p>
-      <p><strong>资料：</strong>${fileText}</p>
-      <div class="actionRow">
-        <a class="btn" href="/archive/export?userId=${encodeURIComponent(userId)}&recordId=${record.id}" target="_blank">导出PDF</a>
+      <p><strong>时间：</strong>${record.createdAt || '-'}</p>
+      <div class="actions">
+        <a class="btn" target="_blank" href="/archive/export?userId=${encodeURIComponent(userId)}&recordId=${record.id}">导出PDF</a>
         <button class="btn" data-id="${record.id}">删除</button>
       </div>
     `;
-    item.querySelector('button').onclick = async () => {
+
+    node.querySelector('button').onclick = async () => {
       await api(`/archive/${encodeURIComponent(userId)}/${record.id}`, { method: 'DELETE' });
-      await listArchive();
+      await listRecords();
     };
-    box.appendChild(item);
+
+    box.appendChild(node);
   });
 }
 
-$('startBtn').onclick = () => startTriage().catch((e) => alert(e.message));
-$('skipBtn').onclick = () => answerQuestion('', true).catch((e) => alert(e.message));
-$('saveArchiveBtn').onclick = () => saveArchive().catch((e) => alert(e.message));
-$('listArchiveBtn').onclick = () => listArchive().catch((e) => alert(e.message));
+function bindEvents() {
+  $('startBtn').onclick = () => startConsultation().catch((e) => alert(e.message));
+  $('directResultBtn').onclick = () => directResult().catch((e) => alert(e.message));
+  $('backHomeBtn').onclick = () => setPage('homePage');
+  $('restartBtn').onclick = () => setPage('homePage');
+
+  $('bookingBtn').onclick = () => {
+    const target = state.booking?.bookingLinks?.[0]?.url;
+    if (target) {
+      window.open(target, '_blank', 'noopener,noreferrer');
+      return;
+    }
+    alert('暂无挂号入口');
+  };
+
+  $('saveBtn').onclick = () => saveRecord().catch((e) => alert(e.message));
+  $('openRecordsBtn').onclick = () => openRecords();
+  $('viewRecordsBtn').onclick = () => openRecords();
+  $('closeRecordsBtn').onclick = () => closeRecords();
+  $('listRecordsBtn').onclick = () => listRecords().catch((e) => alert(e.message));
+}
+
+renderQuickSymptoms();
+bindEvents();
+updateProgress();
