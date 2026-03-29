@@ -203,6 +203,31 @@ app.post('/triage/supplement', (req, res) => {
   });
 });
 
+app.post('/triage/profile', (req, res) => {
+  const { sessionId, province, city, district, insuranceType } = req.body;
+  const session = getSession(sessionId);
+  if (!session) {
+    return res.status(404).json({ error: 'session not found' });
+  }
+
+  const patch = {};
+  if (typeof province === 'string') patch.province = province;
+  if (typeof city === 'string') patch.city = city;
+  if (typeof district === 'string') patch.district = district;
+  if (typeof insuranceType === 'string') patch.insuranceType = insuranceType;
+
+  const updated = upsertSession(sessionId, patch);
+  return res.json({
+    ok: true,
+    profile: {
+      province: updated.province || '',
+      city: updated.city || '',
+      district: updated.district || '',
+      insuranceType: updated.insuranceType || '',
+    },
+  });
+});
+
 app.post('/triage/supplement-file', upload.single('file'), async (req, res) => {
   const { sessionId, label = '补充材料' } = req.body;
   const session = getSession(sessionId);

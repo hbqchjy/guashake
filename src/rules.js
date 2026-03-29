@@ -1,3 +1,5 @@
+const { buildHospitalRecommendations, formatRegionName } = require('./hospitals');
+
 const RED_FLAG_KEYWORDS = [
   '胸痛加重',
   '呼吸困难',
@@ -189,8 +191,29 @@ function normalizeText(v) {
   return String(v || '').trim().toLowerCase();
 }
 
+function expandComplaintText(input = '') {
+  let text = normalizeText(input);
+  const replacements = [
+    [/心悸|心口发慌|心里发慌/g, '心慌'],
+    [/胸口闷|胸口堵|喘不过气/g, '胸闷'],
+    [/头发昏|头发晕|发晕/g, '头晕'],
+    [/胃胀|胃疼|肚胀|肚子不舒服/g, '胃不舒服'],
+    [/拉稀|腹泻/g, '拉肚子'],
+    [/小便频繁|尿得多|憋不住尿/g, '尿频'],
+    [/小便痛|尿尿疼/g, '尿痛'],
+    [/咽痛|嗓子疼|感冒咳嗽/g, '咳嗽'],
+    [/起疹子|过敏|皮肤发痒/g, '皮肤'],
+    [/摔伤|碰伤|伤口/g, '外伤'],
+  ];
+
+  for (const [pattern, replacement] of replacements) {
+    text = text.replace(pattern, replacement);
+  }
+  return text;
+}
+
 function detectScenario(chiefComplaint = '') {
-  const text = normalizeText(chiefComplaint);
+  const text = expandComplaintText(chiefComplaint);
   let best = SCENARIOS.cardio;
   let bestScore = -1;
 
@@ -273,18 +296,18 @@ function buildTriageResult(session) {
 function buildCostEstimate(session) {
   const scenario = session.scenario;
   const baseCost = calcBaseCost(scenario.baseChecks);
-  const insurance = session.insuranceType || '无医保';
+  const insurance = session.insuranceType || '';
   return {
     simple: {
       costRange: `${baseCost.min}~${baseCost.max}元`,
-      insuranceCoverage: '部分可报，具体以当地医保窗口为准',
+      insuranceCoverage: insurance ? '部分可报，具体以当地医保窗口为准' : '先选择医保类型，再看更贴近你的报销参考',
       costEffectivePlan: scenario.hospitalLevel,
       needMoreChecks: '视首轮检查结果决定是否追加检查',
     },
     expanded: {
       feeItems: scenario.baseChecks,
       ifThen: scenario.nextStepRules,
-      insuranceGuide: INSURANCE_GUIDE[insurance] || INSURANCE_GUIDE['无医保'],
+      insuranceGuide: insurance ? INSURANCE_GUIDE[insurance] || INSURANCE_GUIDE['无医保'] : '你先选一下医保类型，小科再把费用和报销说明补全。',
       disclaimer: '医保政策按地区和时间调整，请以当地医保窗口最新口径为准。',
     },
   };
@@ -292,17 +315,22 @@ function buildCostEstimate(session) {
 
 function buildBookingSuggestion(session) {
   const scenario = session.scenario;
-  const regionText = [session.province, session.city, session.district].filter(Boolean).join('');
+  const region = {
+    province: session.province || '',
+    city: session.city || '',
+    district: session.district || '',
+  };
+  const regionText = formatRegionName(region);
+  const recommendations = session.district ? buildHospitalRecommendations(region, scenario) : [];
   return {
+    requiresRegion: !session.district,
+    confirmedRegion: regionText,
     hospitalSuggestion: `${regionText || '本地'}县人民医院/市医院（按症状轻重选择）`,
     department: scenario.department,
     ticketType: '建议先挂普通号，首诊后再决定是否转专家号',
     urgency: '如症状持续加重，建议48小时内就诊；出现急症信号立即急诊。',
     preparation: scenario.preparation,
-    bookingLinks: [
-      { label: '国家医保服务平台', url: 'https://fuwu.nhsa.gov.cn' },
-      { label: '微信搜医院公众号挂号', url: 'https://weixin.qq.com' },
-    ],
+    hospitals: recommendations,
   };
 }
 

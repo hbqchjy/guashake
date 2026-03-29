@@ -572,6 +572,48 @@ body {
   color: var(--text);
 }
 
+.selected-insurance {
+  margin-top: 12px;
+}
+
+.insurance-selector {
+  margin-top: 12px;
+  padding: 14px;
+  border-radius: 18px;
+  background: rgba(20, 36, 31, 0.04);
+}
+
+.insurance-label {
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.insurance-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.insurance-btn {
+  appearance: none;
+  min-height: 46px;
+  padding: 0 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(20, 36, 31, 0.12);
+  background: #ffffff;
+  color: var(--text);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.insurance-btn.active {
+  background: rgba(7, 193, 96, 0.12);
+  border-color: rgba(7, 193, 96, 0.28);
+  color: var(--brand-dark);
+}
+
 .result-actions {
   display: flex;
   flex-wrap: wrap;
@@ -583,6 +625,63 @@ body {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.booking-card {
+  border-color: rgba(7, 193, 96, 0.16);
+}
+
+.booking-region {
+  margin-top: 6px;
+  color: var(--text);
+  font-weight: 700;
+}
+
+.booking-actions,
+.booking-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.booking-hospital-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.booking-hospital-item {
+  padding: 14px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.84);
+  border: 1px solid rgba(20, 36, 31, 0.08);
+}
+
+.booking-hospital-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.booking-hospital-name {
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.booking-hospital-meta,
+.booking-hospital-note,
+.booking-hospital-search,
+.booking-hospital-channel {
+  margin-top: 6px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.booking-hospital-search {
+  color: var(--brand-dark);
 }
 
 .result-collapse {
@@ -1253,6 +1352,14 @@ body {
   .result-kv-grid,
   .record-metrics {
     grid-template-columns: 1fr;
+  }
+
+  .insurance-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .booking-hospital-top {
+    flex-direction: column;
   }
 
   .action-card .result-actions {
