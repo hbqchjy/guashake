@@ -3,113 +3,155 @@ const QUICK_SYMPTOMS = ['心慌', '胸闷', '头晕', '腰酸', '肚子痛', '�
 const state = {
   sessionId: null,
   currentQuestion: null,
-  questionCount: 0,
-  maxQuestions: 5,
   triageResult: null,
   booking: null,
   cost: null,
+  profile: {
+    age: '',
+    gender: '',
+    insuranceType: '',
+    province: '',
+    city: '',
+    district: '',
+    regionInput: '',
+  },
+  regionTimer: null,
 };
 
 const $ = (id) => document.getElementById(id);
-
-function setPage(pageId) {
-  ['homePage', 'chatPage', 'resultPage'].forEach((id) => {
-    $(id).classList.toggle('active', id === pageId);
-  });
-}
 
 async function api(url, options = {}) {
   const res = await fetch(url, {
     headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
     ...options,
   });
-
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.error || '请求失败');
   }
-
   return res.json();
 }
 
-function renderQuickSymptoms() {
-  const box = $('quickSymptoms');
-  box.innerHTML = '';
-
-  QUICK_SYMPTOMS.forEach((symptom) => {
-    const btn = document.createElement('button');
-    btn.className = 'chip';
-    btn.textContent = symptom;
-    btn.onclick = () => {
-      const input = $('chiefComplaint');
-      const old = input.value.trim();
-      input.value = old ? `${old}、${symptom}` : symptom;
-      input.focus();
-    };
-    box.appendChild(btn);
-  });
-}
-
-function updateProgress() {
-  const done = Math.max(1, state.questionCount + 1);
-  const text = `第${Math.min(done, state.maxQuestions)}步 / 共${state.maxQuestions}步`;
-  $('progressText').textContent = text;
-  $('progressBar').style.width = `${Math.min(100, Math.round((done / state.maxQuestions) * 100))}%`;
-}
-
 function addMessage(role, text) {
-  const row = document.createElement('div');
-  row.className = `msg ${role}`;
-  row.innerHTML = `<div class="bubble">${text}</div>`;
-  $('chatBox').appendChild(row);
-  $('chatBox').scrollTop = $('chatBox').scrollHeight;
+  const wrap = document.createElement('div');
+  wrap.className = `msg ${role}`;
+  wrap.innerHTML = `<div class="bubble">${text}</div>`;
+  $('chat').appendChild(wrap);
+  $('chat').scrollTop = $('chat').scrollHeight;
 }
 
 function fillList(el, items) {
   el.innerHTML = '';
-  items.forEach((item) => {
+  items.forEach((it) => {
     const li = document.createElement('li');
-    li.textContent = item;
+    li.textContent = it;
     el.appendChild(li);
   });
 }
 
+function setSegValue(groupId, value) {
+  const box = $(groupId);
+  box.querySelectorAll('.seg-btn').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.value === value);
+  });
+}
+
+function renderQuickSymptoms() {
+  const row = $('quickSymptoms');
+  row.innerHTML = '';
+  QUICK_SYMPTOMS.forEach((s) => {
+    const btn = document.createElement('button');
+    btn.className = 'q-chip';
+    btn.textContent = s;
+    btn.onclick = () => {
+      const input = $('chiefComplaint');
+      const old = input.value.trim();
+      input.value = old ? `${old}、${s}` : s;
+      input.focus();
+    };
+    row.appendChild(btn);
+  });
+}
+
 function renderOptions(options) {
+  const dock = $('optionDock');
   const box = $('options');
   box.innerHTML = '';
 
+  if (!options || options.length === 0) {
+    dock.classList.add('hidden');
+    return;
+  }
+
+  dock.classList.remove('hidden');
   options.forEach((opt) => {
     const btn = document.createElement('button');
-    btn.className = 'btn';
+    btn.className = 'ghost wide';
     btn.textContent = opt;
     btn.onclick = () => answerQuestion(opt).catch((e) => alert(e.message));
     box.appendChild(btn);
   });
 }
 
-function renderQuestion(question) {
-  state.currentQuestion = question;
-  state.questionCount += 1;
-  updateProgress();
-  addMessage('bot', question.text);
-  renderOptions(question.options || []);
+function showProfileResolved(region) {
+  if (!region || !region.province) {
+    $('regionResolved').textContent = '';
+    return;
+  }
+  $('regionResolved').textContent = `已匹配：${region.province} ${region.city} ${region.district}`;
+}
+
+function setRegion(region) {
+  state.profile.province = region.province;
+  state.profile.city = region.city;
+  state.profile.district = region.district;
+  state.profile.regionInput = `${region.province}${region.city}${region.district}`;
+  $('regionInput').value = state.profile.regionInput;
+  showProfileResolved(region);
+}
+
+async function searchRegion(keyword) {
+  const data = await api(`/api/region/search?q=${encodeURIComponent(keyword)}`);
+  const box = $('regionSuggest');
+  box.innerHTML = '';
+
+  if (!data.regions || data.regions.length === 0) {
+    box.classList.add('hidden');
+    return;
+  }
+
+  data.regions.forEach((r) => {
+    const btn = document.createElement('button');
+    btn.className = 's-item';
+    btn.textContent = `${r.district} · ${r.city} · ${r.province}`;
+    btn.onclick = () => {
+      setRegion(r);
+      box.classList.add('hidden');
+    };
+    box.appendChild(btn);
+  });
+
+  box.classList.remove('hidden');
 }
 
 async function startConsultation() {
   const chiefComplaint = $('chiefComplaint').value.trim();
   if (!chiefComplaint) {
-    alert('请先输入哪里不舒服');
+    alert('先输入哪里不舒服');
     return;
   }
 
+  state.profile.age = $('age').value.trim();
+  state.profile.regionInput = $('regionInput').value.trim();
+
   const payload = {
     chiefComplaint,
-    age: $('age').value || undefined,
-    gender: $('gender').value || undefined,
-    province: $('province').value || undefined,
-    city: $('city').value || undefined,
-    district: $('district').value || undefined,
-    insuranceType: $('insuranceType').value || undefined,
+    age: state.profile.age || undefined,
+    gender: state.profile.gender || undefined,
+    insuranceType: state.profile.insuranceType || undefined,
+    province: state.profile.province || undefined,
+    city: state.profile.city || undefined,
+    district: state.profile.district || state.profile.regionInput || undefined,
   };
 
   const data = await api('/triage/session', {
@@ -118,22 +160,23 @@ async function startConsultation() {
   });
 
   state.sessionId = data.sessionId;
-  state.currentQuestion = null;
-  state.questionCount = 0;
+  state.currentQuestion = data.nextQuestion;
   state.triageResult = null;
   state.booking = null;
   state.cost = null;
 
-  setPage('chatPage');
-  $('chatBox').innerHTML = '';
+  $('optionDock').classList.remove('hidden');
+  $('resultSheet').classList.add('hidden');
+  $('chat').innerHTML = '';
 
-  addMessage('bot', `收到，你的情况先按“${data.scenario}”方向来判断。`);
-  addMessage('bot', '我每次只问一个问题，尽量简单。');
-  renderQuestion(data.nextQuestion);
+  addMessage('bot', `收到，我会按“${data.scenario}”方向帮你判断。`);
+  addMessage('bot', '我每次只问一个问题，你点按钮就行。');
+  addMessage('bot', data.nextQuestion.text);
+  renderOptions(data.nextQuestion.options);
 }
 
 async function answerQuestion(answer) {
-  if (!state.currentQuestion || !state.sessionId) return;
+  if (!state.sessionId || !state.currentQuestion) return;
 
   addMessage('user', answer);
 
@@ -152,7 +195,9 @@ async function answerQuestion(answer) {
     return;
   }
 
-  renderQuestion(data.nextQuestion);
+  state.currentQuestion = data.nextQuestion;
+  addMessage('bot', data.nextQuestion.text);
+  renderOptions(data.nextQuestion.options);
 }
 
 async function directResult() {
@@ -182,7 +227,7 @@ async function showResult() {
   state.booking = booking;
 
   const result = state.triageResult;
-  setPage('resultPage');
+  $('resultSheet').classList.remove('hidden');
 
   $('coreText').textContent = result.layeredOutput.core.text;
   fillList($('coreList'), [
@@ -208,6 +253,8 @@ async function showResult() {
 
   $('detailText').textContent = result.layeredOutput.detail.whyDepartment;
   fillList($('detailList'), result.layeredOutput.detail.stepByStep || []);
+
+  addMessage('bot', '建议已生成，你可以在下方查看完整卡片。');
 }
 
 async function saveRecord() {
@@ -216,7 +263,7 @@ async function saveRecord() {
     return;
   }
 
-  const userId = $('userId').value.trim() || prompt('输入用户ID（为空用guest）', 'guest') || 'guest';
+  const userId = $('userId').value.trim() || prompt('输入用户ID（为空用 guest）', 'guest') || 'guest';
 
   const formData = new FormData();
   formData.append('userId', userId);
@@ -236,18 +283,9 @@ async function saveRecord() {
   alert('已保存');
 }
 
-function openRecords() {
-  $('recordsDialog').showModal();
-}
-
-function closeRecords() {
-  $('recordsDialog').close();
-}
-
 async function listRecords() {
   const userId = $('userId').value.trim() || 'guest';
   const data = await api(`/archive/list?userId=${encodeURIComponent(userId)}`);
-
   const box = $('recordsList');
   box.innerHTML = '';
 
@@ -257,50 +295,116 @@ async function listRecords() {
   }
 
   data.records.forEach((record) => {
-    const node = document.createElement('div');
-    node.className = 'recordItem';
-
-    node.innerHTML = `
+    const row = document.createElement('div');
+    row.className = 'record';
+    row.innerHTML = `
       <p><strong>记录：</strong>${record.summary || '-'}</p>
       <p><strong>科室：</strong>${record.department || '-'}</p>
       <p><strong>时间：</strong>${record.createdAt || '-'}</p>
-      <div class="actions">
-        <a class="btn" target="_blank" href="/archive/export?userId=${encodeURIComponent(userId)}&recordId=${record.id}">导出PDF</a>
-        <button class="btn" data-id="${record.id}">删除</button>
+      <div class="sheet-actions">
+        <a class="ghost" target="_blank" href="/archive/export?userId=${encodeURIComponent(userId)}&recordId=${record.id}">导出PDF</a>
+        <button class="ghost" data-id="${record.id}">删除</button>
       </div>
     `;
-
-    node.querySelector('button').onclick = async () => {
+    row.querySelector('button').onclick = async () => {
       await api(`/archive/${encodeURIComponent(userId)}/${record.id}`, { method: 'DELETE' });
       await listRecords();
     };
+    box.appendChild(row);
+  });
+}
 
-    box.appendChild(node);
+function bindSegControls() {
+  $('genderGroup').querySelectorAll('.seg-btn').forEach((btn) => {
+    btn.onclick = () => {
+      state.profile.gender = btn.dataset.value;
+      setSegValue('genderGroup', state.profile.gender);
+    };
+  });
+
+  $('insuranceGroup').querySelectorAll('.seg-btn').forEach((btn) => {
+    btn.onclick = () => {
+      state.profile.insuranceType = btn.dataset.value;
+      setSegValue('insuranceGroup', state.profile.insuranceType);
+    };
+  });
+}
+
+function bindRegionInput() {
+  $('regionInput').addEventListener('input', () => {
+    const q = $('regionInput').value.trim();
+    state.profile.regionInput = q;
+
+    if (state.regionTimer) clearTimeout(state.regionTimer);
+    if (!q) {
+      $('regionSuggest').classList.add('hidden');
+      showProfileResolved(null);
+      return;
+    }
+
+    state.regionTimer = setTimeout(() => {
+      searchRegion(q).catch(() => $('regionSuggest').classList.add('hidden'));
+    }, 180);
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.region-wrap')) {
+      $('regionSuggest').classList.add('hidden');
+    }
   });
 }
 
 function bindEvents() {
-  $('startBtn').onclick = () => startConsultation().catch((e) => alert(e.message));
+  $('openProfileBtn').onclick = () => $('profilePanel').classList.remove('hidden');
+  $('closeProfileBtn').onclick = () => $('profilePanel').classList.add('hidden');
+
+  $('sendBtn').onclick = () => {
+    if (state.sessionId && state.currentQuestion) {
+      alert('请先回答当前问题，或点“直接给建议”');
+      return;
+    }
+    startConsultation().catch((e) => alert(e.message));
+  };
+
   $('directResultBtn').onclick = () => directResult().catch((e) => alert(e.message));
-  $('backHomeBtn').onclick = () => setPage('homePage');
-  $('restartBtn').onclick = () => setPage('homePage');
+
+  $('openRecordsBtn').onclick = () => $('recordsDialog').showModal();
+  $('viewRecordsBtn').onclick = () => $('recordsDialog').showModal();
+  $('closeRecordsBtn').onclick = () => $('recordsDialog').close();
+  $('listRecordsBtn').onclick = () => listRecords().catch((e) => alert(e.message));
+
+  $('closeResultBtn').onclick = () => $('resultSheet').classList.add('hidden');
+  $('restartBtn').onclick = () => {
+    state.sessionId = null;
+    state.currentQuestion = null;
+    state.triageResult = null;
+    $('resultSheet').classList.add('hidden');
+    $('optionDock').classList.add('hidden');
+    $('chat').innerHTML = '';
+    $('chiefComplaint').value = '';
+    addMessage('bot', '已重置。你可以重新描述不舒服的地方。');
+  };
 
   $('bookingBtn').onclick = () => {
     const target = state.booking?.bookingLinks?.[0]?.url;
-    if (target) {
-      window.open(target, '_blank', 'noopener,noreferrer');
+    if (!target) {
+      alert('暂无挂号入口');
       return;
     }
-    alert('暂无挂号入口');
+    window.open(target, '_blank', 'noopener,noreferrer');
   };
 
   $('saveBtn').onclick = () => saveRecord().catch((e) => alert(e.message));
-  $('openRecordsBtn').onclick = () => openRecords();
-  $('viewRecordsBtn').onclick = () => openRecords();
-  $('closeRecordsBtn').onclick = () => closeRecords();
-  $('listRecordsBtn').onclick = () => listRecords().catch((e) => alert(e.message));
+
+  $('chiefComplaint').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      $('sendBtn').click();
+    }
+  });
 }
 
 renderQuickSymptoms();
+bindSegControls();
+bindRegionInput();
 bindEvents();
-updateProgress();
+addMessage('bot', '你好，我是挂啥科助手。先说哪里不舒服，我来一步步帮你判断。');

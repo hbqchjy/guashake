@@ -9,6 +9,7 @@ const {
   buildCostEstimate,
   buildBookingSuggestion,
 } = require('./rules');
+const { searchRegions } = require('./regions');
 const { upsertSession, getSession, saveArchive, getArchives, deleteArchive } = require('./store');
 const { buildArchivePdf } = require('./pdf');
 
@@ -34,6 +35,12 @@ app.get('/api/health', (_req, res) => {
     updatedAt: '2026-03-29',
     coverageTier: '全国可访问，重点省份高覆盖（演示数据）',
   });
+});
+
+app.get('/api/region/search', (req, res) => {
+  const q = req.query.q || '';
+  const regions = searchRegions(q, 8);
+  res.json({ q, regions });
 });
 
 app.post('/triage/session', (req, res) => {
