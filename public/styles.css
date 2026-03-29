@@ -158,6 +158,19 @@ body {
   gap: 6px;
 }
 
+.choice-meta {
+  display: inline-flex;
+  align-self: flex-start;
+  min-height: 26px;
+  padding: 0 10px;
+  align-items: center;
+  border-radius: 999px;
+  background: rgba(7, 193, 96, 0.1);
+  color: var(--brand-dark);
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .choice-grid {
   display: grid;
   grid-template-columns: 1fr;
@@ -189,6 +202,12 @@ body {
   font-weight: 600;
   box-shadow: 0 8px 18px rgba(18, 28, 24, 0.04);
   transition: transform 120ms ease, border-color 120ms ease, background 120ms ease, box-shadow 120ms ease;
+}
+
+.choice-btn[data-kind="unknown"],
+.choice-btn[data-kind="skip"] {
+  background: linear-gradient(180deg, #f6faf8 0%, #f3f6f5 100%);
+  color: #59636b;
 }
 
 .choice-btn:hover {

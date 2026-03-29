@@ -132,6 +132,10 @@ app.post('/triage/session', (req, res) => {
   return res.json({
     sessionId,
     nextQuestion: scenario.questions[0],
+    progress: {
+      current: 1,
+      total: scenario.questions.length,
+    },
     stopRule: '回答满4轮、用户跳过、或命中急症信号时停止追问',
     scenario: scenario.label,
   });
@@ -164,6 +168,10 @@ app.post('/triage/answer', (req, res) => {
   return res.json({
     done: false,
     nextQuestion: session.scenario.questions[stepIndex],
+    progress: {
+      current: stepIndex + 1,
+      total: session.scenario.questions.length,
+    },
   });
 });
 
