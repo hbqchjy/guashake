@@ -711,6 +711,20 @@ function buildReportSummaryCard(summary, filePath = '') {
 }
 
 function buildBookingCard(booking, prepItems) {
+  const hospitals = (booking.hospitals || []).slice(0, 5);
+  const primaryHospitals = hospitals.slice(0, 2);
+  const extraHospitals = hospitals.slice(2);
+  const hospitalCardHtml = (hospital) =>
+    [
+      '<div class="booking-hospital-item">',
+      `<div class="booking-hospital-top"><div><p class="booking-hospital-name">${escapeHtml(hospital.name)}</p><p class="booking-hospital-meta">${escapeHtml(
+        `${hospital.level} · 建议挂 ${hospital.department}`
+      )}</p></div><button class="record-action" data-copy-wechat="${escapeHtml(hospital.wechatName)}">复制公众号名</button></div>`,
+      `<p class="booking-hospital-note">${escapeHtml(hospital.recommendation)}</p>`,
+      `<p class="booking-hospital-search">${escapeHtml(hospital.wechatKeyword)}</p>`,
+      `<p class="booking-hospital-channel">挂号方式：${escapeHtml(hospital.channel)}</p>`,
+      '</div>',
+    ].join('');
   const html = booking.requiresRegion
     ? [
         '<div class="result-card booking-card">',
@@ -727,18 +741,17 @@ function buildBookingCard(booking, prepItems) {
         `<div class="result-card-head"><span class="result-card-icon">${getInlineIcon('bag')}</span><h3>挂号建议</h3></div>`,
         `<p class="booking-region">当前地区：${escapeHtml(booking.confirmedRegion || '未确认')}</p>`,
         '<div class="booking-hospital-list">',
-        ...(booking.hospitals || []).map(
-          (hospital) => [
-            '<div class="booking-hospital-item">',
-            `<div class="booking-hospital-top"><div><p class="booking-hospital-name">${escapeHtml(hospital.name)}</p><p class="booking-hospital-meta">${escapeHtml(
-              `${hospital.level} · 建议挂 ${hospital.department}`
-            )}</p></div><button class="record-action" data-copy-wechat="${escapeHtml(hospital.wechatName)}">复制公众号名</button></div>`,
-            `<p class="booking-hospital-note">${escapeHtml(hospital.recommendation)}</p>`,
-            `<p class="booking-hospital-search">${escapeHtml(hospital.wechatKeyword)}</p>`,
-            `<p class="booking-hospital-channel">挂号方式：${escapeHtml(hospital.channel)}</p>`,
-            '</div>',
-          ].join('')
-        ),
+        ...primaryHospitals.map(hospitalCardHtml),
+        extraHospitals.length
+          ? [
+              '<details class="booking-more">',
+              `<summary class="booking-more-summary">更多医院（${extraHospitals.length} 家）</summary>`,
+              '<div class="booking-more-list">',
+              ...extraHospitals.map(hospitalCardHtml),
+              '</div>',
+              '</details>',
+            ].join('')
+          : '',
         '</div>',
         '<div class="booking-foot">',
         '<button class="result-action" data-booking-action="manual">更换地区</button>',
