@@ -35,6 +35,7 @@ app.get('/api/health', (_req, res) => {
     name: '挂啥科 MVP',
     updatedAt: '2026-03-29',
     coverageTier: '全国可访问，重点省份高覆盖（演示数据）',
+    ocrMode: process.env.OCR_WEBHOOK_URL ? 'webhook' : 'fallback',
   });
 });
 
@@ -202,7 +203,7 @@ app.post('/triage/supplement', (req, res) => {
   });
 });
 
-app.post('/triage/supplement-file', upload.single('file'), (req, res) => {
+app.post('/triage/supplement-file', upload.single('file'), async (req, res) => {
   const { sessionId, label = '补充材料' } = req.body;
   const session = getSession(sessionId);
   if (!session) {
@@ -212,6 +213,7 @@ app.post('/triage/supplement-file', upload.single('file'), (req, res) => {
     return res.status(400).json({ error: 'file is required' });
   }
 
+  const summary = await summarizeFile(req.file, label);
   const fileRecord = {
     originalName: req.file.originalname,
     filename: req.file.filename,
@@ -220,7 +222,7 @@ app.post('/triage/supplement-file', upload.single('file'), (req, res) => {
     mimetype: req.file.mimetype,
     label,
     uploadedAt: new Date().toISOString(),
-    summary: summarizeFile(req.file, label),
+    summary,
   };
 
   const supplementFiles = [...(session.supplementFiles || []), fileRecord];

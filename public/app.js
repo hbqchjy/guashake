@@ -677,21 +677,50 @@ function setResultViewMode(mode) {
 
 function buildReportSummaryCard(summary, filePath = '') {
   const highlights = (summary.highlights || []).map((item) => `<li>${escapeHtml(item)}</li>`).join('');
+  const ocrBadge = summary.ocrMode === 'webhook' ? 'OCR 已识别' : '基础摘要';
   return addRow(
     'bot',
     [
       '<div class="result-card report-summary-card">',
       `<div class="result-card-head"><span class="result-card-icon">${getInlineIcon('scan')}</span><h3>材料基础摘要</h3></div>`,
+      `<div class="report-summary-meta"><span class="record-tag">${escapeHtml(ocrBadge)}</span><span class="record-tag subtle">${escapeHtml(
+        summary.kind || '补充材料'
+      )}</span></div>`,
       `<p class="report-summary-title">${escapeHtml(summary.title || '补充材料')}</p>`,
       `<p>文件：${escapeHtml(summary.fileName || '-')} · ${escapeHtml(summary.sizeText || '-')}</p>`,
       `<p>建议先重点看：${escapeHtml((summary.highlights || []).join('、'))}</p>`,
       `<p>${escapeHtml(summary.nextStep || '')}</p>`,
+      summary.ocrText ? `<p class="report-ocr-snippet">识别到的文字：${escapeHtml(summary.ocrText)}</p>` : '',
       `<p class="report-summary-note">${escapeHtml(summary.disclaimer || '')}</p>`,
       filePath ? `<a class="record-action report-link" target="_blank" href="${escapeHtml(filePath)}">打开这份材料</a>` : '',
       highlights ? `<ul>${highlights}</ul>` : '',
       '</div>',
     ].join('')
   );
+}
+
+function buildCheckListHtml(items = []) {
+  return [
+    '<div class="result-list">',
+    ...items.map(
+      (item) =>
+        `<div class="result-list-item"><div><p class="result-item-title">${escapeHtml(item.name)}</p><p class="result-item-sub">先做基础检查，避免一开始做太多贵检查</p></div><strong>${escapeHtml(
+          `${item.min}~${item.max}元`
+        )}</strong></div>`
+    ),
+    '</div>',
+  ].join('');
+}
+
+function buildCostHtml(cost) {
+  return [
+    '<div class="result-kv-grid">',
+    `<div class="result-kv"><span>大概先花</span><strong>${escapeHtml(cost.simple.costRange)}</strong></div>`,
+    `<div class="result-kv"><span>医保参考</span><strong>${escapeHtml(cost.simple.insuranceCoverage)}</strong></div>`,
+    `<div class="result-kv full"><span>更划算建议</span><strong>${escapeHtml(cost.simple.costEffectivePlan)}</strong></div>`,
+    `<div class="result-kv full"><span>补充说明</span><strong>${escapeHtml(cost.expanded.insuranceGuide)}</strong></div>`,
+    '</div>',
+  ].join('');
 }
 
 async function renderResultCards() {
@@ -710,17 +739,8 @@ async function renderResultCards() {
   setComposerState('symptom');
 
   const triage = state.triageResult.layeredOutput;
-  const firstChecks = (triage.core.firstChecks || [])
-    .map((item) => `<li>${escapeHtml(`${item.name}（${item.min}~${item.max}元）`)}</li>`)
-    .join('');
-  const costItems = [
-    `大概先花：${cost.simple.costRange}`,
-    `医保参考：${cost.simple.insuranceCoverage}`,
-    `更划算建议：${cost.simple.costEffectivePlan}`,
-    cost.expanded.insuranceGuide,
-  ]
-    .map((item) => `<li>${escapeHtml(item)}</li>`)
-    .join('');
+  const firstChecks = buildCheckListHtml(triage.core.firstChecks || []);
+  const costItems = buildCostHtml(cost);
   const prepItems = (booking.preparation || []).map((item) => `<li>${escapeHtml(item)}</li>`).join('');
   const riskItems = (triage.riskReminder || []).map((item) => `<li>${escapeHtml(item)}</li>`).join('');
   const detailItems = (triage.detail.stepByStep || []).map((item) => `<li>${escapeHtml(item)}</li>`).join('');
@@ -772,9 +792,9 @@ async function renderResultCards() {
     };
   });
 
-  const essentialChecks = buildResultCard('第一步检查', `<ul>${firstChecks}</ul>`);
+  const essentialChecks = buildResultCard('第一步检查', firstChecks, 'strong');
   essentialChecks.dataset.resultView = 'simple';
-  const essentialCost = buildResultCard('费用与医保', `<ul>${costItems}</ul>`);
+  const essentialCost = buildResultCard('费用与医保', costItems);
   essentialCost.dataset.resultView = 'simple';
   const prepCard = buildCollapsibleResultCard('去医院前带什么', '身份证、医保卡、近期检查结果', `<ul>${prepItems}</ul>`);
   prepCard.dataset.resultView = 'full';
@@ -967,17 +987,33 @@ async function listRecords() {
   list.innerHTML = '';
 
   if (!data.records.length) {
-    list.innerHTML = '<p>暂无记录</p>';
+    list.innerHTML = '<div class="records-empty"><p>还没有保存过记录</p><span>你完成一次咨询后，可以把结果和材料一起存进这里。</span></div>';
     return;
   }
 
   data.records.forEach((record) => {
     const item = document.createElement('div');
     item.className = 'record-item';
+    const fileCount = Array.isArray(record.files) ? record.files.length : 0;
+    const reportCount = (record.files || []).filter((file) => file.summary?.title).length;
     item.innerHTML = [
-      `<p><strong>记录：</strong>${escapeHtml(record.summary || '-')}</p>`,
-      `<p><strong>科室：</strong>${escapeHtml(record.department || '-')}</p>`,
-      `<p><strong>时间：</strong>${escapeHtml(record.createdAt || '-')}</p>`,
+      '<div class="record-top">',
+      `<div><div class="record-tags"><span class="record-tag">历史记录</span>${record.department ? `<span class="record-tag subtle">${escapeHtml(record.department)}</span>` : ''}</div><p class="record-title">${escapeHtml(
+        record.summary || '-'
+      )}</p></div>`,
+      `<span class="record-time">${escapeHtml((record.createdAt || '-').slice(0, 16).replace('T', ' '))}</span>`,
+      '</div>',
+      '<div class="record-metrics">',
+      `<div class="record-metric"><span>首轮费用</span><strong>${escapeHtml(record.costRange || '-')}</strong></div>`,
+      `<div class="record-metric"><span>材料数量</span><strong>${fileCount} 份</strong></div>`,
+      `<div class="record-metric"><span>摘要材料</span><strong>${reportCount} 份</strong></div>`,
+      '</div>',
+      record.firstChecks?.length
+        ? `<div class="record-checks">${record.firstChecks
+            .slice(0, 3)
+            .map((item) => `<span class="record-chip">${escapeHtml(item.name)}</span>`)
+            .join('')}</div>`
+        : '',
       '<div class="record-actions">',
       `<a class="record-action" target="_blank" href="/archive/export?userId=${encodeURIComponent(userId)}&recordId=${record.id}">导出 PDF</a>`,
       `<button class="record-action" data-delete="${record.id}">删除</button>`,

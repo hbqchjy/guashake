@@ -1,3 +1,5 @@
+const fs = require('fs');
+
 const REPORT_KEYWORDS = [
   { pattern: /(血常规|血常)/i, title: '血常规报告', focus: ['白细胞', '血红蛋白', '血小板'], next: '先看是否提示感染、贫血或出血风险。' },
   { pattern: /(尿常规|尿检)/i, title: '尿常规报告', focus: ['白细胞', '红细胞', '蛋白', '亚硝酸盐'], next: '先看是否像尿路感染，必要时再补尿培养。' },
@@ -43,17 +45,116 @@ function inferSummaryFromName(originalName = '', label = '') {
   };
 }
 
-function summarizeFile(file, label = '补充材料') {
+function normalizeText(text = '') {
+  return String(text || '')
+    .replace(/\s+/g, ' ')
+    .replace(/[：:]/g, '：')
+    .trim();
+}
+
+function pickHighlightsFromText(text = '') {
+  const compact = normalizeText(text);
+  if (!compact) return [];
+
+  const candidates = [];
+  const lineRules = [
+    /(?:结论|提示|印象|诊断)[：:]\s*([^。；\n]{2,40})/i,
+    /(?:检查项目|项目名称)[：:]\s*([^。；\n]{2,40})/i,
+    /(?:白细胞|血红蛋白|肌酐|尿蛋白|心率|血压)[^。\n]{0,24}/i,
+  ];
+
+  for (const rule of lineRules) {
+    const match = compact.match(rule);
+    if (match?.[1]) {
+      candidates.push(match[1]);
+    } else if (match?.[0]) {
+      candidates.push(match[0]);
+    }
+  }
+
+  return [...new Set(candidates)].slice(0, 3);
+}
+
+function inferSummaryFromText(text = '', fallbackTitle = '检查报告') {
+  const compact = normalizeText(text);
+  if (!compact) return null;
+
+  const matched = REPORT_KEYWORDS.find((item) => item.pattern.test(compact));
+  const highlights = pickHighlightsFromText(compact);
+
+  if (matched) {
+    return {
+      title: matched.title,
+      highlights: highlights.length ? highlights : matched.focus,
+      nextStep: matched.next,
+    };
+  }
+
+  if (highlights.length) {
+    return {
+      title: fallbackTitle,
+      highlights,
+      nextStep: '先看结论和关键指标，再决定是否需要补做其他检查。',
+    };
+  }
+
+  return null;
+}
+
+async function extractTextWithWebhook(file) {
+  const webhook = process.env.OCR_WEBHOOK_URL;
+  if (!webhook || !file?.path || !fs.existsSync(file.path)) {
+    return null;
+  }
+
+  const form = new FormData();
+  const buffer = fs.readFileSync(file.path);
+  const blob = new Blob([buffer], { type: file.mimetype || 'application/octet-stream' });
+  form.append('file', blob, file.originalname || 'upload.bin');
+
+  const response = await fetch(webhook, {
+    method: 'POST',
+    body: form,
+  });
+
+  if (!response.ok) {
+    throw new Error(`ocr webhook failed: ${response.status}`);
+  }
+
+  const payload = await response.json().catch(() => ({}));
+  return normalizeText(payload.text || payload.ocrText || payload.content || '');
+}
+
+async function summarizeFile(file, label = '补充材料') {
   const base = inferSummaryFromName(file.originalname || '', label);
+  let ocrText = '';
+  let ocrEnabled = false;
+
+  try {
+    ocrText = await extractTextWithWebhook(file);
+    ocrEnabled = Boolean(process.env.OCR_WEBHOOK_URL);
+  } catch (_error) {
+    ocrText = '';
+    ocrEnabled = Boolean(process.env.OCR_WEBHOOK_URL);
+  }
+
+  const inferred = inferSummaryFromText(ocrText, base.title) || base;
+
   return {
     kind: label,
     fileName: file.originalname,
     fileType: file.mimetype || 'unknown',
     sizeText: formatSize(file.size),
-    title: base.title,
-    highlights: base.highlights,
-    nextStep: base.nextStep,
-    disclaimer: '当前为基础版摘要，主要根据文件名和材料类型判断，不替代医生解读。',
+    title: inferred.title,
+    highlights: inferred.highlights,
+    nextStep: inferred.nextStep,
+    ocrText: ocrText ? ocrText.slice(0, 220) : '',
+    ocrMode: ocrText ? 'webhook' : 'fallback',
+    disclaimer: ocrText
+      ? '当前摘要已参考 OCR 提取结果，仍建议结合医生正式报告解读。'
+      : ocrEnabled
+        ? 'OCR 服务暂时没有返回有效文字，当前先按文件名和材料类型做基础摘要。'
+        : '当前未配置 OCR 服务，先按文件名和材料类型做基础摘要。',
   };
 }
 

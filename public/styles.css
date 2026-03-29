@@ -507,6 +507,71 @@ body {
   color: var(--risk-text);
 }
 
+.result-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.result-list-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.84);
+  border: 1px solid rgba(20, 36, 31, 0.08);
+}
+
+.result-item-title {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.result-item-sub {
+  margin-top: 4px;
+  font-size: 13px;
+}
+
+.result-list-item strong {
+  flex: 0 0 auto;
+  font-size: 14px;
+  color: var(--brand-dark);
+}
+
+.result-kv-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.result-kv {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(20, 36, 31, 0.08);
+}
+
+.result-kv.full {
+  grid-column: 1 / -1;
+}
+
+.result-kv span {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.result-kv strong {
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--text);
+}
+
 .result-actions {
   display: flex;
   flex-wrap: wrap;
@@ -710,6 +775,31 @@ body {
   border-color: rgba(7, 193, 96, 0.16);
 }
 
+.report-summary-meta,
+.record-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 4px 0 8px;
+}
+
+.record-tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(7, 193, 96, 0.1);
+  color: var(--brand-dark);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.record-tag.subtle {
+  background: rgba(20, 36, 31, 0.06);
+  color: var(--text);
+}
+
 .report-summary-title {
   margin-top: 4px;
   font-size: 16px;
@@ -721,6 +811,15 @@ body {
   margin-top: 4px;
   font-size: 13px;
   color: var(--muted);
+}
+
+.report-ocr-snippet {
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(20, 36, 31, 0.04);
+  border: 1px dashed rgba(20, 36, 31, 0.14);
+  font-size: 13px;
+  line-height: 1.65;
 }
 
 .report-link {
@@ -841,6 +940,13 @@ body {
   font-size: 20px;
 }
 
+.dialog-subcopy {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
 .dialog-label {
   display: block;
   color: var(--muted);
@@ -853,18 +959,106 @@ body {
 
 .records-list {
   margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .record-item {
-  margin-top: 10px;
-  border: 1px solid rgba(20, 36, 31, 0.1);
-  border-radius: 18px;
-  padding: 14px;
-  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(20, 36, 31, 0.08);
+  border-radius: 22px;
+  padding: 16px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 249, 0.94) 100%);
+  box-shadow: 0 12px 28px rgba(18, 28, 24, 0.05);
 }
 
 .record-item p {
   margin: 0 0 6px;
+}
+
+.record-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.record-title {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.6;
+  color: var(--text);
+}
+
+.record-time {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.record-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.record-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border-radius: 16px;
+  background: rgba(20, 36, 31, 0.04);
+}
+
+.record-metric span {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.record-metric strong {
+  font-size: 14px;
+  color: var(--text);
+}
+
+.record-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.record-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: rgba(7, 193, 96, 0.08);
+  color: var(--brand-dark);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.records-empty {
+  padding: 28px 20px;
+  border-radius: 22px;
+  background: rgba(20, 36, 31, 0.04);
+  text-align: center;
+}
+
+.records-empty p {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.records-empty span {
+  display: block;
+  margin-top: 8px;
+  color: var(--muted);
+  line-height: 1.6;
 }
 
 .record-actions {
@@ -982,6 +1176,11 @@ body {
   }
 
   .summary-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .result-kv-grid,
+  .record-metrics {
     grid-template-columns: 1fr;
   }
 
