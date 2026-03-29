@@ -98,7 +98,7 @@ function addChoiceBlock(title, options, onPick, note = '') {
 
   const titleHtml = `<p>${escapeHtml(title)}</p>`;
   const noteHtml = note ? `<div class="choice-note">${escapeHtml(note)}</div>` : '';
-  bubble.innerHTML = `${titleHtml}<div class="choice-grid"></div>${noteHtml}`;
+  bubble.innerHTML = `<div class="choice-head">${titleHtml}${noteHtml}</div><div class="choice-grid"></div>`;
 
   const grid = bubble.querySelector('.choice-grid');
   options.forEach((option) => {
@@ -454,19 +454,21 @@ async function renderResultCards() {
   const prepItems = (booking.preparation || []).map((item) => `<li>${escapeHtml(item)}</li>`).join('');
   const riskItems = (triage.riskReminder || []).map((item) => `<li>${escapeHtml(item)}</li>`).join('');
   const detailItems = (triage.detail.stepByStep || []).map((item) => `<li>${escapeHtml(item)}</li>`).join('');
-
-  buildResultCard(
-    '先去哪个科',
-    [
-      `<p>${escapeHtml(triage.core.text)}</p>`,
-      '<ul>',
-      `<li>${escapeHtml(`建议科室：${triage.core.suggestDepartment}`)}</li>`,
-      `<li>${escapeHtml(`建议医院：${triage.core.suggestHospital}`)}</li>`,
-      `<li>${escapeHtml(`首轮费用：${triage.core.firstCostRange}`)}</li>`,
-      '</ul>',
-    ].join(''),
-    'strong'
-  );
+  const summaryHtml = [
+    '<div class="summary-card">',
+    '<div class="summary-top">',
+    '<span class="summary-badge">小科总结</span>',
+    `<p class="summary-title">${escapeHtml(triage.core.suggestDepartment)}</p>`,
+    `<p class="summary-text">${escapeHtml(triage.core.text)}</p>`,
+    '</div>',
+    '<div class="summary-metrics">',
+    `<div class="summary-metric"><span class="summary-label">建议医院</span><strong>${escapeHtml(triage.core.suggestHospital)}</strong></div>`,
+    `<div class="summary-metric"><span class="summary-label">首轮费用</span><strong>${escapeHtml(triage.core.firstCostRange)}</strong></div>`,
+    `<div class="summary-metric"><span class="summary-label">医保参考</span><strong>${escapeHtml(cost.simple.insuranceCoverage)}</strong></div>`,
+    '</div>',
+    '</div>',
+  ].join('');
+  addRow('bot', summaryHtml, 'summary-shell');
 
   buildResultCard('第一步检查', `<ul>${firstChecks}</ul>`);
   buildResultCard('费用与医保', `<ul>${costItems}</ul>`);
@@ -480,8 +482,11 @@ async function renderResultCards() {
   addRow(
     'bot',
     [
-      '<div class="result-card">',
+      '<div class="result-card action-card">',
+      '<div class="action-head">',
       '<h3>下一步</h3>',
+      '<p>先挂号，还是先把这次结果存下来。</p>',
+      '</div>',
       '<div class="result-actions">',
       '<button class="result-action primary" data-action="booking">去挂号</button>',
       '<button class="result-action" data-action="save">保存记录</button>',
