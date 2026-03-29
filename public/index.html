@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>挂啥科 - 看病前信息助手</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <main class="app">
+    <header class="hero">
+      <h1>挂啥科</h1>
+      <p>看病前先弄明白：去哪看、挂啥科、先做哪些检查、大概花多少钱</p>
+      <p class="disclaimer">仅作就医前咨询参考，不能替代医生面诊</p>
+    </header>
+
+    <section class="card" id="intakeCard">
+      <h2>1. 先填基础信息</h2>
+      <div class="grid">
+        <label>年龄<input id="age" type="number" placeholder="例如 58" /></label>
+        <label>性别
+          <select id="gender">
+            <option value="">请选择</option>
+            <option>男</option>
+            <option>女</option>
+          </select>
+        </label>
+        <label>省<input id="province" type="text" placeholder="例如 湖南省" /></label>
+        <label>市<input id="city" type="text" placeholder="例如 邵阳市" /></label>
+        <label>区县<input id="district" type="text" placeholder="例如 隆回县" /></label>
+        <label>医保类型
+          <select id="insuranceType">
+            <option value="">请选择</option>
+            <option>无医保</option>
+            <option>体制内医保</option>
+            <option>城镇职工医保</option>
+            <option>城乡居民医保</option>
+          </select>
+        </label>
+      </div>
+      <label class="full">主要不舒服
+        <textarea id="chiefComplaint" rows="3" placeholder="例如：最近总是心慌、胸闷，爬楼会喘"></textarea>
+      </label>
+      <button class="btn primary" id="startBtn">开始预诊追问</button>
+    </section>
+
+    <section class="card hidden" id="questionCard">
+      <h2>2. 逐步追问（单题）</h2>
+      <p class="tag" id="scenarioTag"></p>
+      <p id="questionText" class="question"></p>
+      <div id="options" class="options"></div>
+      <div class="actionRow">
+        <button class="btn" id="skipBtn">不想继续，直接出结果</button>
+      </div>
+    </section>
+
+    <section class="card hidden" id="resultCard">
+      <h2>3. 预诊结果</h2>
+      <div id="riskBanner" class="risk normal"></div>
+      <div class="resultBlock">
+        <h3>核心结论</h3>
+        <p id="coreText"></p>
+        <ul id="coreList"></ul>
+      </div>
+      <details class="resultBlock">
+        <summary>展开说明</summary>
+        <p id="whyDepartment"></p>
+        <ul id="detailList"></ul>
+      </details>
+      <div class="resultBlock">
+        <h3>风险提醒</h3>
+        <ul id="riskList"></ul>
+      </div>
+    </section>
+
+    <section class="card hidden" id="costCard">
+      <h2>4. 费用与医保参考</h2>
+      <div class="resultBlock">
+        <h3>简版</h3>
+        <ul id="costSimple"></ul>
+      </div>
+      <details class="resultBlock" open>
+        <summary>分步费用路径（如果...那么...）</summary>
+        <ul id="costExpanded"></ul>
+      </details>
+    </section>
+
+    <section class="card hidden" id="bookingCard">
+      <h2>5. 辅助挂号</h2>
+      <ul id="bookingList"></ul>
+      <div id="bookingLinks" class="linkGrid"></div>
+    </section>
+
+    <section class="card hidden" id="archiveCard">
+      <h2>6. 健康档案（可选注册）</h2>
+      <p>问诊可不注册。要保存档案时，填写一个用户ID（模拟微信授权后的唯一ID）。</p>
+      <div class="grid">
+        <label>用户ID<input id="userId" type="text" placeholder="例如 wx_user_001" /></label>
+        <label>医生补充建议<input id="doctorAdvice" type="text" placeholder="可留空" /></label>
+      </div>
+      <label class="full">上传病历/报告/处方图片
+        <input id="files" type="file" multiple accept="image/*,.pdf" />
+      </label>
+      <div class="actionRow">
+        <button class="btn primary" id="saveArchiveBtn">保存本次记录</button>
+        <button class="btn" id="listArchiveBtn">查看我的档案</button>
+      </div>
+      <div id="archiveList"></div>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>

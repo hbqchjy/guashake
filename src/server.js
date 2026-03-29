@@ -1,0 +1,205 @@
+const express = require('express');
+const path = require('path');
+const cors = require('cors');
+const multer = require('multer');
+const { v4: uuidv4 } = require('uuid');
+const {
+  detectScenario,
+  buildTriageResult,
+  buildCostEstimate,
+  buildBookingSuggestion,
+} = require('./rules');
+const { upsertSession, getSession, saveArchive, getArchives, deleteArchive } = require('./store');
+const { buildArchivePdf } = require('./pdf');
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.use(cors());
+app.use(express.json({ limit: '3mb' }));
+app.use(express.urlencoded({ extended: true }));
+app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
+app.use(express.static(path.join(__dirname, '..', 'public')));
+
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, path.join(__dirname, '..', 'uploads')),
+  filename: (_req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`),
+});
+const upload = multer({ storage });
+
+app.get('/api/health', (_req, res) => {
+  res.json({
+    ok: true,
+    name: '挂啥科 MVP',
+    updatedAt: '2026-03-29',
+    coverageTier: '全国可访问，重点省份高覆盖（演示数据）',
+  });
+});
+
+app.post('/triage/session', (req, res) => {
+  const {
+    age,
+    gender,
+    province,
+    city,
+    district,
+    insuranceType,
+    chiefComplaint,
+  } = req.body;
+
+  if (!chiefComplaint) {
+    return res.status(400).json({ error: 'chiefComplaint is required' });
+  }
+
+  const sessionId = uuidv4();
+  const scenario = detectScenario(chiefComplaint);
+  const session = upsertSession(sessionId, {
+    id: sessionId,
+    age,
+    gender,
+    province,
+    city,
+    district,
+    insuranceType,
+    chiefComplaint,
+    scenario,
+    stepIndex: 0,
+    answers: {},
+    createdAt: new Date().toISOString(),
+  });
+
+  return res.json({
+    sessionId,
+    nextQuestion: scenario.questions[0],
+    stopRule: '回答满4轮、用户跳过、或命中急症信号时停止追问',
+    scenario: scenario.label,
+  });
+});
+
+app.post('/triage/answer', (req, res) => {
+  const { sessionId, questionId, answer, skip } = req.body;
+  const session = getSession(sessionId);
+  if (!session) {
+    return res.status(404).json({ error: 'session not found' });
+  }
+
+  const answers = { ...(session.answers || {}) };
+  if (!skip && questionId && answer) {
+    answers[questionId] = answer;
+  }
+
+  let stepIndex = Number(session.stepIndex || 0) + 1;
+  const reachedMax = stepIndex >= session.scenario.questions.length;
+  const userSkip = Boolean(skip);
+
+  const updated = upsertSession(sessionId, { answers, stepIndex });
+
+  if (userSkip || reachedMax) {
+    const triageResult = buildTriageResult(updated);
+    upsertSession(sessionId, { triageResult });
+    return res.json({ done: true, triageResult });
+  }
+
+  return res.json({
+    done: false,
+    nextQuestion: session.scenario.questions[stepIndex],
+  });
+});
+
+app.get('/triage/result/:id', (req, res) => {
+  const session = getSession(req.params.id);
+  if (!session) {
+    return res.status(404).json({ error: 'session not found' });
+  }
+
+  const triageResult = session.triageResult || buildTriageResult(session);
+  upsertSession(req.params.id, { triageResult });
+  return res.json(triageResult);
+});
+
+app.post('/cost/estimate', (req, res) => {
+  const { sessionId } = req.body;
+  const session = getSession(sessionId);
+  if (!session) {
+    return res.status(404).json({ error: 'session not found' });
+  }
+
+  const estimate = buildCostEstimate(session);
+  upsertSession(sessionId, { estimate });
+  return res.json({
+    coverageTier: '基础覆盖',
+    updatedAt: '2026-03-29',
+    ...estimate,
+  });
+});
+
+app.get('/booking/options', (req, res) => {
+  const { sessionId } = req.query;
+  const session = getSession(sessionId);
+  if (!session) {
+    return res.status(404).json({ error: 'session not found' });
+  }
+
+  const booking = buildBookingSuggestion(session);
+  upsertSession(sessionId, { booking });
+  return res.json(booking);
+});
+
+app.post('/archive/upload', upload.array('files', 10), (req, res) => {
+  const { userId = 'guest', sessionId, summary, doctorAdvice } = req.body;
+  const session = sessionId ? getSession(sessionId) : null;
+
+  const triageResult = session?.triageResult || (session ? buildTriageResult(session) : null);
+  const record = {
+    id: uuidv4(),
+    userId,
+    sessionId: sessionId || null,
+    summary: summary || triageResult?.layeredOutput?.core?.text || '就医记录',
+    doctorAdvice: doctorAdvice || '',
+    department: triageResult?.layeredOutput?.core?.suggestDepartment || '',
+    costRange: triageResult?.layeredOutput?.core?.firstCostRange || '',
+    firstChecks: triageResult?.layeredOutput?.core?.firstChecks || [],
+    files: (req.files || []).map((f) => ({
+      originalName: f.originalname,
+      filename: f.filename,
+      path: `/uploads/${f.filename}`,
+      size: f.size,
+    })),
+  };
+
+  saveArchive(userId, record);
+  return res.json({ ok: true, record });
+});
+
+app.get('/archive/list', (req, res) => {
+  const userId = req.query.userId || 'guest';
+  const records = getArchives(userId);
+  return res.json({ userId, total: records.length, records });
+});
+
+app.delete('/archive/:userId/:recordId', (req, res) => {
+  const { userId, recordId } = req.params;
+  const records = deleteArchive(userId, recordId);
+  return res.json({ ok: true, total: records.length, records });
+});
+
+app.get('/archive/export', (req, res) => {
+  const userId = req.query.userId || 'guest';
+  const recordId = req.query.recordId;
+  const records = getArchives(userId);
+
+  const target = recordId ? records.find((r) => r.id === recordId) : records[0];
+  if (!target) {
+    return res.status(404).json({ error: 'record not found' });
+  }
+
+  buildArchivePdf(target, res);
+});
+
+app.get('*', (_req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
+});
+
+app.listen(PORT, () => {
+  console.log(`挂啥科 MVP running on http://localhost:${PORT}`);
+});

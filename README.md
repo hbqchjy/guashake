@@ -1,0 +1,145 @@
+# 挂啥科 MVP
+
+面向微信公众号 H5 的就医前信息辅助原型，目标是把普通用户最关心的问题先讲明白：
+- 挂什么科
+- 先做哪些最小必要检查
+- 大概花多少钱
+- 医保怎么更划算
+- 去医院前要带什么
+
+> 边界：仅做就医前信息参考，不替代医生面诊，不提供诊断结论和处方。
+
+## 1. 总体技术方案
+- 前端：H5 单页应用（`public/index.html + app.js + styles.css`）
+- 后端：Node.js + Express（`src/server.js`）
+- 规则引擎：症状场景库 + 追问题库 + 分层输出（`src/rules.js`）
+- 存储：JSON 文件持久化（`data/db.json`，运行时自动创建）
+- 文件：`multer` 本地上传到 `uploads/`
+- 导出：`pdfkit` 生成档案 PDF
+
+## 2. 技术栈建议（当前实现）
+- Node.js 20+
+- Express 4
+- Multer
+- PDFKit
+- Vanilla JS + CSS（适老化大字大按钮）
+
+适合快速迭代、AI 代理连续生成、海外 VPS 直接部署。
+
+## 3. 系统架构（文字图）
+- 用户（公众号 H5）
+  -> `POST /triage/session` 创建预诊会话
+  -> `POST /triage/answer` 连续追问
+  -> `GET /triage/result/:id` 三层输出
+  -> `POST /cost/estimate` 费用与医保参考
+  -> `GET /booking/options` 挂号与准备清单
+  -> `POST /archive/upload` 建档上传
+  -> `GET /archive/list` 查看历史
+  -> `GET /archive/export` 导出 PDF
+- 后端服务
+  -> 规则库（场景识别/追问/风险分流）
+  -> JSON 存储（会话、档案）
+  -> 文件存储（上传资料）
+
+## 4. 数据结构（MVP）
+当前以 JSON 存储，对应核心实体：
+- `users`（简化为 userId 字段，后续可扩表）
+- `sessions`：基础信息、主诉、追问答案、预诊结果
+- `archives`：历史就诊记录、文件元数据、导出对象
+
+后续建议关系型表（MySQL/Postgres）：
+- `users`
+- `consultations`
+- `consultation_messages`
+- `symptom_sessions`
+- `cost_estimates`
+- `hospitals`
+- `insurance_rules`
+- `medical_records`
+- `uploaded_files`
+
+## 5. API 设计（已实现）
+- `GET /api/health`
+- `POST /triage/session`
+- `POST /triage/answer`
+- `GET /triage/result/:id`
+- `POST /cost/estimate`
+- `GET /booking/options?sessionId=...`
+- `POST /archive/upload`（multipart）
+- `GET /archive/list?userId=...`
+- `DELETE /archive/:userId/:recordId`
+- `GET /archive/export?userId=...&recordId=...`
+
+## 6. 页面结构（已实现）
+- 首页/信息采集页（地区、医保、主诉）
+- 追问页（单题单屏，选择题优先）
+- 预诊结果页（三层输出：核心结论/展开说明/风险提醒）
+- 费用页（简版 + if/then 分步路径）
+- 辅助挂号页（医院级别、科室、号别、准备清单）
+- 健康档案页（上传、列表、删除、PDF 导出）
+
+## 7. 问诊状态机
+- `INIT`
+- `COLLECT_BASIC_INFO`
+- `COLLECT_MAIN_SYMPTOM`
+- `FOLLOW_UP_QUESTIONS`
+- `GENERATE_PRE_TRIAGE`
+- `GENERATE_COST_ESTIMATE`
+- `SHOW_RESULT`
+- `SAVE_RECORD`
+
+停止追问条件：
+- 达到追问上限（当前 4 轮）
+- 用户主动跳过
+- 命中急症红旗（输出紧急提示）
+
+## 8. Prompt 设计（下一步接入 LLM 时使用）
+### 症状理解 Prompt
+- 输入：主诉文本 + 年龄性别 + 地区
+- 输出：高频场景标签、风险词、需要追问的关键维度
+- 约束：中文口语化，不给诊断结论
+
+### 追问生成 Prompt
+- 输入：场景标签 + 已有答案
+- 输出：1 个最关键追问，必须是选择题，选项 2-5 个
+- 约束：问题短句，避免医学术语堆砌
+
+### 结果总结 Prompt
+- 输出三层：核心结论、展开说明、风险提醒
+- 用词：可能/建议/不能排除
+- 必带：不能替代医生面诊
+
+### 费用预估 Prompt
+- 输出：首轮最小必要检查 + 区间费用 + if/then 追加策略
+- 约束：先低成本后升级，不推荐一次性全做
+
+### 就诊建议 Prompt
+- 输出：医院级别、科室、号别、准备清单
+- 约束：优先普通号，必要时再专家号
+
+## 9. 首批覆盖场景（已实现 6 类）
+- 心慌/胸闷/头晕/高血压相关
+- 腰酸/腰痛/腿麻
+- 肚子痛/胃不舒服/消化问题
+- 尿频/尿急/尿痛
+- 咳嗽/发热/呼吸道不适
+- 外伤/皮肤问题
+
+## 10. 开发计划（可迭代）
+- Phase 1（已完成）：可运行原型 + 四模块闭环
+- Phase 2：增强追问逻辑（条件分支、反问澄清、历史上下文）
+- Phase 3：地区化医保/费用规则数据管道（月度更新 + 覆盖等级）
+- Phase 4：接入 OCR 与 LLM，总结质量和档案结构化提升
+
+## 11. 运行方式
+```bash
+npm install
+npm start
+# 打开 http://localhost:3000
+```
+
+## 12. 风险与后续建议
+- 医疗合规：保持“信息辅助”定位，避免诊断口吻
+- 数据准确性：前台显示更新时间与覆盖等级
+- 审核策略：敏感词、疾病断言、夸大疗效必须拦截
+- 隐私安全：上线前补齐鉴权、加密存储、访问审计
