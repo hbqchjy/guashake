@@ -172,18 +172,39 @@ function renderQuickSymptoms() {
   });
 }
 
-function askQuestion(question, note = '请按实际情况选择最接近的一项。') {
+function getQuestionReason(question) {
+  const text = String(question?.text || '');
+
+  if (/胸痛|压榨感|喘不上气|发烧|带血|化脓|红肿热痛/.test(text)) {
+    return '这题主要用来判断紧急程度。';
+  }
+  if (/持续多久|频繁|次数|多久了/.test(text)) {
+    return '这题主要用来判断是短期问题还是反复问题。';
+  }
+  if (/以前有|病史|哮喘史|高血压|心脏病/.test(text)) {
+    return '这题主要用来判断既往基础病会不会影响现在的建议。';
+  }
+  if (/吃饭|大便|尿里带血|起夜|活动后|晚上/.test(text)) {
+    return '这题主要用来判断症状更像哪一类问题。';
+  }
+
+  return '这题主要用来把就医方向问得更准一点。';
+}
+
+function askQuestion(question, note = '') {
   state.currentQuestion = question;
   const progress = state.followUpProgress
     ? `第 ${state.followUpProgress.current} / ${state.followUpProgress.total} 步`
     : '一步一步来';
+  const reason = getQuestionReason(question);
+  const finalNote = [reason, note].filter(Boolean).join(' ');
   addChoiceBlock(
     question.text,
     question.options.map((label) => ({ label, type: 'answer' })),
     async (option) => {
       await answerQuestion(option.label);
     },
-    note,
+    finalNote,
     progress
   );
   setComposerState('locked');
