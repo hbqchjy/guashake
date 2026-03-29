@@ -355,7 +355,10 @@ function bindRegionInput() {
 }
 
 function bindEvents() {
-  $('openProfileBtn').onclick = () => $('profilePanel').classList.remove('hidden');
+  $('openProfileBtn').onclick = () => {
+    $('profilePanel').classList.remove('hidden');
+    $('profilePanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
   $('closeProfileBtn').onclick = () => $('profilePanel').classList.add('hidden');
 
   $('sendBtn').onclick = () => {

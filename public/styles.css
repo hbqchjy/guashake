@@ -28,7 +28,7 @@ body {
 .app {
   width: min(920px, 100%);
   margin: 0 auto;
-  padding: 14px 12px 210px;
+  padding: 14px 12px 120px;
 }
 
 .glass {
@@ -130,6 +130,44 @@ button {
   padding: 14px;
 }
 
+.hero-panel {
+  margin-top: 12px;
+  border-radius: 20px;
+  padding: 18px;
+}
+
+.eyebrow {
+  margin: 0 0 6px;
+  color: var(--brand-2);
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.hero-copy h2 {
+  font-size: 26px;
+  line-height: 1.25;
+}
+
+.hero-text {
+  margin: 10px 0 0;
+  color: var(--sub);
+}
+
+.hero-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.hero-tags span {
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid var(--line);
+}
+
 .hidden { display: none !important; }
 
 .panel-head {
@@ -212,8 +250,8 @@ input, textarea {
 
 .chat {
   margin-top: 12px;
-  min-height: 44vh;
-  padding: 4px;
+  min-height: 28vh;
+  padding: 4px 4px 12px;
 }
 
 .msg {
@@ -252,13 +290,14 @@ input, textarea {
 }
 
 .composer {
-  position: fixed;
-  left: max(12px, calc(50% - 460px + 12px));
-  right: max(12px, calc(50% - 460px + 12px));
+  position: sticky;
+  left: auto;
+  right: auto;
   bottom: 12px;
   z-index: 25;
   border-radius: 16px;
   padding: 12px;
+  margin-top: 12px;
 }
 
 .quick-row {
@@ -359,11 +398,12 @@ dialog {
 }
 
 @media (max-width: 760px) {
-  .app { padding: 10px 10px 220px; }
+  .app { padding: 10px 10px 110px; }
   .topbar { top: 6px; }
   h1 { font-size: 20px; }
   h2 { font-size: 18px; }
   p, li, button, input, textarea, summary, label { font-size: 15px; }
   .fields.two { grid-template-columns: 1fr; }
   .sheet-actions { grid-template-columns: 1fr; }
+  .hero-copy h2 { font-size: 22px; }
 }
