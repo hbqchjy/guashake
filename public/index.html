@@ -15,12 +15,24 @@
 
       <div class="composer-wrap">
         <div id="quickRow" class="quick-row"></div>
+        <div id="plusMenu" class="plus-menu hidden">
+          <button class="plus-item" data-menu-action="report">检验报告</button>
+          <button class="plus-item" data-menu-action="camera">拍照</button>
+          <button class="plus-item" data-menu-action="file">文件</button>
+          <button class="plus-item" data-menu-action="image">发送图片</button>
+          <button class="plus-item" data-menu-action="location">我的位置</button>
+        </div>
         <div class="composer">
-          <textarea
-            id="composerInput"
-            rows="1"
-            placeholder="直接说哪里不舒服，例如：最近心慌、胸闷、头晕"
-          ></textarea>
+          <button id="modeToggleBtn" class="icon-btn" aria-label="语音切换">🎤</button>
+          <div class="input-slot">
+            <textarea
+              id="composerInput"
+              rows="1"
+              placeholder="直接说哪里不舒服，例如：最近心慌、胸闷、头晕"
+            ></textarea>
+            <button id="voiceCaptureBtn" class="voice-capture hidden">按一下开始语音</button>
+          </div>
+          <button id="plusBtn" class="icon-btn plus-btn" aria-label="更多功能">＋</button>
           <button id="sendBtn" class="send-btn">发送</button>
         </div>
         <p id="composerHint" class="composer-hint">我会先问最必要的问题，不会一上来堆很多选项。</p>
@@ -39,6 +51,11 @@
       <button id="listRecordsBtn" class="send-btn wide">刷新列表</button>
       <div id="recordsList" class="records-list"></div>
     </dialog>
+
+    <input id="reportInput" class="hidden" type="file" accept="image/*,.pdf" />
+    <input id="cameraInput" class="hidden" type="file" accept="image/*" capture="environment" />
+    <input id="imageInput" class="hidden" type="file" accept="image/*" />
+    <input id="fileInput" class="hidden" type="file" />
   </main>
 
   <script src="/app.js"></script>

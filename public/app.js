@@ -16,6 +16,9 @@ const state = {
   inputMode: 'symptom',
   awaitingContext: null,
   activeChoiceBlock: null,
+  composerMode: 'text',
+  speechRecognition: null,
+  speechListening: false,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -183,6 +186,23 @@ function setComposerState(mode) {
   $('composerHint').textContent = '我会先问最必要的问题，不会一上来堆很多选项。';
 }
 
+function setComposerMode(mode) {
+  state.composerMode = mode;
+  const isVoice = mode === 'voice';
+
+  $('composerInput').classList.toggle('hidden', isVoice);
+  $('voiceCaptureBtn').classList.toggle('hidden', !isVoice);
+  $('sendBtn').classList.toggle('hidden', isVoice);
+  $('modeToggleBtn').textContent = isVoice ? '⌨' : '🎤';
+
+  if (isVoice) {
+    $('composerHint').textContent = state.speechListening ? '正在听你说话，再点一次结束。' : '点中间按钮开始语音输入。';
+    return;
+  }
+
+  setComposerState(state.inputMode);
+}
+
 function resetConversation() {
   state.sessionId = null;
   state.currentQuestion = null;
@@ -200,6 +220,8 @@ function resetConversation() {
 
   $('chatFeed').innerHTML = '';
   $('composerInput').value = '';
+  $('plusMenu').classList.add('hidden');
+  setComposerMode('text');
   addIntroCard();
   addBotText('直接告诉我哪里不舒服。我先听你说，再一步步追问。');
   renderQuickSymptoms();
@@ -433,6 +455,59 @@ async function saveRecord() {
   addBotText('这次结果已经帮你保存了。');
 }
 
+function handlePickedFile(file, label) {
+  if (!file) return;
+  addUserText(`${label}：${file.name}`);
+  addBotText('我先记下这个文件。后面你保存记录时，可以继续把它们整理进健康档案。');
+}
+
+function handleLocationShare() {
+  if (!navigator.geolocation) {
+    addBotText('当前浏览器不支持定位。你可以直接输入县、区或市名。');
+    return;
+  }
+
+  addBotText('正在获取你的位置。');
+  navigator.geolocation.getCurrentPosition(
+    (position) => {
+      const { latitude, longitude } = position.coords;
+      addUserText(`我的位置：${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
+      addBotText('位置坐标我收到了。如果要做医院推荐，最好再补一个县区名称，这样更准。');
+    },
+    () => {
+      addBotText('定位没有成功。你可以直接输入县、区或市名。');
+    },
+    { enableHighAccuracy: false, timeout: 6000 }
+  );
+}
+
+function ensureSpeechRecognition() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) return null;
+  if (state.speechRecognition) return state.speechRecognition;
+
+  const recognition = new SpeechRecognition();
+  recognition.lang = 'zh-CN';
+  recognition.interimResults = false;
+  recognition.maxAlternatives = 1;
+  recognition.onresult = (event) => {
+    const transcript = event.results?.[0]?.[0]?.transcript?.trim();
+    if (!transcript) return;
+    $('composerInput').value = transcript;
+    setComposerMode('text');
+    $('sendBtn').click();
+  };
+  recognition.onend = () => {
+    state.speechListening = false;
+    if (state.composerMode === 'voice') {
+      $('composerHint').textContent = '点中间按钮开始语音输入。';
+      $('voiceCaptureBtn').textContent = '按一下开始语音';
+    }
+  };
+  state.speechRecognition = recognition;
+  return recognition;
+}
+
 async function listRecords() {
   const userId = $('userId').value.trim() || 'guest';
   const data = await api(`/archive/list?userId=${encodeURIComponent(userId)}`);
@@ -497,10 +572,64 @@ function bindEvents() {
     handleComposerSubmit().catch((err) => alert(err.message));
   };
 
+  $('modeToggleBtn').onclick = () => {
+    setComposerMode(state.composerMode === 'text' ? 'voice' : 'text');
+  };
+
+  $('voiceCaptureBtn').onclick = () => {
+    const recognition = ensureSpeechRecognition();
+    if (!recognition) {
+      addBotText('当前浏览器不支持语音识别。你可以继续直接打字。');
+      setComposerMode('text');
+      return;
+    }
+
+    if (state.speechListening) {
+      recognition.stop();
+      state.speechListening = false;
+      $('voiceCaptureBtn').textContent = '按一下开始语音';
+      $('composerHint').textContent = '点中间按钮开始语音输入。';
+      return;
+    }
+
+    state.speechListening = true;
+    $('voiceCaptureBtn').textContent = '点一下结束语音';
+    $('composerHint').textContent = '正在听你说话，再点一次结束。';
+    recognition.start();
+  };
+
+  $('plusBtn').onclick = () => {
+    $('plusMenu').classList.toggle('hidden');
+  };
+
+  $('plusMenu').querySelectorAll('[data-menu-action]').forEach((button) => {
+    button.onclick = () => {
+      const action = button.dataset.menuAction;
+      $('plusMenu').classList.add('hidden');
+
+      if (action === 'report') $('reportInput').click();
+      if (action === 'camera') $('cameraInput').click();
+      if (action === 'file') $('fileInput').click();
+      if (action === 'image') $('imageInput').click();
+      if (action === 'location') handleLocationShare();
+    };
+  });
+
+  $('reportInput').onchange = (event) => handlePickedFile(event.target.files?.[0], '检验报告');
+  $('cameraInput').onchange = (event) => handlePickedFile(event.target.files?.[0], '拍照');
+  $('imageInput').onchange = (event) => handlePickedFile(event.target.files?.[0], '图片');
+  $('fileInput').onchange = (event) => handlePickedFile(event.target.files?.[0], '文件');
+
   $('composerInput').addEventListener('keydown', (event) => {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
       $('sendBtn').click();
+    }
+  });
+
+  document.addEventListener('click', (event) => {
+    if (!event.target.closest('.composer-wrap')) {
+      $('plusMenu').classList.add('hidden');
     }
   });
 
