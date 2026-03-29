@@ -22,6 +22,7 @@ const state = {
   speechBuffer: '',
   autoLocateTried: false,
   followUpProgress: null,
+  generationReady: false,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -39,6 +40,10 @@ function escapeHtml(value) {
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;');
+}
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function api(url, options = {}) {
@@ -71,8 +76,23 @@ function addRow(role, html, extraClass = '') {
   return row;
 }
 
-function addBotText(text) {
-  return addRow('bot', `<p>${escapeHtml(text)}</p>`);
+async function typeTextInto(node, text) {
+  const chars = Array.from(String(text || ''));
+  node.textContent = '';
+
+  for (let i = 0; i < chars.length; i += 1) {
+    node.textContent += chars[i];
+    if (i < chars.length - 1) {
+      await wait(10);
+    }
+  }
+}
+
+async function addBotText(text) {
+  const row = addRow('bot', '<p></p>');
+  const p = row.querySelector('p');
+  await typeTextInto(p, text);
+  return row;
 }
 
 function addUserText(text) {
@@ -202,6 +222,7 @@ function resetConversation() {
   state.speechListening = false;
   state.speechBuffer = '';
   state.followUpProgress = null;
+  state.generationReady = false;
   state.profile = {
     province: '',
     city: '',
@@ -244,6 +265,21 @@ async function submitText(text) {
     return;
   }
 
+  if (state.awaitingContext === 'supplement') {
+    addUserText(value);
+    await api('/triage/supplement', {
+      method: 'POST',
+      body: JSON.stringify({
+        sessionId: state.sessionId,
+        supplement: value,
+      }),
+    });
+    state.awaitingContext = null;
+    await addBotText('补充信息我记下了。现在可以生成总结了。');
+    showGenerationConfirmCard('如果你还有别的信息，也可以继续补充一条。');
+    return;
+  }
+
   if (!state.sessionId) {
     addUserText(value);
     await startSymptomSession(value);
@@ -271,7 +307,16 @@ async function answerQuestion(answer) {
   if (data.done) {
     state.triageResult = data.triageResult;
     state.followUpProgress = null;
+    state.generationReady = false;
     await ensureContextAndRenderResult();
+    return;
+  }
+
+  if (data.needsConfirmation) {
+    state.currentQuestion = null;
+    state.followUpProgress = data.progress || null;
+    state.generationReady = true;
+    showGenerationConfirmCard();
     return;
   }
 
@@ -285,7 +330,32 @@ async function directResult() {
     body: JSON.stringify({ sessionId: state.sessionId, skip: true }),
   });
   state.triageResult = data.triageResult;
+  state.followUpProgress = null;
+  state.generationReady = false;
   await ensureContextAndRenderResult();
+}
+
+function showGenerationConfirmCard(note = '如果您能补充上面没有问到的信息、或者提供图片，结果会更准确。') {
+  clearActiveChoiceBlock();
+  addChoiceBlock(
+    '现在可以生成总结了',
+    [
+      { label: '直接生成', type: 'generate' },
+      { label: '补充信息', type: 'supplement' },
+    ],
+    async (option) => {
+      if (option.type === 'generate') {
+        await directResult();
+        return;
+      }
+      state.awaitingContext = 'supplement';
+      setComposerState('supplement');
+      await addBotText('你可以补充上面没有问到的信息，也可以通过下方加号发送图片。');
+      $('composerInput').focus();
+    },
+    note,
+    state.followUpProgress ? `第 ${state.followUpProgress.total} / ${state.followUpProgress.total} 步` : '准备生成'
+  );
 }
 
 async function ensureContextAndRenderResult() {
@@ -435,6 +505,18 @@ function buildResultCard(title, contentHtml, extraClass = '') {
   );
 }
 
+function buildCollapsibleResultCard(title, preview, contentHtml, extraClass = '') {
+  return addRow(
+    'bot',
+    [
+      `<details class="result-collapse ${extraClass}">`,
+      `<summary class="result-collapse-summary"><span class="result-collapse-title">${escapeHtml(title)}</span><span class="result-collapse-preview">${escapeHtml(preview)}</span></summary>`,
+      `<div class="result-card collapse-inner ${extraClass}">${contentHtml}</div>`,
+      '</details>',
+    ].join('')
+  );
+}
+
 async function renderResultCards() {
   const [cost, booking] = await Promise.all([
     api('/cost/estimate', {
@@ -477,17 +559,37 @@ async function renderResultCards() {
     `<div class="summary-metric"><span class="summary-label">首轮费用</span><strong>${escapeHtml(triage.core.firstCostRange)}</strong></div>`,
     `<div class="summary-metric"><span class="summary-label">医保参考</span><strong>${escapeHtml(cost.simple.insuranceCoverage)}</strong></div>`,
     '</div>',
+    '<div class="summary-actions">',
+    '<button class="result-action primary" data-action="summary-booking">现在去挂号</button>',
+    '<button class="result-action" data-action="summary-expand">查看完整建议</button>',
+    '</div>',
     '</div>',
   ].join('');
   addRow('bot', summaryHtml, 'summary-shell');
+  const summaryRow = $('chatFeed').lastElementChild;
+  summaryRow.querySelector('[data-action="summary-booking"]').onclick = () => {
+    const target = state.booking?.bookingLinks?.[0]?.url;
+    if (!target) {
+      addBotText('当前没有可直接打开的挂号入口。');
+      return;
+    }
+    window.open(target, '_blank', 'noopener,noreferrer');
+  };
+  summaryRow.querySelector('[data-action="summary-expand"]').onclick = () => {
+    document.querySelectorAll('.result-collapse').forEach((node) => {
+      node.open = true;
+    });
+    scrollToBottom();
+  };
 
   buildResultCard('第一步检查', `<ul>${firstChecks}</ul>`);
   buildResultCard('费用与医保', `<ul>${costItems}</ul>`);
-  buildResultCard('去医院前带什么', `<ul>${prepItems}</ul>`);
-  buildResultCard('风险提醒', `<ul>${riskItems}</ul>`, 'risk');
-  buildResultCard(
+  buildCollapsibleResultCard('去医院前带什么', '身份证、医保卡、近期检查结果', `<ul>${prepItems}</ul>`);
+  buildCollapsibleResultCard('风险提醒', '有胸痛加重或呼吸困难要尽快急诊', `<ul>${riskItems}</ul>`, 'risk');
+  buildCollapsibleResultCard(
     '为什么这样建议',
-    `<p>${escapeHtml(triage.detail.whyDepartment)}</p><ul>${detailItems}</ul>`
+    '查看具体判断逻辑和后续路径',
+    `<div class="result-card-title-wrap"><h3>为什么这样建议</h3><p>${escapeHtml(triage.detail.whyDepartment)}</p></div><ul>${detailItems}</ul>`
   );
 
   addRow(
@@ -550,6 +652,11 @@ async function saveRecord() {
 function handlePickedFile(file, label) {
   if (!file) return;
   addUserText(`${label}：${file.name}`);
+  if (state.awaitingContext === 'supplement') {
+    addBotText('图片或文件我先记下了。当前演示版会先把它作为补充材料记录下来。');
+    showGenerationConfirmCard('如果你还想补充文字，可以再发一条；也可以现在直接生成。');
+    return;
+  }
   addBotText('我先记下这个文件。后面你保存记录时，可以继续把它们整理进健康档案。');
 }
 

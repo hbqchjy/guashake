@@ -32,6 +32,8 @@ const SCENARIOS = {
       { id: 'duration', text: '这种不舒服持续多久了？', options: ['不到1天', '1-3天', '超过1周', '反复超过1个月'] },
       { id: 'chestPain', text: '有没有明显胸痛或胸口压榨感？', options: ['没有', '偶尔', '持续存在'] },
       { id: 'breath', text: '最近活动后会不会更喘？', options: ['不会', '有一点', '明显会'] },
+      { id: 'frequency', text: '这种心慌或胸闷出现得频繁吗？', options: ['偶尔一次', '一天几次', '几乎每天都有'] },
+      { id: 'dizzy', text: '有没有头晕、眼前发黑或者快晕倒？', options: ['没有', '偶尔有', '比较明显'] },
       { id: 'history', text: '以前有高血压/心脏病吗？', options: ['没有', '有高血压', '有心脏病', '两者都有'] },
     ],
   },
@@ -56,6 +58,8 @@ const SCENARIOS = {
       { id: 'position', text: '主要是左边、右边还是中间痛？', options: ['左边', '右边', '中间', '说不清'] },
       { id: 'style', text: '更像酸胀还是刺痛？', options: ['酸胀', '刺痛', '酸痛都有'] },
       { id: 'trauma', text: '最近有扭伤、搬重物或外伤吗？', options: ['没有', '有'] },
+      { id: 'duration', text: '这个腰酸腰痛持续多久了？', options: ['不到3天', '3-7天', '超过1周', '反复超过1个月'] },
+      { id: 'movePain', text: '动一动会更痛，还是休息时也明显？', options: ['动一动更痛', '休息时也明显', '差不多'] },
       { id: 'numbness', text: '有没有腿麻或走路发软？', options: ['没有', '有一点', '明显有'] },
     ],
   },
@@ -81,6 +85,8 @@ const SCENARIOS = {
       { id: 'eatRel', text: '和吃饭关系大吗？', options: ['饭前更明显', '饭后更明显', '关系不大'] },
       { id: 'stool', text: '大便有没有异常（腹泻/黑便）？', options: ['没有', '腹泻', '黑便', '便秘'] },
       { id: 'fever', text: '有没有发热或反复呕吐？', options: ['没有', '有发热', '有呕吐', '两者都有'] },
+      { id: 'appetite', text: '最近食欲怎么样？', options: ['和平时差不多', '有点差', '明显吃不下'] },
+      { id: 'bloat', text: '有没有反酸、胀气或者烧心？', options: ['没有', '有一点', '比较明显'] },
     ],
   },
   urinary: {
@@ -105,6 +111,8 @@ const SCENARIOS = {
       { id: 'fever', text: '有没有发烧或腰背痛？', options: ['没有', '有发烧', '有腰背痛', '两者都有'] },
       { id: 'blood', text: '有没有看到尿里带血？', options: ['没有', '有一点', '明显有'] },
       { id: 'duration', text: '症状持续多久了？', options: ['不到3天', '3-7天', '超过1周', '反复超过1个月'] },
+      { id: 'night', text: '晚上起夜次数比平时多吗？', options: ['没有明显变化', '多一点', '明显多很多'] },
+      { id: 'repeat', text: '以前有没有反复出现过这种情况？', options: ['没有', '偶尔有过', '经常反复'] },
     ],
   },
   respiratory: {
@@ -129,6 +137,8 @@ const SCENARIOS = {
       { id: 'sputum', text: '咳嗽有痰吗？', options: ['无痰', '白痰', '黄痰', '带血丝'] },
       { id: 'breath', text: '会不会感觉喘不上气？', options: ['不会', '有一点', '明显会'] },
       { id: 'chronic', text: '有没有慢性肺病/哮喘史？', options: ['没有', '有'] },
+      { id: 'throat', text: '有没有明显嗓子痛或鼻塞流涕？', options: ['没有', '有一点', '比较明显'] },
+      { id: 'days', text: '咳嗽大概持续多久了？', options: ['不到3天', '3-7天', '超过1周', '超过1个月'] },
     ],
   },
   skinTrauma: {
@@ -153,15 +163,17 @@ const SCENARIOS = {
       { id: 'infection', text: '有没有渗液、化脓或明显红肿热痛？', options: ['没有', '有一点', '明显有'] },
       { id: 'fever', text: '有没有发热？', options: ['没有', '有'] },
       { id: 'duration', text: '这个问题持续多久了？', options: ['不到1天', '1-3天', '超过3天'] },
+      { id: 'spread', text: '范围是在扩大，还是差不多？', options: ['差不多', '有一点扩大', '明显扩大'] },
+      { id: 'itchPain', text: '更偏痒还是更偏痛？', options: ['更痒', '更痛', '又痒又痛'] },
     ],
   },
 };
 
 const INSURANCE_GUIDE = {
   '无医保': '你当前没有医保，建议先去县医院做首轮基础检查，避免一次做太多高价项目。',
-  '体制内医保': '体制内医保通常门诊和住院报销比例较好，先走普通门诊，必要时再升级检查更划算。',
   '城镇职工医保': '职工医保一般门诊有一定报销，慢病长期用药可咨询当地是否支持慢病备案。',
   '城乡居民医保': '居民医保门诊报销比例通常低于住院，先做基础检查后再决定是否转上级医院更省钱。',
+  '其他商业医保': '商业医保通常要看你买的险种和条款，先把病历和票据留好，后面理赔会更方便。',
 };
 
 function normalizeText(v) {
@@ -184,8 +196,8 @@ function detectScenario(chiefComplaint = '') {
   return best;
 }
 
-function hasRedFlag({ chiefComplaint = '', answers = {} }) {
-  const text = `${chiefComplaint} ${Object.values(answers).join(' ')}`;
+function hasRedFlag({ chiefComplaint = '', answers = {}, supplements = [] }) {
+  const text = `${chiefComplaint} ${Object.values(answers).join(' ')} ${(supplements || []).join(' ')}`;
   return RED_FLAG_KEYWORDS.some((k) => text.includes(k));
 }
 
@@ -199,17 +211,24 @@ function calcBaseCost(baseChecks) {
 
 function confidenceLevel(answerCount, redFlag) {
   if (redFlag) return '高风险优先';
-  if (answerCount >= 4) return '高概率方向';
-  if (answerCount >= 2) return '可能方向';
+  if (answerCount >= 6) return '高概率方向';
+  if (answerCount >= 3) return '可能方向';
   return '信息不足，建议线下检查';
 }
 
 function buildTriageResult(session) {
   const scenario = session.scenario;
-  const redFlag = hasRedFlag({ chiefComplaint: session.chiefComplaint, answers: session.answers });
+  const redFlag = hasRedFlag({
+    chiefComplaint: session.chiefComplaint,
+    answers: session.answers,
+    supplements: session.supplements,
+  });
   const answerCount = Object.keys(session.answers || {}).length;
   const confidence = confidenceLevel(answerCount, redFlag);
   const baseCost = calcBaseCost(scenario.baseChecks);
+  const supplementNote = (session.supplements || []).length
+    ? `已参考你补充的 ${session.supplements.length} 条信息。`
+    : '';
 
   const coreConclusion = redFlag
     ? '你现在有紧急风险信号，建议尽快去急诊，不要继续等待。'
@@ -232,7 +251,7 @@ function buildTriageResult(session) {
         suspectedDirections: redFlag
           ? ['存在需要急诊先排查的风险']
           : [`当前最相关：${scenario.label}`, '先做基础检查后再决定是否追加影像检查'],
-        stepByStep: scenario.nextStepRules,
+        stepByStep: supplementNote ? [supplementNote, ...scenario.nextStepRules] : scenario.nextStepRules,
       },
       riskReminder: [
         '如果出现胸痛加重、呼吸困难、意识模糊、剧烈头痛、肢体无力等情况，请尽快去急诊。',

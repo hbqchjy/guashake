@@ -123,6 +123,7 @@ app.post('/triage/session', (req, res) => {
     district,
     insuranceType,
     chiefComplaint,
+    supplements: [],
     scenario,
     stepIndex: 0,
     answers: {},
@@ -136,7 +137,7 @@ app.post('/triage/session', (req, res) => {
       current: 1,
       total: scenario.questions.length,
     },
-    stopRule: '回答满4轮、用户跳过、或命中急症信号时停止追问',
+    stopRule: '回答满6轮以上、用户跳过、或命中急症信号时停止追问',
     scenario: scenario.label,
   });
 });
@@ -159,10 +160,21 @@ app.post('/triage/answer', (req, res) => {
 
   const updated = upsertSession(sessionId, { answers, stepIndex });
 
-  if (userSkip || reachedMax) {
+  if (userSkip) {
     const triageResult = buildTriageResult(updated);
     upsertSession(sessionId, { triageResult });
     return res.json({ done: true, triageResult });
+  }
+
+  if (reachedMax) {
+    return res.json({
+      done: false,
+      needsConfirmation: true,
+      progress: {
+        current: session.scenario.questions.length,
+        total: session.scenario.questions.length,
+      },
+    });
   }
 
   return res.json({
@@ -172,6 +184,26 @@ app.post('/triage/answer', (req, res) => {
       current: stepIndex + 1,
       total: session.scenario.questions.length,
     },
+  });
+});
+
+app.post('/triage/supplement', (req, res) => {
+  const { sessionId, supplement } = req.body;
+  const session = getSession(sessionId);
+  if (!session) {
+    return res.status(404).json({ error: 'session not found' });
+  }
+
+  const text = String(supplement || '').trim();
+  const supplements = [...(session.supplements || [])];
+  if (text) {
+    supplements.push(text);
+  }
+
+  const updated = upsertSession(sessionId, { supplements });
+  return res.json({
+    ok: true,
+    supplements: updated.supplements || [],
   });
 });
 
