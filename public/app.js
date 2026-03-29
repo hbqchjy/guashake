@@ -122,7 +122,7 @@ function addIntroCard() {
     'bot',
     [
       '<div class="intro-card-inner">',
-      '<p class="intro-copy"><strong>我是小科</strong>，帮您轻松了解去哪个医院、挂哪个科室，预估看病费用和医保报销，甚至还能解读各种检查报告。只需告诉我哪里不舒服，或者直接发送您的检查报告，我就能为您提供详细解答。</p>',
+      '<p class="intro-copy"><strong class="intro-accent">我是小科</strong>，帮您了解去哪个医院、挂哪个科室，预估看病费用和医保报销，还能解读检查报告。只需告诉我哪里不舒服，或者发送您的检查报告，我能为您提供详细解答。</p>',
       '</div>',
     ].join(''),
     'intro-card'

@@ -146,6 +146,10 @@ body {
   color: var(--text);
 }
 
+.intro-copy .intro-accent {
+  color: var(--brand-dark);
+}
+
 .choice-grid {
   display: flex;
   flex-wrap: wrap;
