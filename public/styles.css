@@ -158,6 +158,27 @@ body {
   gap: 6px;
 }
 
+.choice-progress {
+  margin: 2px 0 2px;
+}
+
+.choice-progress-track {
+  display: block;
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(20, 36, 31, 0.08);
+  overflow: hidden;
+}
+
+.choice-progress-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #07c160 0%, #35d488 100%);
+  box-shadow: 0 4px 10px rgba(7, 193, 96, 0.18);
+}
+
 .choice-meta {
   display: inline-flex;
   align-self: flex-start;
@@ -233,14 +254,53 @@ body {
 .status-pill {
   display: inline-flex;
   align-items: center;
-  min-height: 28px;
-  padding: 0 12px;
+  min-height: 32px;
+  padding: 0 14px;
   border-radius: 999px;
   background: rgba(7, 193, 96, 0.08);
   border: 1px solid rgba(7, 193, 96, 0.14);
   color: var(--brand-dark);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
+  line-height: 1.4;
+}
+
+.typing-shell {
+  max-width: 108px;
+  padding: 14px 16px;
+}
+
+.typing-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.typing-indicator span {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(31, 35, 41, 0.28);
+  animation: typing-dot 900ms ease-in-out infinite;
+}
+
+.typing-indicator span:nth-child(2) {
+  animation-delay: 120ms;
+}
+
+.typing-indicator span:nth-child(3) {
+  animation-delay: 240ms;
+}
+
+@keyframes typing-dot {
+  0%, 80%, 100% {
+    transform: translateY(0);
+    opacity: 0.35;
+  }
+  40% {
+    transform: translateY(-2px);
+    opacity: 1;
+  }
 }
 
 .result-card h3 {
@@ -297,6 +357,29 @@ body {
 
 .summary-text {
   color: #4c555d;
+}
+
+.summary-next {
+  margin-top: 6px;
+  padding: 14px 14px 15px;
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(7, 193, 96, 0.08) 0%, rgba(7, 193, 96, 0.04) 100%);
+  border: 1px solid rgba(7, 193, 96, 0.14);
+}
+
+.summary-next-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--brand-dark);
+}
+
+.summary-next strong {
+  display: block;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--text);
 }
 
 .summary-metrics {
@@ -563,7 +646,7 @@ body {
 .composer textarea,
 .records-dialog input {
   width: 100%;
-  border: 2px solid rgba(20, 36, 31, 0.2);
+  border: 2px solid rgba(20, 36, 31, 0.28);
   border-radius: 20px;
   padding: 14px 16px;
   resize: none;
@@ -585,7 +668,7 @@ body {
   min-height: 56px;
   border-radius: 20px;
   background: #f6f7f8;
-  border: 2px solid rgba(20, 36, 31, 0.2);
+  border: 2px solid rgba(20, 36, 31, 0.28);
   color: var(--text);
   font-weight: 600;
   font-size: 16px;
@@ -605,8 +688,8 @@ body {
   height: 48px;
   border-radius: 999px;
   background: #ffffff;
-  border: 2px solid rgba(20, 36, 31, 0.28);
-  color: #2b3136;
+  border: 2px solid #000000;
+  color: #000000;
   flex: 0 0 auto;
   box-shadow: 0 8px 18px rgba(18, 28, 24, 0.05);
 }

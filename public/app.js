@@ -24,7 +24,14 @@ const state = {
   followUpProgress: null,
   generationReady: false,
   supplementCount: 0,
+  supplementStats: {
+    text: 0,
+    image: 0,
+    report: 0,
+  },
 };
+
+let botTextQueue = Promise.resolve();
 
 const $ = (id) => document.getElementById(id);
 
@@ -77,6 +84,14 @@ function addRow(role, html, extraClass = '') {
   return row;
 }
 
+function addTypingBubble() {
+  return addRow(
+    'bot',
+    '<div class="typing-indicator" aria-label="小科正在输入"><span></span><span></span><span></span></div>',
+    'typing-shell'
+  );
+}
+
 async function typeTextInto(node, text) {
   const chars = Array.from(String(text || ''));
   node.textContent = '';
@@ -84,20 +99,41 @@ async function typeTextInto(node, text) {
   for (let i = 0; i < chars.length; i += 1) {
     node.textContent += chars[i];
     if (i < chars.length - 1) {
-      await wait(10);
+      await wait(/[，。！？；：,.!?]/.test(chars[i]) ? 50 : 18);
     }
   }
 }
 
 async function addBotText(text) {
-  const row = addRow('bot', '<p></p>');
-  const p = row.querySelector('p');
-  await typeTextInto(p, text);
-  return row;
+  botTextQueue = botTextQueue.then(async () => {
+    const row = addRow('bot', '<p></p>');
+    const p = row.querySelector('p');
+    row.classList.add('is-typing');
+    await wait(180);
+    await typeTextInto(p, text);
+    row.classList.remove('is-typing');
+    return row;
+  });
+
+  return botTextQueue;
 }
 
 function addStatusPill(text) {
   return addRow('bot', `<div class="status-pill">${escapeHtml(text)}</div>`, 'status-shell');
+}
+
+function getSupplementStatusText() {
+  const items = [];
+
+  if (state.supplementStats.text > 0) items.push(`文字 ${state.supplementStats.text} 条`);
+  if (state.supplementStats.image > 0) items.push(`图片 ${state.supplementStats.image} 张`);
+  if (state.supplementStats.report > 0) items.push(`报告 ${state.supplementStats.report} 份`);
+
+  if (!items.length) {
+    return '还没有补充额外信息';
+  }
+
+  return `已补充 ${items.join(' · ')}`;
 }
 
 function addUserText(text) {
@@ -116,7 +152,7 @@ function clearActiveChoiceBlock() {
   state.activeChoiceBlock = null;
 }
 
-function addChoiceBlock(title, options, onPick, note = '', meta = '') {
+function addChoiceBlock(title, options, onPick, note = '', meta = '', progressRatio = 0) {
   clearActiveChoiceBlock();
 
   const row = addRow('bot', '', 'choice-card');
@@ -125,7 +161,14 @@ function addChoiceBlock(title, options, onPick, note = '', meta = '') {
   const titleHtml = `<p>${escapeHtml(title)}</p>`;
   const noteHtml = note ? `<div class="choice-note">${escapeHtml(note)}</div>` : '';
   const metaHtml = meta ? `<div class="choice-meta">${escapeHtml(meta)}</div>` : '';
-  bubble.innerHTML = `<div class="choice-head">${metaHtml}${titleHtml}${noteHtml}</div><div class="choice-grid"></div>`;
+  const progressHtml =
+    progressRatio > 0
+      ? `<div class="choice-progress"><span class="choice-progress-track"><span class="choice-progress-fill" style="width:${Math.max(
+          6,
+          Math.min(100, progressRatio)
+        )}%"></span></span></div>`
+      : '';
+  bubble.innerHTML = `<div class="choice-head">${metaHtml}${progressHtml}${titleHtml}${noteHtml}</div><div class="choice-grid"></div>`;
 
   const grid = bubble.querySelector('.choice-grid');
   options.forEach((option) => {
@@ -143,6 +186,14 @@ function addChoiceBlock(title, options, onPick, note = '', meta = '') {
 
   state.activeChoiceBlock = bubble;
   scrollToBottom();
+}
+
+async function revealChoiceBlock(title, options, onPick, note = '', meta = '', progressRatio = 0) {
+  const typingRow = addTypingBubble();
+  await wait(360);
+  typingRow.remove();
+  scrollToBottom();
+  return addChoiceBlock(title, options, onPick, note, meta, progressRatio);
 }
 
 function addIntroCard() {
@@ -191,21 +242,25 @@ function getQuestionReason(question) {
   return '这题主要用来把就医方向问得更准一点。';
 }
 
-function askQuestion(question, note = '') {
+async function askQuestion(question, note = '') {
   state.currentQuestion = question;
   const progress = state.followUpProgress
     ? `第 ${state.followUpProgress.current} / ${state.followUpProgress.total} 步`
     : '一步一步来';
+  const progressRatio = state.followUpProgress
+    ? (state.followUpProgress.current / state.followUpProgress.total) * 100
+    : 0;
   const reason = getQuestionReason(question);
   const finalNote = [reason, note].filter(Boolean).join(' ');
-  addChoiceBlock(
+  await revealChoiceBlock(
     question.text,
     question.options.map((label) => ({ label, type: 'answer' })),
     async (option) => {
       await answerQuestion(option.label);
     },
     finalNote,
-    progress
+    progress,
+    progressRatio
   );
   setComposerState('locked');
 }
@@ -242,6 +297,11 @@ function resetConversation() {
   state.followUpProgress = null;
   state.generationReady = false;
   state.supplementCount = 0;
+  state.supplementStats = {
+    text: 0,
+    image: 0,
+    report: 0,
+  };
   state.profile = {
     province: '',
     city: '',
@@ -270,8 +330,8 @@ async function startSymptomSession(symptomText) {
   state.followUpProgress = data.progress || null;
   $('quickRow').classList.add('hidden');
 
-  addBotText(`先按“${data.scenario}”方向帮你判断。`);
-  askQuestion(data.nextQuestion);
+  await addBotText(`先按“${data.scenario}”方向帮你判断。`);
+  await askQuestion(data.nextQuestion);
 }
 
 async function submitText(text) {
@@ -293,11 +353,12 @@ async function submitText(text) {
         supplement: value,
       }),
     });
+    state.supplementStats.text += 1;
     state.supplementCount = data.supplements.length;
     state.awaitingContext = null;
-    addStatusPill(`已补充 ${state.supplementCount} 条信息`);
+    addStatusPill(getSupplementStatusText());
     await addBotText('补充信息我记下了。现在可以生成总结了。');
-    showGenerationConfirmCard('如果你还有别的信息，也可以继续补充一条。补充越完整，结果越准确。');
+    await showGenerationConfirmCard('如果你还有别的信息，也可以继续补充一条。补充越完整，结果越准确。');
     return;
   }
 
@@ -337,12 +398,12 @@ async function answerQuestion(answer) {
     state.currentQuestion = null;
     state.followUpProgress = data.progress || null;
     state.generationReady = true;
-    showGenerationConfirmCard();
+    await showGenerationConfirmCard();
     return;
   }
 
   state.followUpProgress = data.progress || null;
-  askQuestion(data.nextQuestion);
+  await askQuestion(data.nextQuestion);
 }
 
 async function directResult() {
@@ -353,9 +414,11 @@ async function directResult() {
   await ensureContextAndRenderResult();
 }
 
-function showGenerationConfirmCard(note = '如果您能补充上面没有问到的信息、或者提供图片，结果会更准确。') {
+async function showGenerationConfirmCard(note = '如果您能补充上面没有问到的信息、或者提供图片，结果会更准确。') {
   clearActiveChoiceBlock();
-  addChoiceBlock(
+  const total = state.followUpProgress?.total || 0;
+  const meta = total ? `第 ${total} / ${total} 步` : '准备生成';
+  await revealChoiceBlock(
     '现在可以生成总结了',
     [
       { label: '直接生成', type: 'generate' },
@@ -372,7 +435,8 @@ function showGenerationConfirmCard(note = '如果您能补充上面没有问到�
       $('composerInput').focus();
     },
     note,
-    state.followUpProgress ? `第 ${state.followUpProgress.total} / ${state.followUpProgress.total} 步` : '准备生成'
+    meta,
+    total ? 100 : 0
   );
 }
 
@@ -388,16 +452,16 @@ async function ensureContextAndRenderResult() {
 
   if (!state.profile.insuranceType) {
     state.awaitingContext = 'insurance';
-    askInsuranceType();
+    await askInsuranceType();
     return;
   }
 
   await renderResultCards();
 }
 
-function askInsuranceType() {
-  addBotText('再告诉我你的医保类型，小科就把费用和报销参考补全。');
-  addChoiceBlock(
+async function askInsuranceType() {
+  await addBotText('再告诉我你的医保类型，小科就把费用和报销参考补全。');
+  await revealChoiceBlock(
     '选择一个最接近的医保类型',
     INSURANCE_OPTIONS.map((label) => ({ label })),
     async ({ label }) => {
@@ -422,8 +486,8 @@ async function handleRegionInput(text) {
     return;
   }
 
-  addBotText('我匹配到了几个可能的地区，你点一个。');
-  addChoiceBlock(
+  await addBotText('我匹配到了几个可能的地区，你点一个。');
+  await revealChoiceBlock(
     '选择地区',
     data.regions.slice(0, 6).map((region) => ({
       label: `${region.district} · ${region.city} · ${region.province}`,
@@ -464,25 +528,25 @@ async function detectCurrentRegion() {
 
 async function promptRegionConfirmation(forceRetry = false) {
   if (!forceRetry && state.autoLocateTried) {
-    addBotText('为了给你推荐就近医院和费用范围，你可以确认一下地区，或者手动改。');
+    await addBotText('为了给你推荐就近医院和费用范围，你可以确认一下地区，或者手动改。');
     setComposerState('region');
     $('composerInput').focus();
     return;
   }
 
   state.autoLocateTried = true;
-  addBotText('我先按你现在的位置补一个地区，你确认一下。');
+  await addBotText('我先按你现在的位置补一个地区，你确认一下。');
 
   try {
     const region = await detectCurrentRegion();
     if (!region) {
-      addBotText('我这次没拿到准确地区。你可以直接改成县、区或市名。');
+      await addBotText('我这次没拿到准确地区。你可以直接改成县、区或市名。');
       setComposerState('region');
       $('composerInput').focus();
       return;
     }
 
-    addChoiceBlock(
+    await revealChoiceBlock(
       '这是你现在的地区吗',
       [
         { label: `确认 ${formatRegion(region)}`, type: 'confirm', region },
@@ -493,14 +557,14 @@ async function promptRegionConfirmation(forceRetry = false) {
           await selectRegion(option.region);
           return;
         }
-        addBotText('你直接输入县、区或市名就行，我会自动补全。');
+        await addBotText('你直接输入县、区或市名就行，我会自动补全。');
         setComposerState('region');
         $('composerInput').focus();
       },
       '如果定位不准，你再改。'
     );
   } catch (_error) {
-    addBotText('定位没有成功。你可以直接输入县、区或市名。');
+    await addBotText('定位没有成功。你可以直接输入县、区或市名。');
     setComposerState('region');
     $('composerInput').focus();
   }
@@ -571,6 +635,9 @@ async function renderResultCards() {
     '<span class="summary-badge">小科总结</span>',
     `<p class="summary-title">${escapeHtml(triage.core.suggestDepartment)}</p>`,
     `<p class="summary-text">${escapeHtml(triage.core.text)}</p>`,
+    `<div class="summary-next"><span class="summary-next-label">现在先做什么</span><strong>先去${escapeHtml(
+      triage.core.suggestHospital
+    )}挂${escapeHtml(triage.core.suggestDepartment)}，先把这轮基础检查做完，再决定要不要加更贵的检查。</strong></div>`,
     '</div>',
     '<div class="summary-metrics">',
     `<div class="summary-metric"><span class="summary-label">建议医院</span><strong>${escapeHtml(triage.core.suggestHospital)}</strong></div>`,
@@ -671,8 +738,13 @@ function handlePickedFile(file, label) {
   if (!file) return;
   addUserText(`${label}：${file.name}`);
   if (state.awaitingContext === 'supplement') {
+    if (label === '检验报告') {
+      state.supplementStats.report += 1;
+    } else {
+      state.supplementStats.image += 1;
+    }
     state.supplementCount += 1;
-    addStatusPill(`已补充 ${state.supplementCount} 条信息`);
+    addStatusPill(getSupplementStatusText());
     addBotText('图片或文件我先记下了。当前演示版会先把它作为补充材料记录下来。');
     showGenerationConfirmCard('如果你还想补充文字，可以再发一条；也可以现在直接生成。');
     return;
