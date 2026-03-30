@@ -382,6 +382,13 @@ body {
   font-weight: 700;
 }
 
+.summary-overline {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--brand-dark);
+  letter-spacing: 0.04em;
+}
+
 .summary-title {
   font-size: 28px;
   line-height: 1.12;

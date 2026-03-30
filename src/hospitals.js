@@ -7,6 +7,11 @@ function buildWechatKeyword(name) {
   return `${name}服务号`;
 }
 
+function buildMiniProgramName(name) {
+  if (!name) return '';
+  return `${name}挂号`;
+}
+
 function getHospitalTemplates(scenarioId) {
   const shared = [
     { type: 'people', suffix: '人民医院', level: '县级综合医院', channel: '医院公众号 / 小程序' },
@@ -41,8 +46,10 @@ function buildHospitalRecommendations(region = {}, scenario = {}) {
       level: template.level,
       department,
       channel: template.channel,
-      wechatName: buildWechatKeyword(name),
-      wechatKeyword: `微信搜索“${name}”或“${buildWechatKeyword(name)}”`,
+      officialWechatName: buildWechatKeyword(name),
+      miniProgramName: index < 3 ? buildMiniProgramName(name) : '',
+      officialEntryFound: index < 3,
+      wechatKeyword: `微信搜索“${name}”`,
       recommendation:
         index === 0
           ? '首诊优先这一家，通常离得近，先做基础检查更省时间。'

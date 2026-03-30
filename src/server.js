@@ -284,6 +284,102 @@ function mergeSlotHintsIntoState(existingState = {}, hints = [], sourcePrefix = 
   return slotState;
 }
 
+async function buildScenarioRoute(chiefComplaint = '') {
+  const ruleRoute = detectScenarioDetailed(chiefComplaint);
+  let scenario = ruleRoute.scenario;
+  let routeMeta = {
+    mode: 'rule',
+    normalizedComplaint: ruleRoute.normalizedText || chiefComplaint,
+    reason: `按规则关键词匹配路由（命中分数：${ruleRoute.score}）`,
+  };
+
+  try {
+    const aiRoute = await classifyComplaint(chiefComplaint, Object.values(SCENARIOS));
+    if (aiRoute?.scenarioId && SCENARIOS[aiRoute.scenarioId]) {
+      scenario = SCENARIOS[aiRoute.scenarioId];
+      routeMeta = {
+        mode: 'ai',
+        normalizedComplaint: aiRoute.normalizedComplaint || chiefComplaint,
+        reason: aiRoute.reason || '按模型理解路由',
+      };
+      return { scenario, routeMeta };
+    }
+  } catch (_error) {
+  }
+
+  if (ruleRoute.score <= 0) {
+    routeMeta = {
+      mode: 'rule-fallback',
+      normalizedComplaint: chiefComplaint,
+      reason: '模型路由没有返回稳定结果，已回退规则路由',
+    };
+  }
+
+  return { scenario, routeMeta };
+}
+
+async function createTriageSession(payload = {}) {
+  const {
+    age,
+    gender,
+    province,
+    city,
+    district,
+    insuranceType,
+    chiefComplaint,
+    supplements = [],
+    supplementInsights = [],
+    supplementFiles = [],
+    slotHints = [],
+  } = payload;
+
+  const sessionId = uuidv4();
+  const { scenario, routeMeta } = await buildScenarioRoute(chiefComplaint);
+  const slotState = mergeSlotHintsIntoState({}, slotHints, 'init');
+
+  const session = upsertSession(sessionId, {
+    id: sessionId,
+    age,
+    gender,
+    province,
+    city,
+    district,
+    insuranceType,
+    chiefComplaint,
+    supplements,
+    supplementInsights,
+    supplementFiles,
+    scenario,
+    routeMeta,
+    stepIndex: 0,
+    followUp: {
+      stepCount: 0,
+      askedQuestionIds: [],
+      currentQuestionId: '',
+      slotState,
+      completed: false,
+    },
+    answers: {},
+    createdAt: new Date().toISOString(),
+  });
+
+  const nextQuestionState = await resolveNextQuestion(session);
+  upsertSession(sessionId, {
+    followUp: nextQuestionState.followUpPatch,
+    followUpMeta: nextQuestionState.followUpMeta,
+  });
+
+  return {
+    sessionId,
+    nextQuestion: nextQuestionState.nextQuestion,
+    progress: nextQuestionState.progress,
+    stopRule: '达到最小必要信息或追问上限后进入确认和补充阶段',
+    scenario: scenario.label,
+    routeMeta,
+    followUpMeta: nextQuestionState.followUpMeta,
+  };
+}
+
 app.get('/api/health', (_req, res) => {
   const aiStatus = getAiStatus();
   res.json({
@@ -356,6 +452,49 @@ app.get('/api/region/reverse', async (req, res) => {
   }
 });
 
+app.get('/api/region/ip-locate', async (req, res) => {
+  const forwarded = String(req.headers['cf-connecting-ip'] || req.headers['x-forwarded-for'] || req.ip || '')
+    .split(',')[0]
+    .trim();
+  const clientIp = forwarded.replace('::ffff:', '');
+
+  if (!clientIp) {
+    return res.status(400).json({ error: 'client ip not found' });
+  }
+
+  try {
+    const response = await fetch(`https://ipwho.is/${encodeURIComponent(clientIp)}?lang=zh`, {
+      headers: {
+        'User-Agent': 'guashake-mvp/1.0 (ip locate)',
+      },
+    });
+
+    if (!response.ok) {
+      return res.status(502).json({ error: 'ip locate failed' });
+    }
+
+    const payload = await response.json();
+    const candidates = [payload.city, payload.region, payload.country].filter(Boolean);
+    let region = null;
+    for (const candidate of candidates) {
+      const match = searchRegions(candidate, 1)[0];
+      if (match) {
+        region = match;
+        break;
+      }
+    }
+
+    return res.json({
+      ok: true,
+      ip: clientIp,
+      displayName: [payload.country, payload.region, payload.city].filter(Boolean).join(' '),
+      region,
+    });
+  } catch (error) {
+    return res.status(502).json({ error: 'ip locate failed', detail: error.message });
+  }
+});
+
 app.post('/triage/session', async (req, res) => {
   const {
     age,
@@ -370,38 +509,7 @@ app.post('/triage/session', async (req, res) => {
   if (!chiefComplaint) {
     return res.status(400).json({ error: 'chiefComplaint is required' });
   }
-
-  const sessionId = uuidv4();
-  const ruleRoute = detectScenarioDetailed(chiefComplaint);
-  let scenario = ruleRoute.scenario;
-  let routeMeta = {
-    mode: 'rule',
-    normalizedComplaint: ruleRoute.normalizedText || chiefComplaint,
-    reason: `按规则关键词匹配路由（命中分数：${ruleRoute.score}）`,
-  };
-
-  if (ruleRoute.score <= 0) {
-    try {
-      const aiRoute = await classifyComplaint(chiefComplaint, Object.values(SCENARIOS));
-      if (aiRoute?.scenarioId && SCENARIOS[aiRoute.scenarioId]) {
-        scenario = SCENARIOS[aiRoute.scenarioId];
-        routeMeta = {
-          mode: 'ai',
-          normalizedComplaint: aiRoute.normalizedComplaint || chiefComplaint,
-          reason: aiRoute.reason || '按模型理解路由',
-        };
-      }
-    } catch (_error) {
-      routeMeta = {
-        mode: 'rule-fallback',
-        normalizedComplaint: chiefComplaint,
-        reason: '规则未命中，模型路由超时或失败，已回退默认场景',
-      };
-    }
-  }
-
-  const session = upsertSession(sessionId, {
-    id: sessionId,
+  const result = await createTriageSession({
     age,
     gender,
     province,
@@ -409,38 +517,8 @@ app.post('/triage/session', async (req, res) => {
     district,
     insuranceType,
     chiefComplaint,
-    supplements: [],
-    supplementInsights: [],
-    supplementFiles: [],
-    scenario,
-    routeMeta,
-    stepIndex: 0,
-    followUp: {
-      stepCount: 0,
-      askedQuestionIds: [],
-      currentQuestionId: '',
-      slotState: {},
-      completed: false,
-    },
-    answers: {},
-    createdAt: new Date().toISOString(),
   });
-
-  const nextQuestionState = await resolveNextQuestion(session);
-  upsertSession(sessionId, {
-    followUp: nextQuestionState.followUpPatch,
-    followUpMeta: nextQuestionState.followUpMeta,
-  });
-
-  return res.json({
-    sessionId,
-    nextQuestion: nextQuestionState.nextQuestion,
-    progress: nextQuestionState.progress,
-    stopRule: '达到最小必要信息或追问上限后进入确认和补充阶段',
-    scenario: scenario.label,
-    routeMeta,
-    followUpMeta: nextQuestionState.followUpMeta,
-  });
+  return res.json(result);
 });
 
 app.post('/triage/answer', async (req, res) => {
@@ -616,6 +694,47 @@ app.post('/triage/supplement-file', upload.single('file'), async (req, res) => {
     file: fileRecord,
     total: supplementFiles.length,
     slotHints: summarySlotHints,
+  });
+});
+
+app.post('/triage/start-with-file', upload.single('file'), async (req, res) => {
+  const { label = '检验报告' } = req.body;
+  if (!req.file) {
+    return res.status(400).json({ error: 'file is required' });
+  }
+
+  const summary = await summarizeFile(req.file, label);
+  const slotHints = buildSummarySlotHints(summary);
+  const fileRecord = {
+    originalName: req.file.originalname,
+    filename: req.file.filename,
+    path: `/uploads/${req.file.filename}`,
+    size: req.file.size,
+    mimetype: req.file.mimetype,
+    label,
+    uploadedAt: new Date().toISOString(),
+    summary,
+  };
+  const chiefComplaint = [
+    summary.title,
+    ...(summary.highlights || []).slice(0, 2),
+    ...(summary.keyMetrics || []).slice(0, 2),
+  ]
+    .filter(Boolean)
+    .join('，');
+
+  const result = await createTriageSession({
+    chiefComplaint: chiefComplaint || '我想让你看看这份检查报告',
+    supplements: [`用户直接发送了一份${label}`],
+    supplementFiles: [fileRecord],
+    slotHints,
+  });
+
+  return res.json({
+    ...result,
+    file: fileRecord,
+    slotHints,
+    source: 'file',
   });
 });
 

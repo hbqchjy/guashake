@@ -40,6 +40,8 @@ const state = {
     nickname: '',
   },
   recordsMode: 'browse',
+  shareUrl: '',
+  pendingThinkingRow: null,
 };
 
 let botTextQueue = Promise.resolve();
@@ -225,6 +227,18 @@ function addTypingBubble() {
   );
 }
 
+function showThinkingBubble() {
+  clearThinkingBubble();
+  state.pendingThinkingRow = addTypingBubble();
+}
+
+function clearThinkingBubble() {
+  if (state.pendingThinkingRow) {
+    state.pendingThinkingRow.remove();
+    state.pendingThinkingRow = null;
+  }
+}
+
 async function typeTextInto(node, text) {
   const chars = Array.from(String(text || ''));
   node.textContent = '';
@@ -239,6 +253,7 @@ async function typeTextInto(node, text) {
 
 async function addBotText(text) {
   botTextQueue = botTextQueue.then(async () => {
+    clearThinkingBubble();
     const row = addRow('bot', '<p></p>');
     const p = row.querySelector('p');
     row.classList.add('is-typing');
@@ -312,6 +327,7 @@ function addChoiceBlock(title, options, onPick, note = '', meta = '', progressRa
     button.onclick = async () => {
       clearActiveChoiceBlock();
       addUserText(option.label);
+      showThinkingBubble();
       await onPick(option);
     };
     grid.appendChild(button);
@@ -322,6 +338,7 @@ function addChoiceBlock(title, options, onPick, note = '', meta = '', progressRa
 }
 
 async function revealChoiceBlock(title, options, onPick, note = '', meta = '', progressRatio = 0) {
+  clearThinkingBubble();
   const typingRow = addTypingBubble();
   await wait(360);
   typingRow.remove();
@@ -334,7 +351,7 @@ function addIntroCard() {
     'bot',
     [
       '<div class="intro-card-inner">',
-      '<p class="intro-copy"><strong class="intro-accent">我是小科</strong>，帮您了解去哪个医院、挂哪个科室，预估看病费用和医保报销，还能解读检查报告。只需告诉我哪里不舒服，或者发送您的检查报告，我能为您提供详细解答。</p>',
+      '<p class="intro-copy"><strong class="intro-accent">我是小科</strong>，帮您分析症状、推荐医院和科室、预估看病费用及医保报销，还能解读检查报告。直接告诉我哪里不舒服，或发送检查报告即可。</p>',
       '</div>',
     ].join(''),
     'intro-card'
@@ -391,25 +408,6 @@ function getInlineIcon(name) {
   return icons[name] || icons.spark;
 }
 
-function getQuestionReason(question) {
-  const text = String(question?.text || '');
-
-  if (/胸痛|压榨感|喘不上气|发烧|带血|化脓|红肿热痛/.test(text)) {
-    return '这题主要用来判断紧急程度。';
-  }
-  if (/持续多久|频繁|次数|多久了/.test(text)) {
-    return '这题主要用来判断是短期问题还是反复问题。';
-  }
-  if (/以前有|病史|哮喘史|高血压|心脏病/.test(text)) {
-    return '这题主要用来判断既往基础病会不会影响现在的建议。';
-  }
-  if (/吃饭|大便|尿里带血|起夜|活动后|晚上/.test(text)) {
-    return '这题主要用来判断症状更像哪一类问题。';
-  }
-
-  return '这题主要用来把就医方向问得更准一点。';
-}
-
 async function askQuestion(question, note = '') {
   state.currentQuestion = question;
   const progress = state.followUpProgress
@@ -418,16 +416,13 @@ async function askQuestion(question, note = '') {
   const progressRatio = state.followUpProgress
     ? (state.followUpProgress.current / state.followUpProgress.total) * 100
     : 0;
-  const reason = getQuestionReason(question);
-  const mergedNotes = [reason, note].filter(Boolean);
-  const finalNote = [...new Set(mergedNotes)].join(' ');
   await revealChoiceBlock(
     question.text,
     question.options.map((label) => ({ label, type: 'answer' })),
     async (option) => {
       await answerQuestion(option.label);
     },
-    finalNote,
+    '',
     progress,
     progressRatio
   );
@@ -523,8 +518,8 @@ async function startSymptomSession(symptomText) {
   state.followUpProgress = data.progress || null;
   $('quickRow').classList.add('hidden');
 
-  await addBotText(`先按“${data.scenario}”方向帮你判断。`);
-  await askQuestion(data.nextQuestion, data.followUpMeta?.reason || '');
+  await addBotText('我先问你几个关键问题。');
+  await askQuestion(data.nextQuestion);
 }
 
 async function submitText(text) {
@@ -563,6 +558,7 @@ async function submitText(text) {
 
   if (!state.sessionId) {
     addUserText(value);
+    showThinkingBubble();
     await startSymptomSession(value);
     return;
   }
@@ -602,7 +598,7 @@ async function answerQuestion(answer) {
   }
 
   state.followUpProgress = data.progress || null;
-  await askQuestion(data.nextQuestion, data.followUpMeta?.reason || '');
+  await askQuestion(data.nextQuestion);
 }
 
 async function directResult() {
@@ -720,6 +716,11 @@ async function detectCurrentRegion() {
   return data.region || null;
 }
 
+async function detectRegionByIp() {
+  const data = await api('/api/region/ip-locate');
+  return data.region || null;
+}
+
 async function promptRegionConfirmation(forceRetry = false) {
   const sessionRegion = isRegionValid(state.profile) ? state.profile : null;
   const cachedRegion = isRegionValid(state.savedRegion) ? state.savedRegion : null;
@@ -778,6 +779,25 @@ async function promptRegionConfirmation(forceRetry = false) {
   try {
     const region = await detectCurrentRegion();
     if (!region) {
+      const ipRegion = await detectRegionByIp().catch(() => null);
+      if (ipRegion) {
+        await revealChoiceBlock(
+          '我按网络位置估了一个地区，你确认一下',
+          [
+            { label: `确认 ${formatRegion(ipRegion)}`, type: 'confirm', region: ipRegion },
+            { label: '更改地址', type: 'change' },
+          ],
+          async (option) => {
+            if (option.type === 'confirm') {
+              await selectRegion(option.region);
+              return;
+            }
+            await promptManualRegionEntry();
+          },
+          '自动定位没拿到精确位置时，我会先用网络位置补一个。'
+        );
+        return;
+      }
       if (cachedRegion) {
         await revealChoiceBlock(
           '这次定位没拿准，先用哪个地区',
@@ -816,6 +836,25 @@ async function promptRegionConfirmation(forceRetry = false) {
       '如果定位不准，你再改。'
     );
   } catch (_error) {
+    const ipRegion = await detectRegionByIp().catch(() => null);
+    if (ipRegion) {
+      await revealChoiceBlock(
+        '自动定位没有成功，先用这个地区吗',
+        [
+          { label: `确认 ${formatRegion(ipRegion)}`, type: 'confirm', region: ipRegion },
+          { label: '手动输入地区', type: 'manual' },
+        ],
+        async (option) => {
+          if (option.type === 'confirm') {
+            await selectRegion(option.region);
+            return;
+          }
+          await promptManualRegionEntry();
+        },
+        '这是按网络位置估的，不准时你再改。'
+      );
+      return;
+    }
     if (cachedRegion) {
       await revealChoiceBlock(
         '定位没有成功，先用哪个地区',
@@ -948,9 +987,17 @@ function buildBookingCard(booking, prepItems) {
         `${hospital.level} · 建议挂 ${hospital.department}`
       )}</p></div><div class="booking-hospital-actions"><button class="record-action" data-copy-hospital="${escapeHtml(
         hospital.name
-      )}">复制医院名</button><button class="record-action" data-copy-wechat="${escapeHtml(hospital.wechatName)}">复制公众号名</button></div></div>`,
+      )}">复制医院名</button>${
+        hospital.officialWechatName ? `<button class="record-action" data-copy-wechat="${escapeHtml(hospital.officialWechatName)}">复制公众号名</button>` : ''
+      }${
+        hospital.miniProgramName ? `<button class="record-action" data-copy-mini="${escapeHtml(hospital.miniProgramName)}">复制小程序名</button>` : ''
+      }</div></div>`,
       `<p class="booking-hospital-note">${escapeHtml(hospital.recommendation)}</p>`,
-      `<p class="booking-hospital-search">${escapeHtml(hospital.wechatKeyword)}</p>`,
+      hospital.officialEntryFound
+        ? `<p class="booking-hospital-search">公众号：${escapeHtml(hospital.officialWechatName || '未找到')} / 小程序：${escapeHtml(
+            hospital.miniProgramName || '未找到'
+          )}</p>`
+        : `<p class="booking-hospital-search">暂未找到明确公众号或小程序，请在微信里直接搜索“${escapeHtml(hospital.name)}”</p>`,
       `<p class="booking-hospital-channel">挂号方式：${escapeHtml(hospital.channel)}</p>`,
       '</div>',
     ].join('');
@@ -1029,6 +1076,17 @@ function buildBookingCard(booking, prepItems) {
       }
     };
   });
+  row.querySelectorAll('[data-copy-mini]').forEach((button) => {
+    button.onclick = async () => {
+      const value = button.dataset.copyMini;
+      try {
+        await navigator.clipboard.writeText(value);
+        await addBotText(`小程序名已复制：${value}`);
+      } catch (_error) {
+        await addBotText(`你在微信里搜索小程序：${value}`);
+      }
+    };
+  });
   row.querySelectorAll('[data-copy-hospital]').forEach((button) => {
     button.onclick = async () => {
       const value = button.dataset.copyHospital;
@@ -1046,8 +1104,15 @@ function buildBookingCard(booking, prepItems) {
 async function shareCurrentSummary() {
   if (!state.sessionId || !state.triageResult) return;
   const url = `${window.location.origin}${window.location.pathname}?session=${encodeURIComponent(state.sessionId)}&shared=1`;
+  state.shareUrl = url;
   const title = `挂啥科总结：${state.triageResult.layeredOutput.core.suggestDepartment}`;
   const text = state.triageResult.layeredOutput.core.text;
+  const isWechat = /micromessenger/i.test(navigator.userAgent);
+
+  if (isWechat) {
+    $('shareGuideDialog').showModal();
+    return;
+  }
 
   if (navigator.share) {
     try {
@@ -1059,9 +1124,9 @@ async function shareCurrentSummary() {
 
   try {
     await navigator.clipboard.writeText(url);
-    await addBotText('总结链接已经复制好了，直接发给家属就行。');
+    await addBotText('总结链接已经复制好了，可以直接发给家属。');
   } catch (_error) {
-    await addBotText(`把这个链接发给家属就行：${url}`);
+    alert('当前浏览器不支持系统分享，请手动复制地址栏链接发给家属。');
   }
 }
 
@@ -1142,12 +1207,14 @@ async function renderResultCards() {
   const detailItems = (triage.detail.stepByStep || []).map((item) => `<li>${escapeHtml(item)}</li>`).join('');
   const slotHighlights = triage.detail.slotHighlights || [];
   const personalizedTips = triage.detail.personalizedTips || [];
+  const possibleTypes = triage.core.possibleTypes || [];
   const summaryHtml = [
     '<div class="summary-card">',
     '<div class="summary-top">',
     '<span class="summary-badge">小科总结</span>',
-    `<p class="summary-title">${escapeHtml(triage.core.suggestDepartment)}</p>`,
-    `<p class="summary-text">${escapeHtml(triage.core.text)}</p>`,
+    possibleTypes[0] ? `<p class="summary-overline">更像哪类问题</p>` : '',
+    possibleTypes[0] ? `<p class="summary-title">${escapeHtml(possibleTypes[0])}</p>` : `<p class="summary-title">${escapeHtml(triage.core.suggestDepartment)}</p>`,
+    possibleTypes[1] ? `<p class="summary-text">${escapeHtml(possibleTypes[1])}</p>` : `<p class="summary-text">${escapeHtml(triage.core.text)}</p>`,
     triage.core.personalizedText ? `<p class="summary-subtext">${escapeHtml(triage.core.personalizedText)}</p>` : '',
     `<div class="summary-next"><span class="summary-next-label">现在先做什么</span><strong>先去${escapeHtml(
       triage.core.suggestHospital
@@ -1159,6 +1226,7 @@ async function renderResultCards() {
     '<button class="result-mode-btn" data-mode-toggle="full">查看完整版</button>',
     '</div>',
     '<div class="summary-metrics">',
+    `<div class="summary-metric"><span class="summary-label">建议科室</span><strong>${escapeHtml(triage.core.suggestDepartment)}</strong></div>`,
     `<div class="summary-metric"><span class="summary-label">建议医院</span><strong>${escapeHtml(triage.core.suggestHospital)}</strong></div>`,
     `<div class="summary-metric"><span class="summary-label">首轮费用</span><strong>${escapeHtml(triage.core.firstCostRange)}</strong></div>`,
     `<div class="summary-metric"><span class="summary-label">医保参考</span><strong>${escapeHtml(cost.simple.insuranceCoverage)}</strong></div>`,
@@ -1308,6 +1376,27 @@ async function saveRecord() {
 async function handlePickedFile(file, label) {
   if (!file) return;
   addUserText(`${label}：${file.name}`);
+  if (!state.sessionId) {
+    showThinkingBubble();
+    const formData = new FormData();
+    formData.append('label', label);
+    formData.append('file', file);
+    const data = await api('/triage/start-with-file', {
+      method: 'POST',
+      body: formData,
+    });
+    state.sessionId = data.sessionId;
+    state.currentQuestion = null;
+    state.followUpProgress = data.progress || null;
+    $('quickRow').classList.add('hidden');
+    buildReportSummaryCard(data.file.summary, data.file.path);
+    if (Array.isArray(data.slotHints) && data.slotHints.length) {
+      await addBotText(`我先从报告里抓到这些线索：${data.slotHints.map((item) => `${item.slotLabel}：${item.answer}`).join('；')}`);
+    }
+    await addBotText('我先根据这份材料继续问你几个关键问题。');
+    await askQuestion(data.nextQuestion);
+    return;
+  }
   if (state.awaitingContext === 'supplement') {
     const formData = new FormData();
     formData.append('sessionId', state.sessionId);
@@ -1609,6 +1698,16 @@ function bindEvents() {
   $('closeLoginBtn').onclick = () => {
     pendingAfterLogin = null;
     $('loginDialog').close();
+  };
+  $('closeShareGuideBtn').onclick = () => $('shareGuideDialog').close();
+  $('copyShareLinkBtn').onclick = async () => {
+    try {
+      await navigator.clipboard.writeText(state.shareUrl || window.location.href);
+      $('shareGuideDialog').close();
+      await addBotText('备用链接已经复制好了。如果微信菜单分享不方便，再把链接发给家属。');
+    } catch (_error) {
+      alert('复制失败，请直接用微信右上角菜单分享。');
+    }
   };
   $('recordsLoginBtn').onclick = () => {
     requireLogin(async () => {

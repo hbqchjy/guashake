@@ -385,6 +385,35 @@ function buildSchemaHighlights(schema = {}) {
   ]).slice(0, 5);
 }
 
+function buildPossibleTypes(session, schema = {}) {
+  const scenarioId = session.scenario?.id;
+  const findings = (schema.testFindings || []).join('；');
+  const history = (schema.history || []).join('；');
+
+  if (scenarioId === 'cardio') {
+    const first = /血压/.test(`${session.chiefComplaint}；${findings}；${history}`)
+      ? '大概率和血压波动或心血管方面有关'
+      : '大概率和心血管或心律方面有关';
+    return [first, '也要排除劳累后气促或心率不齐'];
+  }
+  if (scenarioId === 'digestive') {
+    return ['更像胃肠道功能紊乱、胃炎这类问题', '如果黑便或反复呕吐，要尽快线下检查'];
+  }
+  if (scenarioId === 'lumbar') {
+    return ['更像腰肌劳损或腰椎相关问题', '如果腿麻加重，也要排除神经受压'];
+  }
+  if (scenarioId === 'urinary') {
+    return ['更像尿路刺激或感染相关问题', '如果反复发作，也要排除结石等情况'];
+  }
+  if (scenarioId === 'respiratory') {
+    return ['更像呼吸道感染或支气管问题', '如果咳喘持续不缓解，需要进一步查肺部'];
+  }
+  if (scenarioId === 'skinTrauma') {
+    return ['更像皮肤炎症、过敏或外伤恢复问题', '如果范围扩大或化脓，需要尽快复诊'];
+  }
+  return ['当前更像常见内科问题', '还需要结合线下检查进一步确认'];
+}
+
 function buildTriageResult(session) {
   const scenario = session.scenario;
   const redFlag = hasRedFlag({
@@ -397,6 +426,7 @@ function buildTriageResult(session) {
   const baseCost = calcBaseCost(scenario.baseChecks);
   const schema = buildGenericSymptomSchema(session);
   const schemaHighlights = buildSchemaHighlights(schema);
+  const possibleTypes = buildPossibleTypes(session, schema);
   const supplementInsightSummaries = (session.supplementInsights || [])
     .map((item) => item.summary)
     .filter(Boolean)
@@ -417,6 +447,7 @@ function buildTriageResult(session) {
       core: {
         text: coreConclusion,
         personalizedText: schemaHighlights[0] || '',
+        possibleTypes,
         suggestHospital: scenario.hospitalLevel,
         suggestDepartment: scenario.department,
         firstChecks: scenario.baseChecks,
