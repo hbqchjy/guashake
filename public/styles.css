@@ -637,6 +637,16 @@ body {
   font-weight: 700;
 }
 
+.booking-cache-tip {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(7, 193, 96, 0.08);
+  border: 1px solid rgba(7, 193, 96, 0.14);
+  color: var(--brand-dark);
+  font-size: 13px;
+}
+
 .booking-actions,
 .booking-foot {
   display: flex;
@@ -663,6 +673,13 @@ body {
   display: flex;
   justify-content: space-between;
   gap: 12px;
+}
+
+.booking-hospital-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
 }
 
 .booking-hospital-name {
