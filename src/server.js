@@ -15,7 +15,7 @@ const { searchRegions } = require('./regions');
 const { upsertSession, getSession, saveArchive, getArchive, getArchives, deleteArchive } = require('./store');
 const { buildArchivePdf } = require('./pdf');
 const { summarizeFile } = require('./file-summary');
-const { classifyComplaint, rewriteTriageResult, getStatus: getAiStatus } = require('./ai');
+const { classifyComplaint, chooseNextFollowUp, rewriteTriageResult, getStatus: getAiStatus } = require('./ai');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -58,6 +58,139 @@ function mergeTriageWithAi(fallbackResult, aiRewrite) {
         ? aiRewrite.riskReminder.slice(0, 3)
         : fallbackResult.layeredOutput.riskReminder,
     },
+  };
+}
+
+function getFollowUpConfig(session) {
+  const totalQuestions = session?.scenario?.questions?.length || 0;
+  return {
+    minSteps: Math.min(5, Math.max(4, totalQuestions)),
+    maxSteps: Math.min(10, Math.max(6, totalQuestions)),
+  };
+}
+
+function getAskedQuestionIds(session) {
+  return Array.isArray(session.followUp?.askedQuestionIds) ? session.followUp.askedQuestionIds : [];
+}
+
+function getFallbackNextQuestion(session) {
+  const asked = new Set(getAskedQuestionIds(session));
+  return (session.scenario?.questions || []).find((question) => !asked.has(question.id)) || null;
+}
+
+async function resolveNextQuestion(session, options = {}) {
+  const asked = getAskedQuestionIds(session);
+  const candidates = (session.scenario?.questions || []).filter((question) => !asked.includes(question.id));
+  const config = getFollowUpConfig(session);
+  const stepCount = Number(session.followUp?.stepCount || 0);
+
+  if (!candidates.length) {
+    return {
+      nextQuestion: null,
+      done: true,
+      progress: { current: stepCount, total: stepCount || config.minSteps },
+      followUpPatch: {
+        ...session.followUp,
+        completed: true,
+      },
+      followUpMeta: {
+        mode: 'exhausted',
+        reason: '候选问题已经问完',
+      },
+    };
+  }
+
+  if (stepCount >= config.maxSteps) {
+    return {
+      nextQuestion: null,
+      done: true,
+      progress: { current: stepCount, total: stepCount },
+      followUpPatch: {
+        ...session.followUp,
+        completed: true,
+      },
+      followUpMeta: {
+        mode: 'max-steps',
+        reason: '已达到追问上限',
+      },
+    };
+  }
+
+  let picked = null;
+  let followUpMeta = {
+    mode: 'rule',
+    reason: '按默认顺序继续追问',
+  };
+
+  try {
+    const aiDecision = await chooseNextFollowUp(session, candidates, {
+      stepCount,
+      ...config,
+      ...options,
+    });
+    if (aiDecision?.enoughInfo && stepCount >= config.minSteps) {
+      return {
+        nextQuestion: null,
+        done: true,
+        progress: { current: stepCount, total: stepCount },
+        followUpPatch: {
+          ...session.followUp,
+          completed: true,
+        },
+        followUpMeta: {
+          mode: 'ai-stop',
+          reason: aiDecision.reason || '模型判断信息已足够生成初步建议',
+        },
+      };
+    }
+
+    if (aiDecision?.questionId) {
+      picked = candidates.find((question) => question.id === aiDecision.questionId) || null;
+      if (picked) {
+        if (aiDecision.questionText && Array.isArray(aiDecision.options) && aiDecision.options.length >= 2) {
+          picked = {
+            ...picked,
+            text: String(aiDecision.questionText).trim() || picked.text,
+            options: aiDecision.options
+              .map((item) => String(item || '').trim())
+              .filter(Boolean)
+              .slice(0, 5),
+          };
+          if (picked.options.length < 2) {
+            picked.options = candidates.find((question) => question.id === picked.id)?.options || picked.options;
+          }
+        }
+        followUpMeta = {
+          mode: 'ai',
+          reason: aiDecision.reason || '按模型动态选择下一问',
+        };
+      }
+    }
+  } catch (_error) {
+    followUpMeta = {
+      mode: 'rule-fallback',
+      reason: '模型动态追问失败，已回退规则顺序',
+    };
+  }
+
+  if (!picked) {
+    picked = getFallbackNextQuestion(session);
+  }
+
+  const targetTotal = Math.max(config.minSteps, Math.min(config.maxSteps, stepCount + candidates.length));
+  return {
+    nextQuestion: picked,
+    done: false,
+    progress: {
+      current: stepCount + 1,
+      total: targetTotal,
+    },
+    followUpPatch: {
+      ...session.followUp,
+      currentQuestionId: picked?.id || '',
+      completed: false,
+    },
+    followUpMeta,
   };
 }
 
@@ -221,58 +354,82 @@ app.post('/triage/session', async (req, res) => {
     scenario,
     routeMeta,
     stepIndex: 0,
+    followUp: {
+      stepCount: 0,
+      askedQuestionIds: [],
+      currentQuestionId: '',
+      completed: false,
+    },
     answers: {},
     createdAt: new Date().toISOString(),
   });
 
+  const nextQuestionState = await resolveNextQuestion(session);
+  upsertSession(sessionId, {
+    followUp: nextQuestionState.followUpPatch,
+    followUpMeta: nextQuestionState.followUpMeta,
+  });
+
   return res.json({
     sessionId,
-    nextQuestion: scenario.questions[0],
-    progress: {
-      current: 1,
-      total: scenario.questions.length,
-    },
-    stopRule: '回答完整组追问后进入确认和补充阶段；命中急症信号时优先提示尽快就医',
+    nextQuestion: nextQuestionState.nextQuestion,
+    progress: nextQuestionState.progress,
+    stopRule: '达到最小必要信息或追问上限后进入确认和补充阶段',
     scenario: scenario.label,
     routeMeta,
+    followUpMeta: nextQuestionState.followUpMeta,
   });
 });
 
-app.post('/triage/answer', (req, res) => {
+app.post('/triage/answer', async (req, res) => {
   const { sessionId, questionId, answer } = req.body;
   const session = getSession(sessionId);
   if (!session) {
     return res.status(404).json({ error: 'session not found' });
   }
-
-  const answers = { ...(session.answers || {}) };
-  if (questionId && answer) {
-    answers[questionId] = answer;
+  if (!questionId || !answer) {
+    return res.status(400).json({ error: 'questionId and answer are required' });
+  }
+  if (session.followUp?.currentQuestionId && session.followUp.currentQuestionId !== questionId) {
+    return res.status(409).json({ error: 'question is out of date, please answer the latest question' });
   }
 
-  let stepIndex = Number(session.stepIndex || 0) + 1;
-  const reachedMax = stepIndex >= session.scenario.questions.length;
+  const answers = { ...(session.answers || {}) };
+  answers[questionId] = answer;
 
-  upsertSession(sessionId, { answers, stepIndex });
+  const askedQuestionIds = Array.from(new Set([...(session.followUp?.askedQuestionIds || []), questionId].filter(Boolean)));
+  const stepCount = Number(session.followUp?.stepCount || 0) + 1;
+  const updatedSession = upsertSession(sessionId, {
+    answers,
+    stepIndex: stepCount,
+    followUp: {
+      ...(session.followUp || {}),
+      stepCount,
+      askedQuestionIds,
+      currentQuestionId: '',
+    },
+  });
 
-  if (reachedMax) {
+  const nextQuestionState = await resolveNextQuestion(updatedSession);
+  upsertSession(sessionId, {
+    followUp: nextQuestionState.followUpPatch,
+    followUpMeta: nextQuestionState.followUpMeta,
+  });
+
+  if (nextQuestionState.done) {
     return res.json({
       done: false,
       needsConfirmation: true,
-      progress: {
-        current: session.scenario.questions.length,
-        total: session.scenario.questions.length,
-      },
+      progress: nextQuestionState.progress,
+      followUpMeta: nextQuestionState.followUpMeta,
     });
   }
 
   return res.json({
     done: false,
-    nextQuestion: session.scenario.questions[stepIndex],
-    progress: {
-      current: stepIndex + 1,
-      total: session.scenario.questions.length,
-    },
+    nextQuestion: nextQuestionState.nextQuestion,
+    progress: nextQuestionState.progress,
+    followUpMeta: nextQuestionState.followUpMeta,
   });
 });
 

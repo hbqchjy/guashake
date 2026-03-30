@@ -180,6 +180,60 @@ async function rewriteTriageResult(session, fallbackResult) {
   return parsed;
 }
 
+async function chooseNextFollowUp(session, candidates, meta = {}) {
+  if (!isConfigured() || !Array.isArray(candidates) || !candidates.length) return null;
+
+  const answered = (session.scenario?.questions || [])
+    .map((question) => {
+      const answer = session.answers?.[question.id];
+      if (!answer) return null;
+      return { id: question.id, text: question.text, answer };
+    })
+    .filter(Boolean);
+
+  const prompt = [
+    '你是“小科”的动态追问引擎。',
+    '任务：根据用户主诉和已知回答，从候选问题里只选下一问最有价值的一题。',
+    '要求：',
+    '1. 只能从候选槽位里选一个 questionId，不要自造新槽位。',
+    '2. 你要尽量把这一题重新写得更贴近日常说法，不要机械照抄默认问法。',
+    '3. 如果目前信息已经够生成初步建议，可以返回 enoughInfo=true。',
+    '4. 用户目标是挂哪个科、先查什么、费用大概多少，不是做诊断。',
+    '5. 输出必须是 JSON。',
+    '字段固定：questionId、questionText、options、enoughInfo、reason、estimatedTotalSteps。',
+    `当前主诉：${session.chiefComplaint}`,
+    `当前场景：${session.scenario?.label || ''}`,
+    `已经问了 ${meta.stepCount || 0} 步，至少问到 ${meta.minSteps || 0} 步，最多 ${meta.maxSteps || 0} 步。`,
+    `已知回答：${answered.length ? JSON.stringify(answered) : '[]'}`,
+    '候选问题：',
+    JSON.stringify(
+      candidates.map((item) => ({
+        id: item.id,
+        slot: item.slot || item.id,
+        defaultQuestion: item.text,
+        defaultOptions: item.options,
+      }))
+    ),
+    '只返回一个 JSON 对象，不要解释。',
+  ].join('\n');
+
+  const raw = await chatCompletions({
+    model: getConfig().textModel,
+    messages: [{ role: 'user', content: prompt }],
+    temperature: 0,
+    maxTokens: 180,
+  });
+
+  const parsed = extractJsonObject(raw);
+  if (!parsed || (!parsed.questionId && !parsed.enoughInfo)) {
+    return null;
+  }
+  if (parsed.questionText && !Array.isArray(parsed.options)) {
+    parsed.options = [];
+  }
+  return parsed;
+}
+
 function detectMimeFromName(fileName = '') {
   const ext = path.extname(fileName).toLowerCase();
   if (ext === '.png') return 'image/png';
@@ -234,6 +288,7 @@ module.exports = {
   getStatus,
   isConfigured,
   classifyComplaint,
+  chooseNextFollowUp,
   rewriteTriageResult,
   ocrFile,
 };
