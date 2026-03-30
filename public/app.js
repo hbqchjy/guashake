@@ -1331,21 +1331,40 @@ function attachInsuranceActions(row) {
 
 async function renderResultCards() {
   clearResultRows();
-  const [cost, booking] = await Promise.all([
-    api('/cost/estimate', {
-      method: 'POST',
-      body: JSON.stringify({
-        sessionId: state.sessionId,
-      }),
-    }),
-    api(`/booking/options?sessionId=${encodeURIComponent(state.sessionId)}`),
-  ]);
+  const triage = state.triageResult.layeredOutput;
+  const needsBooking = Boolean(triage.core.needsBooking);
+  const needsCost = Boolean(triage.core.needsCost);
+  const requests = [];
+  if (needsCost) {
+    requests.push(
+      api('/cost/estimate', {
+        method: 'POST',
+        body: JSON.stringify({
+          sessionId: state.sessionId,
+        }),
+      })
+    );
+  }
+  if (needsBooking) {
+    requests.push(api(`/booking/options?sessionId=${encodeURIComponent(state.sessionId)}`));
+  }
+  const resolved = await Promise.all(requests);
+  const cost = needsCost ? resolved.shift() : {
+    simple: {
+      costRange: triage.core.firstCostRange || '',
+      insuranceCoverage: '当前这轮不一定要马上用到费用估算',
+      costEffectivePlan: '先看症状变化，再决定是否去门诊',
+    },
+    expanded: {
+      insuranceGuide: '如果后面需要线下就医，再补充医保类型会更准确。',
+    },
+  };
+  const booking = needsBooking ? resolved.shift() : { preparation: [], hospitals: [] };
 
-  state.cost = cost;
-  state.booking = booking;
+  state.cost = cost || null;
+  state.booking = booking || null;
   setComposerState('symptom');
 
-  const triage = state.triageResult.layeredOutput;
   const firstChecks = buildCheckListHtml(triage.core.firstChecks || []);
   const costItems = buildCostHtml(cost, state.profile.insuranceType);
   const prepItems = (booking.preparation || []).map((item) => `<li>${escapeHtml(item)}</li>`).join('');
@@ -1355,8 +1374,6 @@ async function renderResultCards() {
   const personalizedTips = triage.detail.personalizedTips || [];
   const possibleTypes = triage.core.possibleTypes || [];
   const recommendationLevel = triage.core.recommendationLevel || 'routine_clinic';
-  const needsBooking = Boolean(triage.core.needsBooking);
-  const needsCost = Boolean(triage.core.needsCost);
   const selfCareAdvice = triage.detail.selfCareAdvice || [];
   const medicationAdvice = triage.detail.medicationAdvice || [];
   const visitAdvice = triage.detail.visitAdvice || [];
@@ -1463,8 +1480,11 @@ async function renderResultCards() {
     bookingCard.dataset.resultView = 'full';
     bookingCard.dataset.bookingCard = 'true';
   }
-  const prepCard = buildCollapsibleResultCard('去医院前带什么', '身份证、医保卡、近期检查结果', `<ul>${prepItems}</ul>`);
-  prepCard.dataset.resultView = needsBooking ? 'full' : 'simple';
+  let prepCard = null;
+  if (needsBooking) {
+    prepCard = buildCollapsibleResultCard('去医院前带什么', '身份证、医保卡、近期检查结果', `<ul>${prepItems}</ul>`);
+    prepCard.dataset.resultView = 'full';
+  }
   const riskCard = buildCollapsibleResultCard('风险提醒', '有胸痛加重或呼吸困难要尽快急诊', `<ul>${riskItems}</ul>`, 'risk');
   riskCard.dataset.resultView = 'full';
   const detailCard = buildCollapsibleResultCard(
@@ -1497,7 +1517,7 @@ async function renderResultCards() {
       '<div class="result-card action-card">',
       '<div class="action-head">',
       `<h3>${state.sharedView ? '后续建议' : '下一步'}</h3>`,
-      `<p>${state.sharedView ? '家属可以根据这份总结，陪同去挂号或就诊。' : '先挂号，还是先把这次结果存下来。'}</p>`,
+      `<p>${state.sharedView ? '家属可以根据这份总结，继续陪你处理这次问题。' : needsBooking ? '先继续看挂号建议，还是先把这次结果存下来。' : '先按建议处理，后面也可以继续补充再更新。'}</p>`,
       '</div>',
       '<div class="result-actions">',
       ...actionButtons,
