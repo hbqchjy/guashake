@@ -4,6 +4,8 @@ const cors = require('cors');
 const multer = require('multer');
 const { v4: uuidv4 } = require('uuid');
 const {
+  SCENARIOS,
+  detectScenarioDetailed,
   detectScenario,
   buildTriageResult,
   buildCostEstimate,
@@ -13,6 +15,7 @@ const { searchRegions } = require('./regions');
 const { upsertSession, getSession, saveArchive, getArchive, getArchives, deleteArchive } = require('./store');
 const { buildArchivePdf } = require('./pdf');
 const { summarizeFile } = require('./file-summary');
+const { classifyComplaint, rewriteTriageResult, getStatus: getAiStatus } = require('./ai');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -28,6 +31,35 @@ const storage = multer.diskStorage({
   filename: (_req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`),
 });
 const upload = multer({ storage });
+
+function mergeTriageWithAi(fallbackResult, aiRewrite) {
+  if (!aiRewrite) return fallbackResult;
+
+  return {
+    ...fallbackResult,
+    aiEnhanced: true,
+    layeredOutput: {
+      ...fallbackResult.layeredOutput,
+      core: {
+        ...fallbackResult.layeredOutput.core,
+        text: aiRewrite.coreText || fallbackResult.layeredOutput.core.text,
+      },
+      detail: {
+        ...fallbackResult.layeredOutput.detail,
+        whyDepartment: aiRewrite.whyDepartment || fallbackResult.layeredOutput.detail.whyDepartment,
+        suspectedDirections: Array.isArray(aiRewrite.suspectedDirections) && aiRewrite.suspectedDirections.length
+          ? aiRewrite.suspectedDirections.slice(0, 3)
+          : fallbackResult.layeredOutput.detail.suspectedDirections,
+        stepByStep: Array.isArray(aiRewrite.stepByStep) && aiRewrite.stepByStep.length
+          ? aiRewrite.stepByStep.slice(0, 4)
+          : fallbackResult.layeredOutput.detail.stepByStep,
+      },
+      riskReminder: Array.isArray(aiRewrite.riskReminder) && aiRewrite.riskReminder.length
+        ? aiRewrite.riskReminder.slice(0, 3)
+        : fallbackResult.layeredOutput.riskReminder,
+    },
+  };
+}
 
 function buildArchiveContextText(record, session) {
   const parts = [];
@@ -60,12 +92,14 @@ function buildArchiveContextText(record, session) {
 }
 
 app.get('/api/health', (_req, res) => {
+  const aiStatus = getAiStatus();
   res.json({
     ok: true,
     name: '挂啥科 MVP',
     updatedAt: '2026-03-29',
     coverageTier: '全国可访问，重点省份高覆盖（演示数据）',
-    ocrMode: process.env.OCR_WEBHOOK_URL ? 'webhook' : 'fallback',
+    ocrMode: aiStatus.enabled ? 'dashscope' : process.env.OCR_WEBHOOK_URL ? 'webhook' : 'fallback',
+    ai: aiStatus,
   });
 });
 
@@ -129,7 +163,7 @@ app.get('/api/region/reverse', async (req, res) => {
   }
 });
 
-app.post('/triage/session', (req, res) => {
+app.post('/triage/session', async (req, res) => {
   const {
     age,
     gender,
@@ -145,7 +179,34 @@ app.post('/triage/session', (req, res) => {
   }
 
   const sessionId = uuidv4();
-  const scenario = detectScenario(chiefComplaint);
+  const ruleRoute = detectScenarioDetailed(chiefComplaint);
+  let scenario = ruleRoute.scenario;
+  let routeMeta = {
+    mode: 'rule',
+    normalizedComplaint: ruleRoute.normalizedText || chiefComplaint,
+    reason: `按规则关键词匹配路由（命中分数：${ruleRoute.score}）`,
+  };
+
+  if (ruleRoute.score <= 0) {
+    try {
+      const aiRoute = await classifyComplaint(chiefComplaint, Object.values(SCENARIOS));
+      if (aiRoute?.scenarioId && SCENARIOS[aiRoute.scenarioId]) {
+        scenario = SCENARIOS[aiRoute.scenarioId];
+        routeMeta = {
+          mode: 'ai',
+          normalizedComplaint: aiRoute.normalizedComplaint || chiefComplaint,
+          reason: aiRoute.reason || '按模型理解路由',
+        };
+      }
+    } catch (_error) {
+      routeMeta = {
+        mode: 'rule-fallback',
+        normalizedComplaint: chiefComplaint,
+        reason: '规则未命中，模型路由超时或失败，已回退默认场景',
+      };
+    }
+  }
+
   const session = upsertSession(sessionId, {
     id: sessionId,
     age,
@@ -158,6 +219,7 @@ app.post('/triage/session', (req, res) => {
     supplements: [],
     supplementFiles: [],
     scenario,
+    routeMeta,
     stepIndex: 0,
     answers: {},
     createdAt: new Date().toISOString(),
@@ -172,6 +234,7 @@ app.post('/triage/session', (req, res) => {
     },
     stopRule: '回答完整组追问后进入确认和补充阶段；命中急症信号时优先提示尽快就医',
     scenario: scenario.label,
+    routeMeta,
   });
 });
 
@@ -290,13 +353,20 @@ app.post('/triage/supplement-file', upload.single('file'), async (req, res) => {
   });
 });
 
-app.get('/triage/result/:id', (req, res) => {
+app.get('/triage/result/:id', async (req, res) => {
   const session = getSession(req.params.id);
   if (!session) {
     return res.status(404).json({ error: 'session not found' });
   }
 
-  const triageResult = session.triageResult || buildTriageResult(session);
+  let triageResult = session.triageResult || buildTriageResult(session);
+  if (!session.triageResult && process.env.AI_RESULT_REWRITE === '1') {
+    try {
+      const aiRewrite = await rewriteTriageResult(session, triageResult);
+      triageResult = mergeTriageWithAi(triageResult, aiRewrite);
+    } catch (_error) {
+    }
+  }
   upsertSession(req.params.id, { triageResult });
   return res.json(triageResult);
 });

@@ -13,6 +13,7 @@
 - 前端：H5 单页应用（`public/index.html + app.js + styles.css`）
 - 后端：Node.js + Express（`src/server.js`）
 - 规则引擎：症状场景库 + 追问题库 + 分层输出（`src/rules.js`）
+- 模型层：阿里百炼文本路由 + OCR（`src/ai.js`）
 - 存储：JSON 文件持久化（`data/db.json`，运行时自动创建）
 - 文件：`multer` 本地上传到 `uploads/`
 - 导出：`pdfkit` 生成档案 PDF
@@ -71,6 +72,15 @@
 - `GET /archive/list?userId=...`
 - `DELETE /archive/:userId/:recordId`
 - `GET /archive/export?userId=...&recordId=...`
+
+### 5.1 当前 AI 接入（2026-03-30）
+- 文本模型：`qwen3.5-plus-2026-02-15`
+- OCR 模型：`qwen-vl-ocr-latest`
+- 当前策略：
+  - 首轮主诉先走规则路由
+  - 规则明显识别不出来时，再调用文本模型做场景补路由
+  - 图片类报告上传时，优先调用 OCR 模型提取文字
+  - 模型调用失败或超时，自动回退到现有规则/基础摘要
 
 ## 6. 页面结构（已实现）
 - 首页/信息采集页（地区、医保、主诉）
@@ -165,6 +175,34 @@ export OCR_WEBHOOK_URL="https://your-ocr-service.example.com/ocr"
 npm install
 npm start
 # 打开 http://localhost:3000
+```
+
+### 11.1 启用阿里百炼模型
+当前服务支持以下环境变量：
+
+```bash
+export DASHSCOPE_API_KEY="你的阿里百炼 API Key"
+export DASHSCOPE_TEXT_MODEL="qwen3.5-plus-2026-02-15"
+export DASHSCOPE_OCR_MODEL="qwen-vl-ocr-latest"
+export AI_RESULT_REWRITE="0"
+```
+
+说明：
+- `DASHSCOPE_API_KEY`：必须配置，模型能力才会启用
+- `DASHSCOPE_TEXT_MODEL`：默认就是 `qwen3.5-plus-2026-02-15`
+- `DASHSCOPE_OCR_MODEL`：默认就是 `qwen-vl-ocr-latest`
+- `AI_RESULT_REWRITE`：默认建议保持 `0`
+  - `0`：结果总结继续走当前规则模板，不拖慢首屏
+  - `1`：结果生成阶段再让模型润色，但当前实测会明显增加等待时间
+
+如果是 PM2 运行，可直接：
+
+```bash
+DASHSCOPE_API_KEY="你的阿里百炼 API Key" \
+DASHSCOPE_TEXT_MODEL="qwen3.5-plus-2026-02-15" \
+DASHSCOPE_OCR_MODEL="qwen-vl-ocr-latest" \
+AI_RESULT_REWRITE="0" \
+pm2 restart guashake --update-env
 ```
 
 ## 12. 风险与后续建议

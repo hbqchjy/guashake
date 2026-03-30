@@ -212,7 +212,7 @@ function expandComplaintText(input = '') {
   return text;
 }
 
-function detectScenario(chiefComplaint = '') {
+function detectScenarioDetailed(chiefComplaint = '') {
   const text = expandComplaintText(chiefComplaint);
   let best = SCENARIOS.cardio;
   let bestScore = -1;
@@ -225,7 +225,15 @@ function detectScenario(chiefComplaint = '') {
     }
   }
 
-  return best;
+  return {
+    scenario: best,
+    score: bestScore,
+    normalizedText: text,
+  };
+}
+
+function detectScenario(chiefComplaint = '') {
+  return detectScenarioDetailed(chiefComplaint).scenario;
 }
 
 function hasRedFlag({ chiefComplaint = '', answers = {}, supplements = [] }) {
@@ -336,6 +344,7 @@ function buildBookingSuggestion(session) {
 
 module.exports = {
   SCENARIOS,
+  detectScenarioDetailed,
   detectScenario,
   buildTriageResult,
   buildCostEstimate,

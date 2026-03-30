@@ -1,4 +1,5 @@
 const fs = require('fs');
+const { ocrFile, getStatus } = require('./ai');
 
 const REPORT_KEYWORDS = [
   { pattern: /(血常规|血常)/i, title: '血常规报告', focus: ['白细胞', '血红蛋白', '血小板'], next: '先看是否提示感染、贫血或出血风险。' },
@@ -160,13 +161,24 @@ async function summarizeFile(file, label = '补充材料') {
   const base = inferSummaryFromName(file.originalname || '', label);
   let ocrText = '';
   let ocrEnabled = false;
+  let ocrMode = 'fallback';
 
   try {
-    ocrText = await extractTextWithWebhook(file);
-    ocrEnabled = Boolean(process.env.OCR_WEBHOOK_URL);
+    ocrText = await ocrFile(file, label);
+    if (ocrText) {
+      ocrEnabled = true;
+      ocrMode = 'dashscope';
+    } else {
+      ocrText = await extractTextWithWebhook(file);
+      ocrEnabled = Boolean(process.env.OCR_WEBHOOK_URL) || getStatus().enabled;
+      if (ocrText) {
+        ocrMode = 'webhook';
+      }
+    }
   } catch (_error) {
     ocrText = '';
-    ocrEnabled = Boolean(process.env.OCR_WEBHOOK_URL);
+    ocrEnabled = Boolean(process.env.OCR_WEBHOOK_URL) || getStatus().enabled;
+    ocrMode = 'fallback';
   }
 
   const inferred = inferSummaryFromText(ocrText, base.title) || base;
@@ -182,11 +194,11 @@ async function summarizeFile(file, label = '补充材料') {
     keyMetrics,
     nextStep: inferred.nextStep,
     ocrText: ocrText ? ocrText.slice(0, 220) : '',
-    ocrMode: ocrText ? 'webhook' : 'fallback',
+    ocrMode,
     disclaimer: ocrText
       ? '当前摘要已参考 OCR 提取结果，仍建议结合医生正式报告解读。'
       : ocrEnabled
-        ? 'OCR 服务暂时没有返回有效文字，当前先按文件名和材料类型做基础摘要。'
+        ? 'OCR 服务当前没有返回有效文字，先按文件名和材料类型做基础摘要。'
         : '当前未配置 OCR 服务，先按文件名和材料类型做基础摘要。',
   };
 }
