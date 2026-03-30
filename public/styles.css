@@ -813,6 +813,12 @@ body {
   border: 1px solid var(--brand-dark);
 }
 
+.record-action.disabled {
+  opacity: 0.58;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
 .action-card .result-actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

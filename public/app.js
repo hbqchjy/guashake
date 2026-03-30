@@ -522,6 +522,46 @@ async function startSymptomSession(symptomText) {
   await askQuestion(data.nextQuestion);
 }
 
+function looksLikeReportIntent(text = '') {
+  return /(报告|化验单|检查单|检验单|片子|单子|结果|发给你看|给你看一下)/.test(String(text || ''));
+}
+
+async function appendContextMessage(value) {
+  showThinkingBubble();
+  const data = await api('/triage/supplement', {
+    method: 'POST',
+    body: JSON.stringify({
+      sessionId: state.sessionId,
+      supplement: value,
+    }),
+  });
+
+  state.supplementStats.text += 1;
+  state.supplementCount = data.supplements.length;
+  state.awaitingContext = null;
+  addStatusPill(getSupplementStatusText());
+  if (data.insight?.summary) {
+    await addBotText(`我补充理解到：${data.insight.summary}`);
+  }
+  if (Array.isArray(data.insight?.normalizedFacts) && data.insight.normalizedFacts.length) {
+    await addBotText(`我先记下这些重点：${data.insight.normalizedFacts.join('；')}`);
+  }
+
+  if (state.triageResult) {
+    await addBotText('我把这条追加信息合进这次咨询里了，给你更新一下总结。');
+    await directResult();
+    return;
+  }
+
+  if (state.generationReady) {
+    await addBotText('这条追加信息已经记进去了。');
+    await showGenerationConfirmCard('如果你还有别的信息，也可以继续补充；如果没有，现在就可以直接生成总结。');
+    return;
+  }
+
+  await addBotText('这条补充信息我已经记下了。');
+}
+
 async function submitText(text) {
   const value = String(text || '').trim();
   if (!value) return;
@@ -534,29 +574,16 @@ async function submitText(text) {
 
   if (state.awaitingContext === 'supplement') {
     addUserText(value);
-    const data = await api('/triage/supplement', {
-      method: 'POST',
-      body: JSON.stringify({
-        sessionId: state.sessionId,
-        supplement: value,
-      }),
-    });
-    state.supplementStats.text += 1;
-    state.supplementCount = data.supplements.length;
-    state.awaitingContext = null;
-    addStatusPill(getSupplementStatusText());
-    if (data.insight?.summary) {
-      await addBotText(`我补充理解到：${data.insight.summary}`);
-    }
-    if (Array.isArray(data.insight?.normalizedFacts) && data.insight.normalizedFacts.length) {
-      await addBotText(`我先记下这些重点：${data.insight.normalizedFacts.join('；')}`);
-    }
-    await addBotText('补充信息我记下了。现在可以生成总结了。');
-    await showGenerationConfirmCard('如果你还有别的信息，也可以继续补充一条。补充越完整，结果越准确。');
+    await appendContextMessage(value);
     return;
   }
 
   if (!state.sessionId) {
+    if (looksLikeReportIntent(value)) {
+      addUserText(value);
+      await addBotText('可以，你直接点左下角加号，把检验报告、相册图片或者拍照发给我就行。');
+      return;
+    }
     addUserText(value);
     showThinkingBubble();
     await startSymptomSession(value);
@@ -568,7 +595,8 @@ async function submitText(text) {
     return;
   }
 
-  addBotText('如果你要重新开始，点结果卡里的“重新咨询”。');
+  addUserText(value);
+  await appendContextMessage(value);
 }
 
 async function answerQuestion(answer) {
@@ -777,27 +805,33 @@ async function promptRegionConfirmation(forceRetry = false) {
   await addBotText('我先按你现在的位置补一个地区，你确认一下。');
 
   try {
+    const ipRegion = await detectRegionByIp().catch(() => null);
+    if (ipRegion) {
+      await revealChoiceBlock(
+        '我先按网络位置估了一个地区，你确认一下',
+        [
+          { label: `确认 ${formatRegion(ipRegion)}`, type: 'confirm', region: ipRegion },
+          { label: '更改地址', type: 'change' },
+        ],
+        async (option) => {
+          if (option.type === 'confirm') {
+            await selectRegion(option.region);
+            return;
+          }
+          const preciseRegion = await detectCurrentRegion().catch(() => null);
+          if (preciseRegion) {
+            await selectRegion(preciseRegion);
+            return;
+          }
+          await promptManualRegionEntry();
+        },
+        '如果网络位置不准，你再改。'
+      );
+      return;
+    }
+
     const region = await detectCurrentRegion();
     if (!region) {
-      const ipRegion = await detectRegionByIp().catch(() => null);
-      if (ipRegion) {
-        await revealChoiceBlock(
-          '我按网络位置估了一个地区，你确认一下',
-          [
-            { label: `确认 ${formatRegion(ipRegion)}`, type: 'confirm', region: ipRegion },
-            { label: '更改地址', type: 'change' },
-          ],
-          async (option) => {
-            if (option.type === 'confirm') {
-              await selectRegion(option.region);
-              return;
-            }
-            await promptManualRegionEntry();
-          },
-          '自动定位没拿到精确位置时，我会先用网络位置补一个。'
-        );
-        return;
-      }
       if (cachedRegion) {
         await revealChoiceBlock(
           '这次定位没拿准，先用哪个地区',
@@ -991,13 +1025,17 @@ function buildBookingCard(booking, prepItems) {
         hospital.officialWechatName ? `<button class="record-action" data-copy-wechat="${escapeHtml(hospital.officialWechatName)}">复制公众号名</button>` : ''
       }${
         hospital.miniProgramName ? `<button class="record-action" data-copy-mini="${escapeHtml(hospital.miniProgramName)}">复制小程序名</button>` : ''
+      }${
+        hospital.officialEntryFound
+          ? `<a class="record-action" target="_blank" rel="noreferrer" href="${escapeHtml(hospital.entryUrl || '#')}">去挂号</a>`
+          : '<span class="record-action disabled">未找挂号入口</span>'
       }</div></div>`,
       `<p class="booking-hospital-note">${escapeHtml(hospital.recommendation)}</p>`,
       hospital.officialEntryFound
         ? `<p class="booking-hospital-search">公众号：${escapeHtml(hospital.officialWechatName || '未找到')} / 小程序：${escapeHtml(
             hospital.miniProgramName || '未找到'
           )}</p>`
-        : `<p class="booking-hospital-search">暂未找到明确公众号或小程序，请在微信里直接搜索“${escapeHtml(hospital.name)}”</p>`,
+        : `<p class="booking-hospital-search">未找挂号入口，建议直接去医院挂号。</p>`,
       `<p class="booking-hospital-channel">挂号方式：${escapeHtml(hospital.channel)}</p>`,
       '</div>',
     ].join('');
@@ -1397,31 +1435,47 @@ async function handlePickedFile(file, label) {
     await askQuestion(data.nextQuestion);
     return;
   }
-  if (state.awaitingContext === 'supplement') {
-    const formData = new FormData();
-    formData.append('sessionId', state.sessionId);
-    formData.append('label', label);
-    formData.append('file', file);
-    const uploadResult = await api('/triage/supplement-file', {
-      method: 'POST',
-      body: formData,
-    });
-    if (label === '检验报告') {
-      state.supplementStats.report += 1;
-    } else {
-      state.supplementStats.image += 1;
-    }
-    state.supplementCount += 1;
-    addStatusPill(getSupplementStatusText());
-    buildReportSummaryCard(uploadResult.file.summary, uploadResult.file.path);
-    if (Array.isArray(uploadResult.slotHints) && uploadResult.slotHints.length) {
-      await addBotText(`我还从这份材料里补到了这些线索：${uploadResult.slotHints.map((item) => `${item.slotLabel}：${item.answer}`).join('；')}`);
-    }
-    await addBotText('这份材料我先做了一个基础摘要。你可以继续补充文字，也可以直接生成总结。');
-    await showGenerationConfirmCard('如果你还想补充文字，可以再发一条；也可以现在直接生成。');
+
+  showThinkingBubble();
+  const formData = new FormData();
+  formData.append('sessionId', state.sessionId);
+  formData.append('label', label);
+  formData.append('file', file);
+  const uploadResult = await api('/triage/supplement-file', {
+    method: 'POST',
+    body: formData,
+  });
+  if (label === '检验报告') {
+    state.supplementStats.report += 1;
+  } else {
+    state.supplementStats.image += 1;
+  }
+  state.supplementCount += 1;
+  state.awaitingContext = null;
+  addStatusPill(getSupplementStatusText());
+  buildReportSummaryCard(uploadResult.file.summary, uploadResult.file.path);
+  if (Array.isArray(uploadResult.slotHints) && uploadResult.slotHints.length) {
+    await addBotText(`我还从这份材料里补到了这些线索：${uploadResult.slotHints.map((item) => `${item.slotLabel}：${item.answer}`).join('；')}`);
+  }
+
+  if (state.currentQuestion) {
+    await addBotText('这份材料我已经并到当前咨询里了。咱们继续把上面的问题答完，我会一起参考这份报告。');
     return;
   }
-  await addBotText('这份材料我先记下了。等你完成这次咨询后，可以一起保存进健康档案。');
+
+  if (state.triageResult) {
+    await addBotText('我把这份材料合进这次咨询里了，给你更新一下总结。');
+    await directResult();
+    return;
+  }
+
+  if (state.generationReady || state.awaitingContext === 'supplement') {
+    await addBotText('这份材料我已经并到这次咨询里了。你还可以继续补充，或者现在直接生成总结。');
+    await showGenerationConfirmCard('这份材料已经加入分析。你可以继续补充，或者现在直接生成总结。');
+    return;
+  }
+
+  await addBotText('这份材料我已经并到这次咨询里了。');
 }
 
 function syncVoiceButton() {

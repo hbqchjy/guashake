@@ -12,6 +12,11 @@ function buildMiniProgramName(name) {
   return `${name}挂号`;
 }
 
+function buildSearchEntryUrl(name) {
+  if (!name) return '';
+  return `https://weixin.sogou.com/weixin?type=1&query=${encodeURIComponent(name)}`;
+}
+
 function getHospitalTemplates(scenarioId) {
   const shared = [
     { type: 'people', suffix: '人民医院', level: '县级综合医院', channel: '医院公众号 / 小程序' },
@@ -49,6 +54,7 @@ function buildHospitalRecommendations(region = {}, scenario = {}) {
       officialWechatName: buildWechatKeyword(name),
       miniProgramName: index < 3 ? buildMiniProgramName(name) : '',
       officialEntryFound: index < 3,
+      entryUrl: index < 3 ? buildSearchEntryUrl(name) : '',
       wechatKeyword: `微信搜索“${name}”`,
       recommendation:
         index === 0
