@@ -393,6 +393,18 @@ body {
   color: #4c555d;
 }
 
+.summary-subtext {
+  margin-top: -2px;
+  color: var(--brand-dark);
+  font-size: 14px;
+  line-height: 1.6;
+  font-weight: 600;
+}
+
+.summary-slot-chips {
+  margin-top: 12px;
+}
+
 .summary-next {
   margin-top: 6px;
   padding: 14px 14px 15px;

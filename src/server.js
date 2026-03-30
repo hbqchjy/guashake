@@ -15,11 +15,12 @@ const {
 const { searchRegions } = require('./regions');
 const { upsertSession, getSession, saveArchive, getArchive, getArchives, deleteArchive } = require('./store');
 const { buildArchivePdf } = require('./pdf');
-const { summarizeFile } = require('./file-summary');
+const { summarizeFile, buildSummarySlotHints } = require('./file-summary');
 const {
   classifyComplaint,
   chooseNextFollowUp,
   interpretSupplement,
+  personalizeTriageResult,
   rewriteTriageResult,
   getStatus: getAiStatus,
 } = require('./ai');
@@ -262,6 +263,27 @@ function buildArchiveContextText(record, session) {
   return parts.join('\n');
 }
 
+function mergeSlotHintsIntoState(existingState = {}, hints = [], sourcePrefix = 'derived') {
+  const slotState = { ...existingState };
+
+  for (const hint of hints) {
+    if (!hint?.slot || !hint?.answer) continue;
+    const current = slotState[hint.slot];
+    const mergedAnswer = current?.answer
+      ? [...new Set(`${current.answer}；${hint.answer}`.split(/[；;]/).map((item) => item.trim()).filter(Boolean))].join('；')
+      : hint.answer;
+
+    slotState[hint.slot] = {
+      questionId: current?.questionId || `${sourcePrefix}:${hint.slot}`,
+      slot: hint.slot,
+      slotLabel: hint.slotLabel || current?.slotLabel || hint.slot,
+      answer: mergedAnswer,
+    };
+  }
+
+  return slotState;
+}
+
 app.get('/api/health', (_req, res) => {
   const aiStatus = getAiStatus();
   res.json({
@@ -455,6 +477,7 @@ app.post('/triage/answer', async (req, res) => {
   const updatedSession = upsertSession(sessionId, {
     answers,
     stepIndex: stepCount,
+    triageResult: null,
     followUp: {
       ...(session.followUp || {}),
       stepCount,
@@ -517,7 +540,11 @@ app.post('/triage/supplement', async (req, res) => {
     }
   }
 
-  const updated = upsertSession(sessionId, { supplements, supplementInsights });
+  const updated = upsertSession(sessionId, {
+    supplements,
+    supplementInsights,
+    triageResult: null,
+  });
   return res.json({
     ok: true,
     supplements: updated.supplements || [],
@@ -561,6 +588,7 @@ app.post('/triage/supplement-file', upload.single('file'), async (req, res) => {
   }
 
   const summary = await summarizeFile(req.file, label);
+  const summarySlotHints = buildSummarySlotHints(summary);
   const fileRecord = {
     originalName: req.file.originalname,
     filename: req.file.filename,
@@ -573,12 +601,21 @@ app.post('/triage/supplement-file', upload.single('file'), async (req, res) => {
   };
 
   const supplementFiles = [...(session.supplementFiles || []), fileRecord];
-  upsertSession(sessionId, { supplementFiles });
+  const nextSlotState = mergeSlotHintsIntoState(session.followUp?.slotState || {}, summarySlotHints, 'file');
+  upsertSession(sessionId, {
+    supplementFiles,
+    triageResult: null,
+    followUp: {
+      ...(session.followUp || {}),
+      slotState: nextSlotState,
+    },
+  });
 
   return res.json({
     ok: true,
     file: fileRecord,
     total: supplementFiles.length,
+    slotHints: summarySlotHints,
   });
 });
 
@@ -589,6 +626,33 @@ app.get('/triage/result/:id', async (req, res) => {
   }
 
   let triageResult = session.triageResult || buildTriageResult(session);
+  if (!session.triageResult) {
+    try {
+      const personalized = await personalizeTriageResult(session, triageResult);
+      if (personalized) {
+        triageResult = {
+          ...triageResult,
+          aiPersonalized: true,
+          layeredOutput: {
+            ...triageResult.layeredOutput,
+            core: {
+              ...triageResult.layeredOutput.core,
+              personalizedText: personalized.summaryLine || triageResult.layeredOutput.core.personalizedText || '',
+            },
+            detail: {
+              ...triageResult.layeredOutput.detail,
+              whyDepartment: personalized.whyDepartment || triageResult.layeredOutput.detail.whyDepartment,
+              stepByStep: personalized.checkFocus
+                ? [personalized.checkFocus, ...(triageResult.layeredOutput.detail.stepByStep || [])]
+                : triageResult.layeredOutput.detail.stepByStep,
+              personalizedTips: Array.isArray(personalized.userTips) ? personalized.userTips : [],
+            },
+          },
+        };
+      }
+    } catch (_error) {
+    }
+  }
   if (!session.triageResult && process.env.AI_RESULT_REWRITE === '1') {
     try {
       const aiRewrite = await rewriteTriageResult(session, triageResult);

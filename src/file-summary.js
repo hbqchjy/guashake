@@ -133,6 +133,65 @@ function inferSummaryFromText(text = '', fallbackTitle = '检查报告') {
   return null;
 }
 
+function uniq(items = []) {
+  return [...new Set(items.filter(Boolean))];
+}
+
+function buildSummarySlotHints(summary = {}) {
+  const metrics = Array.isArray(summary.keyMetrics) ? summary.keyMetrics : [];
+  const highlights = Array.isArray(summary.highlights) ? summary.highlights : [];
+  const hints = [];
+
+  const bloodPressureMetrics = metrics.filter((item) => /收缩压|舒张压/.test(item));
+  if (bloodPressureMetrics.length) {
+    hints.push({
+      slot: 'bloodPressure',
+      slotLabel: '血压',
+      answer: uniq(bloodPressureMetrics).join('；'),
+    });
+  }
+
+  const heartRateMetrics = metrics.filter((item) => /心率/.test(item));
+  if (heartRateMetrics.length) {
+    hints.push({
+      slot: 'heartRate',
+      slotLabel: '心率',
+      answer: uniq(heartRateMetrics).join('；'),
+    });
+  }
+
+  const labMetrics = metrics.filter((item) => /白细胞|血红蛋白|血小板|肌酐|尿酸|偏高|偏低|升高|降低|阳性|阴性/.test(item));
+  if (labMetrics.length) {
+    hints.push({
+      slot: 'labFindings',
+      slotLabel: '化验/指标提示',
+      answer: uniq(labMetrics).join('；'),
+    });
+  }
+
+  if (/心电图/.test(summary.title || '')) {
+    hints.push({
+      slot: 'reportFindings',
+      slotLabel: '报告结论',
+      answer: uniq([...metrics, ...highlights]).slice(0, 4).join('；'),
+    });
+  } else if (/影像|超声|ct|胸片|x线|x光/i.test(summary.title || '')) {
+    hints.push({
+      slot: 'imagingFindings',
+      slotLabel: '影像提示',
+      answer: uniq([...highlights, ...metrics]).slice(0, 4).join('；'),
+    });
+  } else if (highlights.length) {
+    hints.push({
+      slot: 'reportFindings',
+      slotLabel: '报告结论',
+      answer: uniq([...highlights, ...metrics]).slice(0, 4).join('；'),
+    });
+  }
+
+  return hints.filter((item) => item.answer);
+}
+
 async function extractTextWithWebhook(file) {
   const webhook = process.env.OCR_WEBHOOK_URL;
   if (!webhook || !file?.path || !fs.existsSync(file.path)) {
@@ -203,4 +262,7 @@ async function summarizeFile(file, label = '补充材料') {
   };
 }
 
-module.exports = { summarizeFile };
+module.exports = {
+  summarizeFile,
+  buildSummarySlotHints,
+};

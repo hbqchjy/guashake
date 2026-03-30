@@ -314,6 +314,77 @@ function confidenceLevel(answerCount, redFlag) {
   return '信息不足，建议线下检查';
 }
 
+function splitJoinedText(value = '') {
+  return String(value || '')
+    .split(/[；;、]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function uniq(items = []) {
+  return [...new Set(items.filter(Boolean))];
+}
+
+function buildGenericSymptomSchema(session) {
+  const slotState = session.followUp?.slotState || {};
+  const supplementFacts = uniq(
+    (session.supplementInsights || [])
+      .flatMap((item) => item.normalizedFacts || [])
+      .map((item) => String(item || '').trim())
+  );
+  const reportFindings = uniq(
+    (session.supplementFiles || []).flatMap((file) => [
+      ...splitJoinedText((file.summary?.keyMetrics || []).join('；')),
+      ...splitJoinedText((file.summary?.highlights || []).join('；')),
+    ])
+  );
+
+  const getAnswer = (slot) => String(slotState?.[slot]?.answer || '').trim();
+  const collect = (slots = []) => uniq(slots.flatMap((slot) => splitJoinedText(getAnswer(slot))));
+
+  return {
+    mainSymptom: session.chiefComplaint || '',
+    timeline: collect(['duration', 'frequency', 'triggerTime', 'nightPattern', 'feverDuration']),
+    location: collect(['location']),
+    severity: collect(['breath', 'pain', 'dizziness', 'itchVsPain']),
+    accompanying: collect([
+      'associatedSymptoms',
+      'upperRespSymptoms',
+      'sputum',
+      'bowelChange',
+      'refluxBloating',
+      'bloodInUrine',
+      'infectionSigns',
+      'urinationPain',
+    ]),
+    history: collect([
+      'history',
+      'chronicHistory',
+      'repeatHistory',
+      'contactHistory',
+      'exposureHistory',
+      'cause',
+    ]),
+    testFindings: uniq([
+      ...collect(['bloodPressure', 'heartRate', 'labFindings', 'reportFindings', 'imagingFindings']),
+      ...reportFindings,
+    ]),
+    supplementFacts,
+  };
+}
+
+function buildSchemaHighlights(schema = {}) {
+  return uniq([
+    ...(schema.timeline || []).slice(0, 1).map((item) => `病程/节律：${item}`),
+    ...(schema.location || []).slice(0, 1).map((item) => `主要位置：${item}`),
+    ...(schema.severity || []).slice(0, 1).map((item) => `症状强度：${item}`),
+    ...(schema.accompanying || []).slice(0, 1).map((item) => `伴随表现：${item}`),
+    ...(schema.history || []).slice(0, 1).map((item) => `病史线索：${item}`),
+    ...(schema.testFindings || []).slice(0, 2).map((item) => `检查提示：${item}`),
+    ...(schema.supplementFacts || []).slice(0, 2).map((item) => `补充信息：${item}`),
+  ]).slice(0, 5);
+}
+
 function buildTriageResult(session) {
   const scenario = session.scenario;
   const redFlag = hasRedFlag({
@@ -324,6 +395,8 @@ function buildTriageResult(session) {
   const answerCount = Object.keys(session.answers || {}).length;
   const confidence = confidenceLevel(answerCount, redFlag);
   const baseCost = calcBaseCost(scenario.baseChecks);
+  const schema = buildGenericSymptomSchema(session);
+  const schemaHighlights = buildSchemaHighlights(schema);
   const supplementInsightSummaries = (session.supplementInsights || [])
     .map((item) => item.summary)
     .filter(Boolean)
@@ -343,18 +416,22 @@ function buildTriageResult(session) {
     layeredOutput: {
       core: {
         text: coreConclusion,
+        personalizedText: schemaHighlights[0] || '',
         suggestHospital: scenario.hospitalLevel,
         suggestDepartment: scenario.department,
         firstChecks: scenario.baseChecks,
         firstCostRange: `${baseCost.min}~${baseCost.max}元`,
       },
       detail: {
-        whyDepartment: `根据你的主诉和追问答案，当前更匹配 ${scenario.department} 的初筛路径。`,
+        whyDepartment: `根据你的主诉、追问答案和补充材料，当前更匹配 ${scenario.department} 的初筛路径。`,
         suspectedDirections: redFlag
           ? ['存在需要急诊先排查的风险']
           : [`当前最相关：${scenario.label}`, '先做基础检查后再决定是否追加影像检查'],
+        slotHighlights: schemaHighlights,
+        schema,
         stepByStep: [
           ...(supplementNote ? [supplementNote] : []),
+          ...schema.testFindings.slice(0, 2).map((item) => `已上传材料提示：${item}`),
           ...supplementInsightSummaries.map((item) => `补充信息提示：${item}`),
           ...scenario.nextStepRules,
         ],
@@ -413,6 +490,7 @@ module.exports = {
   detectScenarioDetailed,
   detectScenario,
   getScenarioSlotCatalog,
+  buildGenericSymptomSchema,
   buildTriageResult,
   buildCostEstimate,
   buildBookingSuggestion,

@@ -152,6 +152,19 @@ function buildSlotStateSummary(session) {
     .join('；');
 }
 
+function buildFileInsightSummary(session) {
+  return (session.supplementFiles || [])
+    .map((file) => {
+      const title = file.summary?.title || file.originalName || '补充材料';
+      const metrics = Array.isArray(file.summary?.keyMetrics) ? file.summary.keyMetrics.slice(0, 4) : [];
+      const highlights = Array.isArray(file.summary?.highlights) ? file.summary.highlights.slice(0, 3) : [];
+      const merged = [...new Set([...metrics, ...highlights])].slice(0, 4);
+      return merged.length ? `${title}：${merged.join('；')}` : title;
+    })
+    .filter(Boolean)
+    .join('\n');
+}
+
 async function rewriteTriageResult(session, fallbackResult) {
   if (!isConfigured()) return null;
 
@@ -190,6 +203,48 @@ async function rewriteTriageResult(session, fallbackResult) {
   const parsed = extractJsonObject(raw);
   if (!parsed?.coreText) return null;
   return parsed;
+}
+
+async function personalizeTriageResult(session, fallbackResult) {
+  if (!isConfigured()) return null;
+
+  const prompt = [
+    '你是“小科”的就医总结助手。',
+    '任务：根据已经填好的槽位、补充说明和检查材料，把规则结果再个性化一点。',
+    '要求：',
+    '1. 不要改变推荐科室、医院层级、首轮检查和费用区间。',
+    '2. 不做诊断，不用“确诊”口吻。',
+    '3. summaryLine 要是一句很短的人话，18到38字。',
+    '4. whyDepartment 和 checkFocus 各 1 句话，简短直接。',
+    '5. userTips 最多 3 条，每条不超过 20 个字。',
+    '输出 JSON，字段固定：summaryLine、whyDepartment、checkFocus、userTips。',
+    JSON.stringify({
+      chiefComplaint: session.chiefComplaint,
+      scenario: session.scenario?.label,
+      slotState: buildSlotStateSummary(session),
+      supplementInsights: (session.supplementInsights || []).map((item) => item.summary),
+      fileInsights: buildFileInsightSummary(session),
+      fallbackCore: fallbackResult.layeredOutput?.core || {},
+      fallbackDetail: fallbackResult.layeredOutput?.detail || {},
+    }),
+    '只返回 JSON。',
+  ].join('\n');
+
+  const raw = await chatCompletions({
+    model: getConfig().textModel,
+    messages: [{ role: 'user', content: prompt }],
+    temperature: 0.1,
+    maxTokens: 260,
+  });
+
+  const parsed = extractJsonObject(raw);
+  if (!parsed?.summaryLine) return null;
+  return {
+    summaryLine: String(parsed.summaryLine || '').trim(),
+    whyDepartment: String(parsed.whyDepartment || '').trim(),
+    checkFocus: String(parsed.checkFocus || '').trim(),
+    userTips: Array.isArray(parsed.userTips) ? parsed.userTips.filter(Boolean).slice(0, 3) : [],
+  };
 }
 
 async function chooseNextFollowUp(session, candidates, meta = {}) {
@@ -355,6 +410,7 @@ module.exports = {
   classifyComplaint,
   chooseNextFollowUp,
   interpretSupplement,
+  personalizeTriageResult,
   rewriteTriageResult,
   ocrFile,
 };

@@ -928,6 +928,14 @@ function buildReportSummaryCard(summary, filePath = '') {
   );
 }
 
+function buildInsightChipHtml(items = [], extraClass = '') {
+  const list = (items || []).filter(Boolean);
+  if (!list.length) return '';
+  return `<div class="record-checks ${extraClass}">${list
+    .map((item) => `<span class="record-chip">${escapeHtml(item)}</span>`)
+    .join('')}</div>`;
+}
+
 function buildBookingCard(booking, prepItems) {
   const hospitals = (booking.hospitals || []).slice(0, 5);
   const primaryHospitals = hospitals.slice(0, 2);
@@ -1132,15 +1140,19 @@ async function renderResultCards() {
   const prepItems = (booking.preparation || []).map((item) => `<li>${escapeHtml(item)}</li>`).join('');
   const riskItems = (triage.riskReminder || []).map((item) => `<li>${escapeHtml(item)}</li>`).join('');
   const detailItems = (triage.detail.stepByStep || []).map((item) => `<li>${escapeHtml(item)}</li>`).join('');
+  const slotHighlights = triage.detail.slotHighlights || [];
+  const personalizedTips = triage.detail.personalizedTips || [];
   const summaryHtml = [
     '<div class="summary-card">',
     '<div class="summary-top">',
     '<span class="summary-badge">小科总结</span>',
     `<p class="summary-title">${escapeHtml(triage.core.suggestDepartment)}</p>`,
     `<p class="summary-text">${escapeHtml(triage.core.text)}</p>`,
+    triage.core.personalizedText ? `<p class="summary-subtext">${escapeHtml(triage.core.personalizedText)}</p>` : '',
     `<div class="summary-next"><span class="summary-next-label">现在先做什么</span><strong>先去${escapeHtml(
       triage.core.suggestHospital
     )}挂${escapeHtml(triage.core.suggestDepartment)}，先把这轮基础检查做完，再决定要不要加更贵的检查。</strong></div>`,
+    buildInsightChipHtml(slotHighlights.slice(0, 3), 'summary-slot-chips'),
     '</div>',
     '<div class="result-mode-toggle">',
     '<button class="result-mode-btn active" data-mode-toggle="simple">只看重点</button>',
@@ -1198,7 +1210,12 @@ async function renderResultCards() {
   const detailCard = buildCollapsibleResultCard(
     '为什么这样建议',
     '查看具体判断逻辑和后续路径',
-    `<div class="result-card-title-wrap"><h3>为什么这样建议</h3><p>${escapeHtml(triage.detail.whyDepartment)}</p></div><ul>${detailItems}</ul>`
+    [
+      `<div class="result-card-title-wrap"><h3>为什么这样建议</h3><p>${escapeHtml(triage.detail.whyDepartment)}</p></div>`,
+      slotHighlights.length ? `<div class="detail-section"><h4>这次主要抓到的线索</h4>${buildInsightChipHtml(slotHighlights)}</div>` : '',
+      personalizedTips.length ? `<div class="detail-section"><h4>小科特别提醒</h4>${buildInsightChipHtml(personalizedTips)}</div>` : '',
+      `<ul>${detailItems}</ul>`,
+    ].join('')
   );
   detailCard.dataset.resultView = 'full';
 
@@ -1308,6 +1325,9 @@ async function handlePickedFile(file, label) {
     state.supplementCount += 1;
     addStatusPill(getSupplementStatusText());
     buildReportSummaryCard(uploadResult.file.summary, uploadResult.file.path);
+    if (Array.isArray(uploadResult.slotHints) && uploadResult.slotHints.length) {
+      await addBotText(`我还从这份材料里补到了这些线索：${uploadResult.slotHints.map((item) => `${item.slotLabel}：${item.answer}`).join('；')}`);
+    }
     await addBotText('这份材料我先做了一个基础摘要。你可以继续补充文字，也可以直接生成总结。');
     await showGenerationConfirmCard('如果你还想补充文字，可以再发一条；也可以现在直接生成。');
     return;
@@ -1416,7 +1436,7 @@ async function sendRecordAsContext(record) {
   const data = await api(`/archive/${encodeURIComponent(state.auth.userId)}/${record.id}/context`);
   const contextText = data.contextText || buildRecordContextPreview(record);
   addUserText(`引用记录：${record.summary || '历史记录'}`);
-  await api('/triage/supplement', {
+  const supplementResult = await api('/triage/supplement', {
     method: 'POST',
     body: JSON.stringify({
       sessionId: state.sessionId,
@@ -1428,6 +1448,9 @@ async function sendRecordAsContext(record) {
   addStatusPill(getSupplementStatusText());
   $('recordsDialog').close();
   await addBotText(`我已经把这条历史记录加到这次咨询的上下文里了：${buildRecordContextPreview(record) || '已补充历史记录'}`);
+  if (supplementResult.insight?.summary) {
+    await addBotText(`我补充理解到：${supplementResult.insight.summary}`);
+  }
   if (state.generationReady) {
     await showGenerationConfirmCard('历史记录已经补进来了。你还可以继续补充，或者现在直接生成总结。');
   }
