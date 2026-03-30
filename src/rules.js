@@ -178,6 +178,32 @@ const SCENARIOS = {
       { id: 'medicine', text: '最近有没有换过药、护肤品，或者洗衣液这些？', options: ['没有', '有', '不确定'] },
     ],
   },
+  maleHealth: {
+    id: 'maleHealth',
+    label: '男科/性健康相关',
+    keywords: ['早泄', '做爱时间短', '性生活时间短', '勃起', '硬度不够', '射精快', '性功能'],
+    department: '男科或泌尿外科',
+    hospitalLevel: '先县医院泌尿外科/男科，复杂情况再到市医院专科',
+    preparation: ['身份证', '医保卡', '既往化验/体检结果', '正在服用药物清单', '近期作息和压力情况'],
+    baseChecks: [
+      { name: '挂号费', min: 10, max: 40 },
+      { name: '基础问诊和体格评估', min: 0, max: 40 },
+      { name: '血压/血糖基础筛查（按需）', min: 20, max: 80 },
+      { name: '激素/前列腺相关检查（按需）', min: 80, max: 240 },
+    ],
+    nextStepRules: [
+      '如果合并勃起维持困难、长期焦虑失眠或慢病史，再考虑进一步检查。',
+      '如果只是偶发、和压力睡眠有关，医生一般会先从生活方式和心理因素评估开始。',
+    ],
+    questions: [
+      { id: 'sexDuration', text: '这种情况大概从什么时候开始的？', options: ['最近才开始', '几个月了', '一直都有', '说不清'] },
+      { id: 'sexFrequency', text: '是每次都这样，还是有时候正常？', options: ['每次都这样', '大多数时候这样', '偶尔这样', '说不清'] },
+      { id: 'erection', text: '除了时间短，勃起硬度或者维持时间有没有问题？', options: ['没有', '偶尔有', '比较明显'] },
+      { id: 'stress', text: '最近压力、焦虑或者睡眠差明显吗？', options: ['不明显', '有一点', '比较明显'] },
+      { id: 'partner', text: '这个问题已经影响到你们的性生活或情绪了吗？', options: ['影响不大', '有一点影响', '影响比较明显'] },
+      { id: 'maleHistory', text: '以前看过男科、泌尿外科，或者有高血压糖尿病这类慢病吗？', options: ['没有', '看过男科/泌尿外科', '有慢病', '两者都有'] },
+    ],
+  },
 };
 
 const INSURANCE_GUIDE = {
@@ -227,6 +253,12 @@ const QUESTION_SLOT_META = {
   spread: { slot: 'spread', slotLabel: '范围变化' },
   itchPain: { slot: 'itchVsPain', slotLabel: '痒痛特点' },
   medicine: { slot: 'exposureHistory', slotLabel: '药物/接触史' },
+  sexDuration: { slot: 'duration', slotLabel: '持续时间' },
+  sexFrequency: { slot: 'frequency', slotLabel: '出现频率' },
+  erection: { slot: 'erectionFunction', slotLabel: '勃起情况' },
+  stress: { slot: 'stressSleep', slotLabel: '压力/睡眠' },
+  partner: { slot: 'lifeImpact', slotLabel: '生活影响' },
+  maleHistory: { slot: 'history', slotLabel: '既往病史' },
 };
 
 function normalizeText(v) {
@@ -410,6 +442,9 @@ function buildPossibleTypes(session, schema = {}) {
   }
   if (scenarioId === 'skinTrauma') {
     return ['更像皮肤炎症、过敏或外伤恢复问题', '如果范围扩大或化脓，需要尽快复诊'];
+  }
+  if (scenarioId === 'maleHealth') {
+    return ['更像男科或性功能方面的问题', '常常还需要结合压力、睡眠和慢病情况一起判断'];
   }
   return ['当前更像常见内科问题', '还需要结合线下检查进一步确认'];
 }

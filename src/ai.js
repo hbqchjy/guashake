@@ -129,6 +129,38 @@ async function classifyComplaint(chiefComplaint, scenarios) {
   return parsed;
 }
 
+async function analyzeInitialTurn(userMessage, scenarios) {
+  if (!isConfigured()) return null;
+
+  const prompt = [
+    '你是“小科”的医疗咨询会话入口分析器。',
+    '任务：判断用户这句话属于什么任务、适合什么医学方向、是先开放式继续聊天还是直接进入结构化问题。',
+    '支持的 taskType：symptom_consult、report_interpretation、booking_hospital、cost_insurance、follow_up_consult、out_of_scope。',
+    '可选的 scenarioId：',
+    scenarios.map((scenario) => `${scenario.id}: ${scenario.label}`).join('\n'),
+    '要求：',
+    '1. 不做诊断。',
+    '2. assistantReply 要像真人客服/助手，简短自然。',
+    '3. 如果需要先继续自由聊天，collectMode 输出 open，并给 nextPromptText。',
+    '4. 如果已经适合进入结构化问题，collectMode 输出 structured。',
+    '5. 如果是明显非医疗问题，taskType 输出 out_of_scope。',
+    '输出 JSON，字段固定：taskType、scenarioId、collectMode、assistantReply、nextPromptText、reason。',
+    `用户输入：${userMessage}`,
+    '只返回一个 JSON 对象。',
+  ].join('\n');
+
+  const raw = await chatCompletions({
+    model: getConfig().textModel,
+    messages: [{ role: 'user', content: prompt }],
+    temperature: 0,
+    maxTokens: 260,
+  });
+
+  const parsed = extractJsonObject(raw);
+  if (!parsed?.taskType) return null;
+  return parsed;
+}
+
 function buildAnswerSummary(session) {
   return (session.scenario?.questions || [])
     .map((question) => {
@@ -312,6 +344,50 @@ async function chooseNextFollowUp(session, candidates, meta = {}) {
   return parsed;
 }
 
+async function planOpenInterviewTurn(session, latestUserMessage, candidates = [], meta = {}) {
+  if (!isConfigured()) return null;
+
+  const prompt = [
+    '你是“小科”的开放式追问引擎。',
+    '任务：根据用户刚补充的自由描述，决定下一步继续开放式追问，还是转入结构化问题，还是已经可以生成初步总结。',
+    '要求：',
+    '1. collectMode 只能是 open、structured、summary 三种之一。',
+    '2. 如果 collectMode=open，输出 assistantReply 和 nextPromptText。',
+    '3. 如果 collectMode=structured，只能从候选问题里选一个 questionId，并可重写 questionText 和 options。',
+    '4. 如果 collectMode=summary，表示信息已足够生成初步总结。',
+    '5. 不做诊断。',
+    '输出 JSON，字段固定：collectMode、assistantReply、nextPromptText、questionId、questionText、options、reason。',
+    `当前任务类型：${session.taskType || 'symptom_consult'}`,
+    `当前场景：${session.scenario?.label || ''}`,
+    `用户主诉：${session.chiefComplaint || ''}`,
+    `本轮用户补充：${latestUserMessage}`,
+    `已经开放式沟通轮数：${meta.openTurns || 0}`,
+    `已知槽位：${buildSlotStateSummary(session) || '暂无'}`,
+    `补充理解：${JSON.stringify((session.supplementInsights || []).map((item) => item.summary).slice(-3))}`,
+    `候选结构化问题：${JSON.stringify(
+      candidates.map((item) => ({
+        id: item.id,
+        slot: item.slot,
+        slotLabel: item.slotLabel,
+        defaultQuestion: item.text,
+        defaultOptions: item.options,
+      }))
+    )}`,
+    '只返回一个 JSON 对象，不要解释。',
+  ].join('\n');
+
+  const raw = await chatCompletions({
+    model: getConfig().textModel,
+    messages: [{ role: 'user', content: prompt }],
+    temperature: 0.1,
+    maxTokens: 260,
+  });
+
+  const parsed = extractJsonObject(raw);
+  if (!parsed?.collectMode) return null;
+  return parsed;
+}
+
 async function interpretSupplement(session, supplementText, slotCatalog = []) {
   if (!isConfigured()) return null;
 
@@ -408,7 +484,9 @@ module.exports = {
   getStatus,
   isConfigured,
   classifyComplaint,
+  analyzeInitialTurn,
   chooseNextFollowUp,
+  planOpenInterviewTurn,
   interpretSupplement,
   personalizeTriageResult,
   rewriteTriageResult,

@@ -18,7 +18,9 @@ const { buildArchivePdf } = require('./pdf');
 const { summarizeFile, buildSummarySlotHints } = require('./file-summary');
 const {
   classifyComplaint,
+  analyzeInitialTurn,
   chooseNextFollowUp,
+  planOpenInterviewTurn,
   interpretSupplement,
   personalizeTriageResult,
   rewriteTriageResult,
@@ -334,8 +336,22 @@ async function createTriageSession(payload = {}) {
   } = payload;
 
   const sessionId = uuidv4();
-  const { scenario, routeMeta } = await buildScenarioRoute(chiefComplaint);
+  const initialAnalysis = await analyzeInitialTurn(chiefComplaint, Object.values(SCENARIOS)).catch(() => null);
+  const analysisScenario = initialAnalysis?.scenarioId && SCENARIOS[initialAnalysis.scenarioId]
+    ? SCENARIOS[initialAnalysis.scenarioId]
+    : null;
+  const baseRoute = await buildScenarioRoute(chiefComplaint);
+  const scenario = analysisScenario || baseRoute.scenario;
+  const routeMeta = initialAnalysis
+    ? {
+        mode: 'ai',
+        normalizedComplaint: chiefComplaint,
+        reason: initialAnalysis.reason || baseRoute.routeMeta.reason,
+      }
+    : baseRoute.routeMeta;
   const slotState = mergeSlotHintsIntoState({}, slotHints, 'init');
+  const taskType = initialAnalysis?.taskType || 'symptom_consult';
+  const conversationStage = initialAnalysis?.collectMode === 'open' ? 'open' : 'structured';
 
   const session = upsertSession(sessionId, {
     id: sessionId,
@@ -351,6 +367,10 @@ async function createTriageSession(payload = {}) {
     supplementFiles,
     scenario,
     routeMeta,
+    taskType,
+    conversationStage,
+    openTurns: 0,
+    openPromptText: initialAnalysis?.nextPromptText || '',
     stepIndex: 0,
     followUp: {
       stepCount: 0,
@@ -363,6 +383,40 @@ async function createTriageSession(payload = {}) {
     createdAt: new Date().toISOString(),
   });
 
+  if (taskType === 'out_of_scope') {
+    return {
+      sessionId,
+      taskType,
+      conversationStage: 'closed',
+      assistantReply: initialAnalysis?.assistantReply || '这个问题不属于医疗咨询范围，我这边先不乱给建议。',
+      progress: null,
+      scenario: scenario.label,
+      routeMeta,
+      followUpMeta: null,
+    };
+  }
+
+  if (conversationStage === 'open') {
+    return {
+      sessionId,
+      taskType,
+      conversationStage: 'open',
+      assistantReply: initialAnalysis?.assistantReply || '我先了解一下情况。',
+      nextPrompt: {
+        type: 'text',
+        text: initialAnalysis?.nextPromptText || '你先把最困扰你的情况多说一点。',
+      },
+      progress: null,
+      stopRule: '先开放式聊几轮，方向清楚后再进入精准提问',
+      scenario: scenario.label,
+      routeMeta,
+      followUpMeta: {
+        mode: 'open',
+        reason: initialAnalysis?.reason || '先开放式收集信息',
+      },
+    };
+  }
+
   const nextQuestionState = await resolveNextQuestion(session);
   upsertSession(sessionId, {
     followUp: nextQuestionState.followUpPatch,
@@ -371,6 +425,8 @@ async function createTriageSession(payload = {}) {
 
   return {
     sessionId,
+    taskType,
+    conversationStage: 'structured',
     nextQuestion: nextQuestionState.nextQuestion,
     progress: nextQuestionState.progress,
     stopRule: '达到最小必要信息或追问上限后进入确认和补充阶段',
@@ -585,6 +641,149 @@ app.post('/triage/answer', async (req, res) => {
     nextQuestion: nextQuestionState.nextQuestion,
     progress: nextQuestionState.progress,
     followUpMeta: nextQuestionState.followUpMeta,
+  });
+});
+
+app.post('/triage/message', async (req, res) => {
+  const { sessionId, message } = req.body;
+  const session = getSession(sessionId);
+  if (!session) {
+    return res.status(404).json({ error: 'session not found' });
+  }
+
+  const text = String(message || '').trim();
+  if (!text) {
+    return res.status(400).json({ error: 'message is required' });
+  }
+
+  const supplements = [...(session.supplements || []), text];
+  let insight = null;
+  const supplementInsights = [...(session.supplementInsights || [])];
+  try {
+    insight = await interpretSupplement(session, text, getScenarioSlotCatalog(session.scenario || {}));
+    if (insight?.summary) {
+      supplementInsights.push({
+        ...insight,
+        sourceText: text,
+        createdAt: new Date().toISOString(),
+      });
+    }
+  } catch (_error) {
+    insight = null;
+  }
+
+  const openTurns = Number(session.openTurns || 0) + 1;
+  const updatedSession = upsertSession(sessionId, {
+    supplements,
+    supplementInsights,
+    openTurns,
+    triageResult: null,
+  });
+
+  if (updatedSession.conversationStage !== 'open') {
+    return res.json({
+      ok: true,
+      mode: 'context',
+      insight,
+    });
+  }
+
+  const asked = getAskedQuestionIds(updatedSession);
+  const candidates = getScenarioSlotCatalog(updatedSession.scenario || {})
+    .map((slotItem) => {
+      const question = (updatedSession.scenario?.questions || []).find((item) => item.id === slotItem.questionId);
+      if (!question) return null;
+      return {
+        ...question,
+        slot: slotItem.slot,
+        slotLabel: slotItem.slotLabel,
+      };
+    })
+    .filter(Boolean)
+    .filter((item) => !asked.includes(item.id));
+
+  const openPlan = await planOpenInterviewTurn(updatedSession, text, candidates, {
+    openTurns,
+  }).catch(() => null);
+
+  if (!openPlan) {
+    return res.status(503).json({ error: '当前智能分析暂时不可用，请稍后再试。' });
+  }
+
+  if (openPlan.collectMode === 'summary') {
+    upsertSession(sessionId, {
+      conversationStage: 'structured',
+      followUp: {
+        ...(updatedSession.followUp || {}),
+        completed: true,
+        currentQuestionId: '',
+      },
+    });
+    return res.json({
+      ok: true,
+      mode: 'confirmation',
+      assistantReply: openPlan.assistantReply || '我这边先整理一下，现在可以给你初步总结了。',
+      insight,
+      needsConfirmation: true,
+    });
+  }
+
+  if (openPlan.collectMode === 'structured') {
+    const picked = candidates.find((item) => item.id === openPlan.questionId) || candidates[0] || null;
+    if (!picked) {
+      return res.status(503).json({ error: '当前智能分析暂时不可用，请稍后再试。' });
+    }
+    const nextQuestion = {
+      ...picked,
+      text: String(openPlan.questionText || picked.text).trim() || picked.text,
+      options: Array.isArray(openPlan.options) && openPlan.options.length >= 2
+        ? openPlan.options.map((item) => String(item || '').trim()).filter(Boolean).slice(0, 5)
+        : picked.options,
+    };
+    upsertSession(sessionId, {
+      conversationStage: 'structured',
+      followUp: {
+        ...(updatedSession.followUp || {}),
+        currentQuestionId: nextQuestion.id,
+        completed: false,
+      },
+      followUpMeta: {
+        mode: 'ai-open-to-structured',
+        reason: openPlan.reason || '开放式信息已足够，开始进入精准提问',
+        targetSlot: nextQuestion.slot || nextQuestion.id,
+        targetSlotLabel: nextQuestion.slotLabel || nextQuestion.slot || nextQuestion.id,
+      },
+    });
+    return res.json({
+      ok: true,
+      mode: 'question',
+      assistantReply: openPlan.assistantReply || '我大概有方向了，再确认一个关键点。',
+      nextQuestion,
+      progress: {
+        current: 1,
+        total: Math.max(3, Math.min(6, candidates.length + 1)),
+      },
+      followUpMeta: {
+        mode: 'ai-open-to-structured',
+        reason: openPlan.reason || '开放式信息已足够，开始进入精准提问',
+      },
+      insight,
+    });
+  }
+
+  upsertSession(sessionId, {
+    conversationStage: 'open',
+    openPromptText: openPlan.nextPromptText || '',
+  });
+  return res.json({
+    ok: true,
+    mode: 'text',
+    assistantReply: openPlan.assistantReply || '我继续了解一下。',
+    nextPrompt: {
+      type: 'text',
+      text: openPlan.nextPromptText || '你再多说一点最近的变化。',
+    },
+    insight,
   });
 });
 

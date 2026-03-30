@@ -42,6 +42,8 @@ const state = {
   recordsMode: 'browse',
   shareUrl: '',
   pendingThinkingRow: null,
+  conversationStage: 'idle',
+  currentPrompt: null,
 };
 
 let botTextQueue = Promise.resolve();
@@ -470,6 +472,8 @@ function resetConversation() {
   };
   state.resultViewMode = 'simple';
   state.sharedView = false;
+  state.conversationStage = 'idle';
+  state.currentPrompt = null;
   state.resultAnchor = 'summary';
   state.profile = {
     province: '',
@@ -515,8 +519,31 @@ async function startSymptomSession(symptomText) {
 
   state.sessionId = data.sessionId;
   state.currentQuestion = null;
+  state.currentPrompt = null;
+  state.conversationStage = data.conversationStage || 'structured';
   state.followUpProgress = data.progress || null;
   $('quickRow').classList.add('hidden');
+
+  if (data.assistantReply) {
+    await addBotText(data.assistantReply);
+  }
+  if (data.conversationStage === 'closed') {
+    state.currentPrompt = null;
+    state.currentQuestion = null;
+    setComposerState('symptom');
+    return;
+  }
+  if (data.nextPrompt?.type === 'text') {
+    state.currentPrompt = data.nextPrompt;
+    setComposerState('symptom');
+    await addBotText(data.nextPrompt.text);
+    return;
+  }
+  if (!data.nextQuestion) {
+    await addBotText('我这边还需要你再说具体一点，或者直接发检查报告。');
+    setComposerState('symptom');
+    return;
+  }
 
   await addBotText('我先问你几个关键问题。');
   await askQuestion(data.nextQuestion);
@@ -562,6 +589,53 @@ async function appendContextMessage(value) {
   await addBotText('这条补充信息我已经记下了。');
 }
 
+async function continueOpenConversation(value) {
+  showThinkingBubble();
+  const data = await api('/triage/message', {
+    method: 'POST',
+    body: JSON.stringify({
+      sessionId: state.sessionId,
+      message: value,
+    }),
+  });
+
+  if (data.insight?.summary) {
+    await addBotText(`我补充理解到：${data.insight.summary}`);
+  }
+  if (data.assistantReply) {
+    await addBotText(data.assistantReply);
+  }
+
+  if (data.needsConfirmation) {
+    state.currentPrompt = null;
+    state.currentQuestion = null;
+    state.generationReady = true;
+    state.conversationStage = 'structured';
+    await showGenerationConfirmCard('如果你愿意，还可以再补充一点；如果没有，现在可以直接生成总结。');
+    return;
+  }
+
+  if (data.mode === 'question' && data.nextQuestion) {
+    state.currentPrompt = null;
+    state.currentQuestion = null;
+    state.conversationStage = 'structured';
+    state.followUpProgress = data.progress || null;
+    await askQuestion(data.nextQuestion);
+    return;
+  }
+
+  if (data.mode === 'text' && data.nextPrompt?.type === 'text') {
+    state.currentPrompt = data.nextPrompt;
+    state.currentQuestion = null;
+    state.conversationStage = 'open';
+    setComposerState('symptom');
+    await addBotText(data.nextPrompt.text);
+    return;
+  }
+
+  await addBotText('我先把这条信息记下了。');
+}
+
 async function submitText(text) {
   const value = String(text || '').trim();
   if (!value) return;
@@ -587,6 +661,12 @@ async function submitText(text) {
     addUserText(value);
     showThinkingBubble();
     await startSymptomSession(value);
+    return;
+  }
+
+  if (state.currentPrompt?.type === 'text' && !state.currentQuestion) {
+    addUserText(value);
+    await continueOpenConversation(value);
     return;
   }
 
@@ -634,6 +714,7 @@ async function directResult() {
   state.triageResult = data;
   state.followUpProgress = null;
   state.generationReady = false;
+  state.currentPrompt = null;
   await ensureContextAndRenderResult();
 }
 
@@ -1425,11 +1506,33 @@ async function handlePickedFile(file, label) {
     });
     state.sessionId = data.sessionId;
     state.currentQuestion = null;
+    state.currentPrompt = null;
+    state.conversationStage = data.conversationStage || 'structured';
     state.followUpProgress = data.progress || null;
     $('quickRow').classList.add('hidden');
     buildReportSummaryCard(data.file.summary, data.file.path);
     if (Array.isArray(data.slotHints) && data.slotHints.length) {
       await addBotText(`我先从报告里抓到这些线索：${data.slotHints.map((item) => `${item.slotLabel}：${item.answer}`).join('；')}`);
+    }
+    if (data.assistantReply) {
+      await addBotText(data.assistantReply);
+    }
+    if (data.conversationStage === 'closed') {
+      state.currentPrompt = null;
+      state.currentQuestion = null;
+      setComposerState('symptom');
+      return;
+    }
+    if (data.nextPrompt?.type === 'text') {
+      state.currentPrompt = data.nextPrompt;
+      setComposerState('symptom');
+      await addBotText(data.nextPrompt.text);
+      return;
+    }
+    if (!data.nextQuestion) {
+      await addBotText('这份材料我已经收到。你可以继续补充一下不舒服的地方，我再接着分析。');
+      setComposerState('symptom');
+      return;
     }
     await addBotText('我先根据这份材料继续问你几个关键问题。');
     await askQuestion(data.nextQuestion);
