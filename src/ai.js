@@ -144,6 +144,7 @@ async function analyzeInitialTurn(userMessage, scenarios) {
     '3. 如果需要先继续自由聊天，collectMode 输出 open，并给 nextPromptText。',
     '4. 如果已经适合进入结构化问题，collectMode 输出 structured。',
     '5. 如果是明显非医疗问题，taskType 输出 out_of_scope。',
+    '6. 对症状咨询，除非用户已经明确说出持续时间/频率/部位/伴随变化中的至少两项，否则优先输出 open，不要过早进入结构化问答。',
     '输出 JSON，字段固定：taskType、scenarioId、collectMode、assistantReply、nextPromptText、reason。',
     `用户输入：${userMessage}`,
     '只返回一个 JSON 对象。',
@@ -158,6 +159,42 @@ async function analyzeInitialTurn(userMessage, scenarios) {
 
   const parsed = extractJsonObject(raw);
   if (!parsed?.taskType) return null;
+  return parsed;
+}
+
+async function classifyConversationTurn(session, userMessage) {
+  if (!isConfigured()) return null;
+
+  const prompt = [
+    '你是“小科”的对话意图判断器。',
+    '任务：判断用户这条新消息，在当前医疗咨询上下文里属于哪一类。',
+    '可选 intentType：medical_followup、medication_question、booking_question、cost_question、report_notice、off_topic。',
+    '要求：',
+    '1. medical_followup 表示继续补充症状、病史、检查、感受。',
+    '2. medication_question 表示主要在问吃什么药、怎么用药。',
+    '3. booking_question 表示主要在问挂什么科、去哪家医院、怎么挂号。',
+    '4. cost_question 表示主要在问费用、医保、报销。',
+    '5. report_notice 表示主要在说要发报告、刚发了报告、让系统看报告。',
+    '6. off_topic 表示和当前医疗咨询关系不大，或者明显跑题。',
+    '7. reply 用一句自然的话回复用户，不要解释内部判断。',
+    '输出 JSON，字段固定：intentType、reply、reason。',
+    `当前主诉：${session.chiefComplaint || ''}`,
+    `当前场景：${session.scenario?.label || ''}`,
+    `当前任务：${session.taskType || 'symptom_consult'}`,
+    `已有补充：${JSON.stringify((session.supplements || []).slice(-6))}`,
+    `用户新消息：${userMessage}`,
+    '只返回一个 JSON 对象。',
+  ].join('\n');
+
+  const raw = await chatCompletions({
+    model: getConfig().textModel,
+    messages: [{ role: 'user', content: prompt }],
+    temperature: 0,
+    maxTokens: 220,
+  });
+
+  const parsed = extractJsonObject(raw);
+  if (!parsed?.intentType) return null;
   return parsed;
 }
 
@@ -279,6 +316,62 @@ async function personalizeTriageResult(session, fallbackResult) {
   };
 }
 
+async function buildGuidanceDecision(session, fallbackResult) {
+  if (!isConfigured()) return null;
+
+  const prompt = [
+    '你是“小科”的就医建议决策器。',
+    '任务：根据当前对话、补充信息、材料和系统已有结果，输出更像真人助手的分级建议。',
+    '要求：',
+    '1. 不要确诊，只能说“更像”“可能”“先考虑”。',
+    '2. 结果不要默认都导向挂号；要先判断轻重和用户真正想解决的问题。',
+    '3. actionLevel 只能是 self_care、otc_guidance、routine_clinic、specialist_clinic、hospital_priority_high。',
+    '4. severityLevel 只能是 mild、moderate、high。',
+    '5. medicationAdvice 测试期允许写出具体药名或药物方向，但语气必须克制，最多 3 条。',
+    '6. 如果当前不一定需要线下就医，needsBooking 和 needsCost 可以为 false。',
+    '7. 输出必须是 JSON。',
+    '字段固定：likelyDirection、simpleExplanation、severityLevel、severityText、userGoal、actionLevel、actionSummary、selfCareAdvice、medicationAdvice、visitAdvice、examAdvice、needsBooking、needsCost。',
+    JSON.stringify({
+      chiefComplaint: session.chiefComplaint,
+      scenario: session.scenario?.label,
+      routeReason: session.routeMeta?.reason || '',
+      slotState: buildSlotStateSummary(session),
+      supplements: (session.supplements || []).slice(-8),
+      supplementInsights: (session.supplementInsights || []).map((item) => item.summary).slice(-5),
+      fileInsights: buildFileInsightSummary(session),
+      fallbackCore: fallbackResult.layeredOutput?.core || {},
+      fallbackDetail: fallbackResult.layeredOutput?.detail || {},
+      taskType: session.taskType || 'symptom_consult',
+    }),
+    '只返回一个 JSON 对象。',
+  ].join('\n');
+
+  const raw = await chatCompletions({
+    model: getConfig().textModel,
+    messages: [{ role: 'user', content: prompt }],
+    temperature: 0.15,
+    maxTokens: 500,
+  });
+
+  const parsed = extractJsonObject(raw);
+  if (!parsed?.actionLevel || !parsed?.likelyDirection) return null;
+  return {
+    likelyDirection: String(parsed.likelyDirection || '').trim(),
+    simpleExplanation: String(parsed.simpleExplanation || '').trim(),
+    severityLevel: String(parsed.severityLevel || '').trim(),
+    severityText: String(parsed.severityText || '').trim(),
+    userGoal: String(parsed.userGoal || '').trim(),
+    actionLevel: String(parsed.actionLevel || '').trim(),
+    actionSummary: String(parsed.actionSummary || '').trim(),
+    selfCareAdvice: Array.isArray(parsed.selfCareAdvice) ? parsed.selfCareAdvice.filter(Boolean).slice(0, 4) : [],
+    medicationAdvice: Array.isArray(parsed.medicationAdvice) ? parsed.medicationAdvice.filter(Boolean).slice(0, 3) : [],
+    visitAdvice: Array.isArray(parsed.visitAdvice) ? parsed.visitAdvice.filter(Boolean).slice(0, 4) : [],
+    examAdvice: Array.isArray(parsed.examAdvice) ? parsed.examAdvice.filter(Boolean).slice(0, 4) : [],
+    needsBooking: Boolean(parsed.needsBooking),
+    needsCost: Boolean(parsed.needsCost),
+  };
+}
+
 async function chooseNextFollowUp(session, candidates, meta = {}) {
   if (!isConfigured() || !Array.isArray(candidates) || !candidates.length) return null;
 
@@ -356,6 +449,8 @@ async function planOpenInterviewTurn(session, latestUserMessage, candidates = []
     '3. 如果 collectMode=structured，只能从候选问题里选一个 questionId，并可重写 questionText 和 options。',
     '4. 如果 collectMode=summary，表示信息已足够生成初步总结。',
     '5. 不做诊断。',
+    '6. 除非已经明确主问题、持续时间/频率、至少一个影响因素或伴随信息，否则优先继续开放式追问，不要过早切按钮题。',
+    '7. 通常至少先开放式聊 2 轮，再考虑 structured；只有用户一开始就把信息说得非常完整才可以更早切换。',
     '输出 JSON，字段固定：collectMode、assistantReply、nextPromptText、questionId、questionText、options、reason。',
     `当前任务类型：${session.taskType || 'symptom_consult'}`,
     `当前场景：${session.scenario?.label || ''}`,
@@ -485,10 +580,12 @@ module.exports = {
   isConfigured,
   classifyComplaint,
   analyzeInitialTurn,
+  classifyConversationTurn,
   chooseNextFollowUp,
   planOpenInterviewTurn,
   interpretSupplement,
   personalizeTriageResult,
+  buildGuidanceDecision,
   rewriteTriageResult,
   ocrFile,
 };

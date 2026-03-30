@@ -449,6 +449,72 @@ function buildPossibleTypes(session, schema = {}) {
   return ['当前更像常见内科问题', '还需要结合线下检查进一步确认'];
 }
 
+function buildFallbackGuidance(session) {
+  const scenarioId = session.scenario?.id;
+
+  if (scenarioId === 'digestive') {
+    return {
+      recommendationLevel: 'self_care',
+      severityLevel: 'mild',
+      severityText: '目前更像轻到中度不适，先观察和调整通常更合适。',
+      userGoal: '先判断需不需要马上去医院，以及能不能先自行缓一缓',
+      actionSummary: '目前先按胃肠道轻中度不适处理更合适，先观察饮食和休息，再看要不要去消化内科。',
+      selfCareAdvice: ['先吃清淡一点', '这两天少酒少辣', '先观察 1 到 2 天变化'],
+      medicationAdvice: ['胃胀反酸可考虑抑酸药或胃黏膜保护药', '腹泻时可先补液，必要时考虑止泻药'],
+      visitAdvice: ['如果反复加重，再去消化内科', '如果黑便、持续呕吐或疼得明显，尽快线下'],
+      examAdvice: ['先从血常规、便常规或腹部查体开始'],
+      needsBooking: false,
+      needsCost: false,
+    };
+  }
+
+  if (scenarioId === 'respiratory') {
+    return {
+      recommendationLevel: 'otc_guidance',
+      severityLevel: 'moderate',
+      severityText: '目前更像呼吸道感染或刺激后的不适，先看轻重再决定要不要就医。',
+      userGoal: '先缓解当前不适，再判断需不需要去医院',
+      actionSummary: '可以先按呼吸道不适做对症处理；如果咳喘、发热或拖得久，再去呼吸内科更稳。',
+      selfCareAdvice: ['先多休息、多喝水', '少熬夜，避免烟酒刺激'],
+      medicationAdvice: ['发热可考虑退热药', '咽痛咳嗽可考虑止咳化痰或含片类药物'],
+      visitAdvice: ['发热超过 3 天或气促明显时去呼吸内科', '老人、小孩或慢病人群别硬扛太久'],
+      examAdvice: ['必要时先做血常规、CRP、胸片'],
+      needsBooking: false,
+      needsCost: false,
+    };
+  }
+
+  if (scenarioId === 'maleHealth') {
+    return {
+      recommendationLevel: 'routine_clinic',
+      severityLevel: 'moderate',
+      severityText: '这类问题常见，但往往要结合压力、睡眠和慢病情况一起看。',
+      userGoal: '先搞清楚这是偶发问题，还是值得系统评估的持续问题',
+      actionSummary: '先把持续时间、频率、压力睡眠和勃起情况弄清楚；如果反复存在，再挂男科或泌尿外科。',
+      selfCareAdvice: ['先看最近压力和睡眠', '别把偶发情况直接当成大问题'],
+      medicationAdvice: ['如果后续确实需要药物，多半要医生结合年龄和基础病来定'],
+      visitAdvice: ['如果反复几个月都在影响性生活，再去男科或泌尿外科', '先挂普通号一般就够了'],
+      examAdvice: ['医生可能会先问病史，再决定要不要查血糖、激素或前列腺相关'],
+      needsBooking: true,
+      needsCost: true,
+    };
+  }
+
+  return {
+    recommendationLevel: 'routine_clinic',
+    severityLevel: 'moderate',
+    severityText: '目前更适合先做初步判断，再决定要不要线下进一步检查。',
+    userGoal: '先判断方向、科室和下一步该怎么处理',
+    actionSummary: `当前先按 ${session.scenario?.department || '相关科室'} 方向考虑，更稳妥的是先做初步判断，再决定要不要去医院。`,
+    selfCareAdvice: ['先别太焦虑，先把症状变化记清楚', '这段时间注意休息和饮食规律'],
+    medicationAdvice: [],
+    visitAdvice: [`如果这两天一直不缓解，再去${session.scenario?.department || '相关科室'}看看`],
+    examAdvice: ['如果要线下看，一般先从基础检查开始'],
+    needsBooking: true,
+    needsCost: true,
+  };
+}
+
 function buildTriageResult(session) {
   const scenario = session.scenario;
   const redFlag = hasRedFlag({
@@ -469,10 +535,11 @@ function buildTriageResult(session) {
   const supplementNote = (session.supplements || []).length
     ? `已参考你补充的 ${session.supplements.length} 条信息。`
     : '';
+  const fallbackGuidance = buildFallbackGuidance(session);
 
   const coreConclusion = redFlag
     ? '你现在有紧急风险信号，建议尽快去急诊，不要继续等待。'
-    : `你这个情况优先考虑 ${scenario.department} 方向，先做基础检查更稳妥。`;
+    : fallbackGuidance.actionSummary;
 
   return {
     riskLevel: redFlag ? 'urgent' : 'normal',
@@ -487,6 +554,12 @@ function buildTriageResult(session) {
         suggestDepartment: scenario.department,
         firstChecks: scenario.baseChecks,
         firstCostRange: `${baseCost.min}~${baseCost.max}元`,
+        recommendationLevel: fallbackGuidance.recommendationLevel,
+        severityLevel: fallbackGuidance.severityLevel,
+        severityText: fallbackGuidance.severityText,
+        userGoal: fallbackGuidance.userGoal,
+        needsBooking: fallbackGuidance.needsBooking,
+        needsCost: fallbackGuidance.needsCost,
       },
       detail: {
         whyDepartment: `根据你的主诉、追问答案和补充材料，当前更匹配 ${scenario.department} 的初筛路径。`,
@@ -501,6 +574,10 @@ function buildTriageResult(session) {
           ...supplementInsightSummaries.map((item) => `补充信息提示：${item}`),
           ...scenario.nextStepRules,
         ],
+        selfCareAdvice: fallbackGuidance.selfCareAdvice,
+        medicationAdvice: fallbackGuidance.medicationAdvice,
+        visitAdvice: fallbackGuidance.visitAdvice,
+        examAdvice: fallbackGuidance.examAdvice,
       },
       riskReminder: [
         '如果出现胸痛加重、呼吸困难、意识模糊、剧烈头痛、肢体无力等情况，请尽快去急诊。',

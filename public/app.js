@@ -71,6 +71,10 @@ const QUICK_SYMPTOM_ICONS = {
 };
 
 const RESULT_CARD_ICONS = {
+  现在怎么处理: 'spark',
+  先自己怎么处理: 'spark',
+  用药建议: 'clipboard',
+  什么时候去医院: 'bag',
   '第一步检查': 'clipboard',
   '费用与医保': 'wallet',
   '去医院前带什么': 'bag',
@@ -563,30 +567,34 @@ async function appendContextMessage(value) {
     }),
   });
 
-  state.supplementStats.text += 1;
-  state.supplementCount = data.supplements.length;
   state.awaitingContext = null;
-  addStatusPill(getSupplementStatusText());
-  if (data.insight?.summary) {
-    await addBotText(`我补充理解到：${data.insight.summary}`);
-  }
-  if (Array.isArray(data.insight?.normalizedFacts) && data.insight.normalizedFacts.length) {
-    await addBotText(`我先记下这些重点：${data.insight.normalizedFacts.join('；')}`);
+
+  if (data.intentType === 'off_topic' || data.intentType === 'report_notice') {
+    await addBotText(data.reply || '这条和当前咨询关系不大。');
+    return;
   }
 
-  if (state.triageResult) {
-    await addBotText('我把这条追加信息合进这次咨询里了，给你更新一下总结。');
+  state.supplementStats.text += 1;
+  state.supplementCount = data.supplements.length;
+  addStatusPill(getSupplementStatusText());
+
+  if (state.triageResult && data.refreshSummary) {
+    await addBotText(data.reply || '我把这条补充合进这次咨询里了，更新一下建议。');
     await directResult();
     return;
   }
 
   if (state.generationReady) {
-    await addBotText('这条追加信息已经记进去了。');
+    if (data.reply) {
+      await addBotText(data.reply);
+    }
     await showGenerationConfirmCard('如果你还有别的信息，也可以继续补充；如果没有，现在就可以直接生成总结。');
     return;
   }
 
-  await addBotText('这条补充信息我已经记下了。');
+  if (data.reply) {
+    await addBotText(data.reply);
+  }
 }
 
 async function continueOpenConversation(value) {
@@ -599,9 +607,6 @@ async function continueOpenConversation(value) {
     }),
   });
 
-  if (data.insight?.summary) {
-    await addBotText(`我补充理解到：${data.insight.summary}`);
-  }
   if (data.assistantReply) {
     await addBotText(data.assistantReply);
   }
@@ -1289,6 +1294,28 @@ function buildCostHtml(cost, insuranceType) {
   ].join('');
 }
 
+function buildAdviceListHtml(items = [], subtitle = '') {
+  const list = (items || []).filter(Boolean);
+  if (!list.length) return '';
+  return [
+    subtitle ? `<p class="result-card-subtitle">${escapeHtml(subtitle)}</p>` : '',
+    '<ul class="result-advice-list">',
+    ...list.map((item) => `<li>${escapeHtml(item)}</li>`),
+    '</ul>',
+  ].join('');
+}
+
+function formatRecommendationLevel(level) {
+  const mapping = {
+    self_care: '先观察和自我处理',
+    otc_guidance: '先对症处理',
+    routine_clinic: '建议普通门诊',
+    specialist_clinic: '建议专科门诊',
+    hospital_priority_high: '建议尽快线下就医',
+  };
+  return mapping[level] || level || '继续结合症状判断';
+}
+
 function attachInsuranceActions(row) {
   row.querySelectorAll('[data-insurance-option]').forEach((button) => {
     button.onclick = async () => {
@@ -1327,17 +1354,25 @@ async function renderResultCards() {
   const slotHighlights = triage.detail.slotHighlights || [];
   const personalizedTips = triage.detail.personalizedTips || [];
   const possibleTypes = triage.core.possibleTypes || [];
+  const recommendationLevel = triage.core.recommendationLevel || 'routine_clinic';
+  const needsBooking = Boolean(triage.core.needsBooking);
+  const needsCost = Boolean(triage.core.needsCost);
+  const selfCareAdvice = triage.detail.selfCareAdvice || [];
+  const medicationAdvice = triage.detail.medicationAdvice || [];
+  const visitAdvice = triage.detail.visitAdvice || [];
+  const examAdvice = triage.detail.examAdvice || [];
+  const primaryActionText = needsBooking ? '去挂号' : '查看完整建议';
   const summaryHtml = [
     '<div class="summary-card">',
     '<div class="summary-top">',
     '<span class="summary-badge">小科总结</span>',
     possibleTypes[0] ? `<p class="summary-overline">更像哪类问题</p>` : '',
     possibleTypes[0] ? `<p class="summary-title">${escapeHtml(possibleTypes[0])}</p>` : `<p class="summary-title">${escapeHtml(triage.core.suggestDepartment)}</p>`,
-    possibleTypes[1] ? `<p class="summary-text">${escapeHtml(possibleTypes[1])}</p>` : `<p class="summary-text">${escapeHtml(triage.core.text)}</p>`,
+    possibleTypes[1] ? `<p class="summary-text">${escapeHtml(possibleTypes[1])}</p>` : '',
     triage.core.personalizedText ? `<p class="summary-subtext">${escapeHtml(triage.core.personalizedText)}</p>` : '',
-    `<div class="summary-next"><span class="summary-next-label">现在先做什么</span><strong>先去${escapeHtml(
-      triage.core.suggestHospital
-    )}挂${escapeHtml(triage.core.suggestDepartment)}，先把这轮基础检查做完，再决定要不要加更贵的检查。</strong></div>`,
+    triage.core.severityText ? `<p class="summary-subtext">${escapeHtml(triage.core.severityText)}</p>` : '',
+    triage.core.userGoal ? `<p class="summary-subtext">这次你更想解决的是：${escapeHtml(triage.core.userGoal)}</p>` : '',
+    `<div class="summary-next"><span class="summary-next-label">现在更建议</span><strong>${escapeHtml(triage.core.text || '')}</strong></div>`,
     buildInsightChipHtml(slotHighlights.slice(0, 3), 'summary-slot-chips'),
     '</div>',
     '<div class="result-mode-toggle">',
@@ -1345,25 +1380,30 @@ async function renderResultCards() {
     '<button class="result-mode-btn" data-mode-toggle="full">查看完整版</button>',
     '</div>',
     '<div class="summary-metrics">',
+    `<div class="summary-metric"><span class="summary-label">当前程度</span><strong>${escapeHtml(triage.core.severityText || '继续结合症状判断')}</strong></div>`,
     `<div class="summary-metric"><span class="summary-label">建议科室</span><strong>${escapeHtml(triage.core.suggestDepartment)}</strong></div>`,
-    `<div class="summary-metric"><span class="summary-label">建议医院</span><strong>${escapeHtml(triage.core.suggestHospital)}</strong></div>`,
-    `<div class="summary-metric"><span class="summary-label">首轮费用</span><strong>${escapeHtml(triage.core.firstCostRange)}</strong></div>`,
-    `<div class="summary-metric"><span class="summary-label">医保参考</span><strong>${escapeHtml(cost.simple.insuranceCoverage)}</strong></div>`,
+    `<div class="summary-metric"><span class="summary-label">建议级别</span><strong>${escapeHtml(formatRecommendationLevel(recommendationLevel))}</strong></div>`,
+    needsCost ? `<div class="summary-metric"><span class="summary-label">首轮费用</span><strong>${escapeHtml(triage.core.firstCostRange)}</strong></div>` : '',
+    needsCost ? `<div class="summary-metric"><span class="summary-label">医保参考</span><strong>${escapeHtml(cost.simple.insuranceCoverage)}</strong></div>` : '',
     '</div>',
     '<div class="summary-actions">',
-    '<button class="result-action primary" data-action="summary-booking">现在去挂号</button>',
+    `<button class="result-action primary" data-action="summary-primary">${escapeHtml(primaryActionText)}</button>`,
     '<button class="result-action" data-action="summary-expand">查看完整建议</button>',
     '<button class="result-action" data-action="summary-share">分享给家属</button>',
     '</div>',
     '</div>',
   ].join('');
   const summaryRow = markResultRow(addRow('bot', summaryHtml, 'summary-shell'));
-  summaryRow.querySelector('[data-action="summary-booking"]').onclick = () => {
+  summaryRow.querySelector('[data-action="summary-primary"]').onclick = () => {
     state.resultViewMode = 'full';
-    state.resultAnchor = 'booking';
+    state.resultAnchor = needsBooking ? 'booking' : 'summary';
     setResultViewMode('full');
     requestAnimationFrame(() => {
-      document.querySelector('[data-booking-card="true"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (needsBooking) {
+        document.querySelector('[data-booking-card="true"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } else {
+        summaryRow.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
     });
   };
   summaryRow.querySelector('[data-action="summary-expand"]').onclick = () => {
@@ -1382,16 +1422,49 @@ async function renderResultCards() {
     };
   });
 
-  const essentialChecks = buildResultCard('第一步检查', firstChecks, 'strong');
-  essentialChecks.dataset.resultView = 'simple';
-  const essentialCost = buildResultCard('费用与医保', costItems);
-  essentialCost.dataset.resultView = 'simple';
-  attachInsuranceActions(essentialCost);
-  const bookingCard = buildBookingCard(booking, prepItems);
-  bookingCard.dataset.resultView = 'full';
-  bookingCard.dataset.bookingCard = 'true';
+  const actionCard = buildResultCard(
+    '现在怎么处理',
+    buildAdviceListHtml(visitAdvice.length ? visitAdvice : [triage.core.text || '先继续观察变化']),
+    'strong'
+  );
+  actionCard.dataset.resultView = 'simple';
+
+  let selfCareCard = null;
+  if (selfCareAdvice.length) {
+    selfCareCard = buildResultCard('先自己怎么处理', buildAdviceListHtml(selfCareAdvice));
+    selfCareCard.dataset.resultView = 'simple';
+  }
+
+  let medicationCard = null;
+  if (medicationAdvice.length) {
+    medicationCard = buildResultCard(
+      '用药建议',
+      buildAdviceListHtml(medicationAdvice, '测试期建议仅供参考，最好结合既往病史和说明书一起看。')
+    );
+    medicationCard.dataset.resultView = 'simple';
+  }
+
+  let essentialChecks = null;
+  if (examAdvice.length || needsBooking || needsCost) {
+    essentialChecks = buildResultCard('第一步检查', `${buildAdviceListHtml(examAdvice)}${firstChecks}`, 'strong');
+    essentialChecks.dataset.resultView = 'simple';
+  }
+
+  let essentialCost = null;
+  if (needsCost) {
+    essentialCost = buildResultCard('费用与医保', costItems);
+    essentialCost.dataset.resultView = 'simple';
+    attachInsuranceActions(essentialCost);
+  }
+
+  let bookingCard = null;
+  if (needsBooking) {
+    bookingCard = buildBookingCard(booking, prepItems);
+    bookingCard.dataset.resultView = 'full';
+    bookingCard.dataset.bookingCard = 'true';
+  }
   const prepCard = buildCollapsibleResultCard('去医院前带什么', '身份证、医保卡、近期检查结果', `<ul>${prepItems}</ul>`);
-  prepCard.dataset.resultView = 'full';
+  prepCard.dataset.resultView = needsBooking ? 'full' : 'simple';
   const riskCard = buildCollapsibleResultCard('风险提醒', '有胸痛加重或呼吸困难要尽快急诊', `<ul>${riskItems}</ul>`, 'risk');
   riskCard.dataset.resultView = 'full';
   const detailCard = buildCollapsibleResultCard(
@@ -1408,11 +1481,11 @@ async function renderResultCards() {
 
   const actionButtons = state.sharedView
     ? [
-        '<button class="result-action primary" data-action="booking">去挂号</button>',
+        needsBooking ? '<button class="result-action primary" data-action="booking">去挂号</button>' : '<button class="result-action primary" data-action="expand">查看完整建议</button>',
         '<button class="result-action" data-action="share">分享给家属</button>',
       ]
     : [
-        '<button class="result-action primary" data-action="booking">去挂号</button>',
+        needsBooking ? '<button class="result-action primary" data-action="booking">去挂号</button>' : '<button class="result-action primary" data-action="expand">查看完整建议</button>',
         '<button class="result-action" data-action="save">保存记录</button>',
         '<button class="result-action" data-action="share">分享给家属</button>',
         '<button class="result-action" data-action="records">查看记录</button>',
@@ -1433,14 +1506,24 @@ async function renderResultCards() {
     ].join('')
   ));
   actionRow.dataset.resultView = 'simple';
-  actionRow.querySelector('[data-action="booking"]').onclick = () => {
-    state.resultViewMode = 'full';
-    state.resultAnchor = 'booking';
-    setResultViewMode('full');
-    requestAnimationFrame(() => {
-      document.querySelector('[data-booking-card="true"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
-  };
+  if (actionRow.querySelector('[data-action="booking"]')) {
+    actionRow.querySelector('[data-action="booking"]').onclick = () => {
+      state.resultViewMode = 'full';
+      state.resultAnchor = 'booking';
+      setResultViewMode('full');
+      requestAnimationFrame(() => {
+        document.querySelector('[data-booking-card="true"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    };
+  }
+  if (actionRow.querySelector('[data-action="expand"]')) {
+    actionRow.querySelector('[data-action="expand"]').onclick = () => {
+      document.querySelectorAll('.result-collapse').forEach((node) => {
+        node.open = true;
+      });
+      setResultViewMode('full');
+    };
+  }
   if (actionRow.querySelector('[data-action="save"]')) {
     actionRow.querySelector('[data-action="save"]').onclick = () => {
       saveRecord().catch((err) => alert(err.message));
@@ -1511,9 +1594,6 @@ async function handlePickedFile(file, label) {
     state.followUpProgress = data.progress || null;
     $('quickRow').classList.add('hidden');
     buildReportSummaryCard(data.file.summary, data.file.path);
-    if (Array.isArray(data.slotHints) && data.slotHints.length) {
-      await addBotText(`我先从报告里抓到这些线索：${data.slotHints.map((item) => `${item.slotLabel}：${item.answer}`).join('；')}`);
-    }
     if (data.assistantReply) {
       await addBotText(data.assistantReply);
     }
@@ -1557,9 +1637,6 @@ async function handlePickedFile(file, label) {
   state.awaitingContext = null;
   addStatusPill(getSupplementStatusText());
   buildReportSummaryCard(uploadResult.file.summary, uploadResult.file.path);
-  if (Array.isArray(uploadResult.slotHints) && uploadResult.slotHints.length) {
-    await addBotText(`我还从这份材料里补到了这些线索：${uploadResult.slotHints.map((item) => `${item.slotLabel}：${item.answer}`).join('；')}`);
-  }
 
   if (state.currentQuestion) {
     await addBotText('这份材料我已经并到当前咨询里了。咱们继续把上面的问题答完，我会一起参考这份报告。');

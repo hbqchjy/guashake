@@ -19,10 +19,12 @@ const { summarizeFile, buildSummarySlotHints } = require('./file-summary');
 const {
   classifyComplaint,
   analyzeInitialTurn,
+  classifyConversationTurn,
   chooseNextFollowUp,
   planOpenInterviewTurn,
   interpretSupplement,
   personalizeTriageResult,
+  buildGuidanceDecision,
   rewriteTriageResult,
   getStatus: getAiStatus,
 } = require('./ai');
@@ -320,6 +322,20 @@ async function buildScenarioRoute(chiefComplaint = '') {
   return { scenario, routeMeta };
 }
 
+function shouldPreferOpenIntake(chiefComplaint = '', initialAnalysis = null) {
+  const text = String(chiefComplaint || '').trim();
+  if (!text) return false;
+  if (initialAnalysis?.taskType !== 'symptom_consult') return false;
+  if (initialAnalysis?.collectMode === 'open') return true;
+
+  const duration = /(天|周|个月|半年|一年|最近|一直|反复|持续)/.test(text);
+  const frequency = /(每次|偶尔|经常|总是|老是|有时候|多数时候)/.test(text);
+  const location = /(左|右|上腹|下腹|胸口|腰|胃|肚子|喉咙|尿|头)/.test(text);
+  const extraSymptom = /(发热|呕吐|腹泻|胸痛|咳嗽|头晕|尿痛|勃起|失眠|焦虑)/.test(text);
+  const detailCount = [duration, frequency, location, extraSymptom].filter(Boolean).length;
+  return detailCount < 2;
+}
+
 async function createTriageSession(payload = {}) {
   const {
     age,
@@ -351,7 +367,7 @@ async function createTriageSession(payload = {}) {
     : baseRoute.routeMeta;
   const slotState = mergeSlotHintsIntoState({}, slotHints, 'init');
   const taskType = initialAnalysis?.taskType || 'symptom_consult';
-  const conversationStage = initialAnalysis?.collectMode === 'open' ? 'open' : 'structured';
+  const conversationStage = shouldPreferOpenIntake(chiefComplaint, initialAnalysis) ? 'open' : 'structured';
 
   const session = upsertSession(sessionId, {
     id: sessionId,
@@ -656,6 +672,36 @@ app.post('/triage/message', async (req, res) => {
     return res.status(400).json({ error: 'message is required' });
   }
 
+  let turnIntent = null;
+  try {
+    turnIntent = await classifyConversationTurn(session, text);
+  } catch (_error) {
+    turnIntent = null;
+  }
+  const intentType = turnIntent?.intentType || 'medical_followup';
+  if (intentType === 'off_topic') {
+    return res.json({
+      ok: true,
+      mode: 'text',
+      assistantReply: turnIntent?.reply || '这条和当前咨询关系不大，我们先回到你这次不舒服本身。',
+      nextPrompt: {
+        type: 'text',
+        text: session.openPromptText || '你继续说说这次最困扰你的不舒服是怎么表现的。',
+      },
+    });
+  }
+  if (intentType === 'report_notice') {
+    return res.json({
+      ok: true,
+      mode: 'text',
+      assistantReply: turnIntent?.reply || '可以，直接点左下角加号，把检查报告、相册图片或者拍照发给我就行。',
+      nextPrompt: {
+        type: 'text',
+        text: session.openPromptText || '如果你还想先说症状，也可以继续补充。',
+      },
+    });
+  }
+
   const supplements = [...(session.supplements || []), text];
   let insight = null;
   const supplementInsights = [...(session.supplementInsights || [])];
@@ -795,6 +841,36 @@ app.post('/triage/supplement', async (req, res) => {
   }
 
   const text = String(supplement || '').trim();
+  let turnIntent = null;
+  try {
+    turnIntent = await classifyConversationTurn(session, text);
+  } catch (_error) {
+    turnIntent = null;
+  }
+
+  const intentType = turnIntent?.intentType || 'medical_followup';
+  if (intentType === 'off_topic') {
+    return res.json({
+      ok: true,
+      intentType,
+      reply: turnIntent?.reply || '这条和当前咨询关系不大。你可以继续补充症状、病史、报告，或者重新开始一个新问题。',
+      insight: null,
+      refreshSummary: false,
+      supplements: session.supplements || [],
+    });
+  }
+
+  if (intentType === 'report_notice') {
+    return res.json({
+      ok: true,
+      intentType,
+      reply: turnIntent?.reply || '可以，直接点左下角加号，把检查报告、相册图片或者拍照发给我就行。',
+      insight: null,
+      refreshSummary: false,
+      supplements: session.supplements || [],
+    });
+  }
+
   const supplements = [...(session.supplements || [])];
   if (text) {
     supplements.push(text);
@@ -802,7 +878,7 @@ app.post('/triage/supplement', async (req, res) => {
 
   let insight = null;
   const supplementInsights = [...(session.supplementInsights || [])];
-  if (text) {
+  if (text && ['medical_followup', 'medication_question'].includes(intentType)) {
     try {
       insight = await interpretSupplement(session, text, getScenarioSlotCatalog(session.scenario || {}));
       if (insight?.summary) {
@@ -824,8 +900,11 @@ app.post('/triage/supplement', async (req, res) => {
   });
   return res.json({
     ok: true,
+    intentType,
     supplements: updated.supplements || [],
     insight,
+    reply: turnIntent?.reply || '',
+    refreshSummary: Boolean(session.triageResult) && ['medical_followup', 'medication_question', 'booking_question', 'cost_question'].includes(intentType),
   });
 });
 
@@ -944,6 +1023,41 @@ app.get('/triage/result/:id', async (req, res) => {
   }
 
   let triageResult = session.triageResult || buildTriageResult(session);
+  if (!session.triageResult) {
+    try {
+      const guidance = await buildGuidanceDecision(session, triageResult);
+      if (guidance) {
+        triageResult = {
+          ...triageResult,
+          aiGuidance: true,
+          layeredOutput: {
+            ...triageResult.layeredOutput,
+            core: {
+              ...triageResult.layeredOutput.core,
+              text: guidance.actionSummary || triageResult.layeredOutput.core.text,
+              possibleTypes: guidance.likelyDirection
+                ? [guidance.likelyDirection, guidance.simpleExplanation || triageResult.layeredOutput.core.possibleTypes?.[1] || '']
+                : triageResult.layeredOutput.core.possibleTypes,
+              recommendationLevel: guidance.actionLevel,
+              severityLevel: guidance.severityLevel,
+              severityText: guidance.severityText,
+              userGoal: guidance.userGoal,
+              needsBooking: guidance.needsBooking,
+              needsCost: guidance.needsCost,
+            },
+            detail: {
+              ...triageResult.layeredOutput.detail,
+              selfCareAdvice: guidance.selfCareAdvice || [],
+              medicationAdvice: guidance.medicationAdvice || [],
+              visitAdvice: guidance.visitAdvice || [],
+              examAdvice: guidance.examAdvice || [],
+            },
+          },
+        };
+      }
+    } catch (_error) {
+    }
+  }
   if (!session.triageResult) {
     try {
       const personalized = await personalizeTriageResult(session, triageResult);

@@ -560,6 +560,28 @@ body {
   color: var(--brand-dark);
 }
 
+.result-card-subtitle {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.result-advice-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.result-advice-list li {
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(20, 36, 31, 0.08);
+  line-height: 1.7;
+}
+
 .result-kv-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
