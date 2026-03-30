@@ -419,7 +419,8 @@ async function askQuestion(question, note = '') {
     ? (state.followUpProgress.current / state.followUpProgress.total) * 100
     : 0;
   const reason = getQuestionReason(question);
-  const finalNote = [reason, note].filter(Boolean).join(' ');
+  const mergedNotes = [reason, note].filter(Boolean);
+  const finalNote = [...new Set(mergedNotes)].join(' ');
   await revealChoiceBlock(
     question.text,
     question.options.map((label) => ({ label, type: 'answer' })),
@@ -523,7 +524,7 @@ async function startSymptomSession(symptomText) {
   $('quickRow').classList.add('hidden');
 
   await addBotText(`先按“${data.scenario}”方向帮你判断。`);
-  await askQuestion(data.nextQuestion);
+  await askQuestion(data.nextQuestion, data.followUpMeta?.reason || '');
 }
 
 async function submitText(text) {
@@ -549,6 +550,12 @@ async function submitText(text) {
     state.supplementCount = data.supplements.length;
     state.awaitingContext = null;
     addStatusPill(getSupplementStatusText());
+    if (data.insight?.summary) {
+      await addBotText(`我补充理解到：${data.insight.summary}`);
+    }
+    if (Array.isArray(data.insight?.normalizedFacts) && data.insight.normalizedFacts.length) {
+      await addBotText(`我先记下这些重点：${data.insight.normalizedFacts.join('；')}`);
+    }
     await addBotText('补充信息我记下了。现在可以生成总结了。');
     await showGenerationConfirmCard('如果你还有别的信息，也可以继续补充一条。补充越完整，结果越准确。');
     return;
@@ -595,7 +602,7 @@ async function answerQuestion(answer) {
   }
 
   state.followUpProgress = data.progress || null;
-  await askQuestion(data.nextQuestion);
+  await askQuestion(data.nextQuestion, data.followUpMeta?.reason || '');
 }
 
 async function directResult() {

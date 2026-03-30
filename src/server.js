@@ -7,6 +7,7 @@ const {
   SCENARIOS,
   detectScenarioDetailed,
   detectScenario,
+  getScenarioSlotCatalog,
   buildTriageResult,
   buildCostEstimate,
   buildBookingSuggestion,
@@ -15,7 +16,13 @@ const { searchRegions } = require('./regions');
 const { upsertSession, getSession, saveArchive, getArchive, getArchives, deleteArchive } = require('./store');
 const { buildArchivePdf } = require('./pdf');
 const { summarizeFile } = require('./file-summary');
-const { classifyComplaint, chooseNextFollowUp, rewriteTriageResult, getStatus: getAiStatus } = require('./ai');
+const {
+  classifyComplaint,
+  chooseNextFollowUp,
+  interpretSupplement,
+  rewriteTriageResult,
+  getStatus: getAiStatus,
+} = require('./ai');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -80,7 +87,19 @@ function getFallbackNextQuestion(session) {
 
 async function resolveNextQuestion(session, options = {}) {
   const asked = getAskedQuestionIds(session);
-  const candidates = (session.scenario?.questions || []).filter((question) => !asked.includes(question.id));
+  const slotCatalog = getScenarioSlotCatalog(session.scenario || {});
+  const candidates = slotCatalog
+    .map((slotItem) => {
+      const question = (session.scenario?.questions || []).find((item) => item.id === slotItem.questionId);
+      if (!question) return null;
+      return {
+        ...question,
+        slot: slotItem.slot,
+        slotLabel: slotItem.slotLabel,
+      };
+    })
+    .filter(Boolean)
+    .filter((question) => !asked.includes(question.id));
   const config = getFollowUpConfig(session);
   const stepCount = Number(session.followUp?.stepCount || 0);
 
@@ -163,6 +182,8 @@ async function resolveNextQuestion(session, options = {}) {
         followUpMeta = {
           mode: 'ai',
           reason: aiDecision.reason || '按模型动态选择下一问',
+          targetSlot: picked.slot || picked.id,
+          targetSlotLabel: picked.slotLabel || picked.slot || picked.id,
         };
       }
     }
@@ -174,7 +195,15 @@ async function resolveNextQuestion(session, options = {}) {
   }
 
   if (!picked) {
-    picked = getFallbackNextQuestion(session);
+    picked = candidates[0] || getFallbackNextQuestion(session);
+  }
+
+  if (!followUpMeta.targetSlot && picked) {
+    followUpMeta = {
+      ...followUpMeta,
+      targetSlot: picked.slot || picked.id,
+      targetSlotLabel: picked.slotLabel || picked.slot || picked.id,
+    };
   }
 
   const targetTotal = Math.max(config.minSteps, Math.min(config.maxSteps, stepCount + candidates.length));
@@ -218,6 +247,15 @@ function buildArchiveContextText(record, session) {
   }
   if (Array.isArray(session?.supplements) && session.supplements.length) {
     parts.push(`上次补充信息：${session.supplements.join('；')}`);
+  }
+  if (Array.isArray(session?.supplementInsights) && session.supplementInsights.length) {
+    const insightText = session.supplementInsights
+      .map((item) => item.summary)
+      .filter(Boolean)
+      .join('；');
+    if (insightText) {
+      parts.push(`系统补充理解：${insightText}`);
+    }
   }
   if (fileSummaries.length) parts.push(`上次还上传过这些材料：${fileSummaries.join('、')}`);
 
@@ -350,6 +388,7 @@ app.post('/triage/session', async (req, res) => {
     insuranceType,
     chiefComplaint,
     supplements: [],
+    supplementInsights: [],
     supplementFiles: [],
     scenario,
     routeMeta,
@@ -358,6 +397,7 @@ app.post('/triage/session', async (req, res) => {
       stepCount: 0,
       askedQuestionIds: [],
       currentQuestionId: '',
+      slotState: {},
       completed: false,
     },
     answers: {},
@@ -396,6 +436,19 @@ app.post('/triage/answer', async (req, res) => {
 
   const answers = { ...(session.answers || {}) };
   answers[questionId] = answer;
+  const slotCatalog = getScenarioSlotCatalog(session.scenario || {});
+  const slotMeta = slotCatalog.find((item) => item.questionId === questionId);
+  const slotState = {
+    ...(session.followUp?.slotState || {}),
+  };
+  if (slotMeta) {
+    slotState[slotMeta.slot] = {
+      questionId,
+      slot: slotMeta.slot,
+      slotLabel: slotMeta.slotLabel,
+      answer,
+    };
+  }
 
   const askedQuestionIds = Array.from(new Set([...(session.followUp?.askedQuestionIds || []), questionId].filter(Boolean)));
   const stepCount = Number(session.followUp?.stepCount || 0) + 1;
@@ -407,6 +460,7 @@ app.post('/triage/answer', async (req, res) => {
       stepCount,
       askedQuestionIds,
       currentQuestionId: '',
+      slotState,
     },
   });
 
@@ -433,7 +487,7 @@ app.post('/triage/answer', async (req, res) => {
   });
 });
 
-app.post('/triage/supplement', (req, res) => {
+app.post('/triage/supplement', async (req, res) => {
   const { sessionId, supplement } = req.body;
   const session = getSession(sessionId);
   if (!session) {
@@ -446,10 +500,28 @@ app.post('/triage/supplement', (req, res) => {
     supplements.push(text);
   }
 
-  const updated = upsertSession(sessionId, { supplements });
+  let insight = null;
+  const supplementInsights = [...(session.supplementInsights || [])];
+  if (text) {
+    try {
+      insight = await interpretSupplement(session, text, getScenarioSlotCatalog(session.scenario || {}));
+      if (insight?.summary) {
+        supplementInsights.push({
+          ...insight,
+          sourceText: text,
+          createdAt: new Date().toISOString(),
+        });
+      }
+    } catch (_error) {
+      insight = null;
+    }
+  }
+
+  const updated = upsertSession(sessionId, { supplements, supplementInsights });
   return res.json({
     ok: true,
     supplements: updated.supplements || [],
+    insight,
   });
 });
 

@@ -140,6 +140,18 @@ function buildAnswerSummary(session) {
     .join('；');
 }
 
+function buildSlotStateSummary(session) {
+  const slotState = session.followUp?.slotState || {};
+  return Object.entries(slotState)
+    .map(([slot, value]) => {
+      const label = value?.slotLabel || slot;
+      const answer = value?.answer || '';
+      return answer ? `${label}：${answer}` : '';
+    })
+    .filter(Boolean)
+    .join('；');
+}
+
 async function rewriteTriageResult(session, fallbackResult) {
   if (!isConfigured()) return null;
 
@@ -190,6 +202,14 @@ async function chooseNextFollowUp(session, candidates, meta = {}) {
       return { id: question.id, text: question.text, answer };
     })
     .filter(Boolean);
+  const supplementInsights = Array.isArray(session.supplementInsights)
+    ? session.supplementInsights.map((item) => ({
+        summary: item.summary,
+        relevantSlots: item.relevantSlots || [],
+        normalizedFacts: item.normalizedFacts || [],
+      }))
+    : [];
+  const slotStateSummary = buildSlotStateSummary(session);
 
   const prompt = [
     '你是“小科”的动态追问引擎。',
@@ -205,11 +225,14 @@ async function chooseNextFollowUp(session, candidates, meta = {}) {
     `当前场景：${session.scenario?.label || ''}`,
     `已经问了 ${meta.stepCount || 0} 步，至少问到 ${meta.minSteps || 0} 步，最多 ${meta.maxSteps || 0} 步。`,
     `已知回答：${answered.length ? JSON.stringify(answered) : '[]'}`,
+    `已填槽位：${slotStateSummary || '暂无'}`,
+    `补充信息理解：${supplementInsights.length ? JSON.stringify(supplementInsights) : '[]'}`,
     '候选问题：',
     JSON.stringify(
       candidates.map((item) => ({
         id: item.id,
         slot: item.slot || item.id,
+        slotLabel: item.slotLabel || item.slot || item.id,
         defaultQuestion: item.text,
         defaultOptions: item.options,
       }))
@@ -232,6 +255,48 @@ async function chooseNextFollowUp(session, candidates, meta = {}) {
     parsed.options = [];
   }
   return parsed;
+}
+
+async function interpretSupplement(session, supplementText, slotCatalog = []) {
+  if (!isConfigured()) return null;
+
+  const prompt = [
+    '你是“小科”的补充信息理解器。',
+    '任务：读取用户补充的一段自由描述，提炼出和就医分流最相关的信息。',
+    '要求：',
+    '1. 不做诊断，不扩写，不编造。',
+    '2. 只提炼用户已经明确说到的信息。',
+    '3. relevantSlots 只能从给定槽位里选，最多 3 个。',
+    '4. summary 要用一句通俗短句，15到40字。',
+    '5. normalizedFacts 是 1 到 4 条简短事实。',
+    '输出 JSON，字段固定：summary、relevantSlots、normalizedFacts。',
+    `当前主诉：${session.chiefComplaint}`,
+    `当前场景：${session.scenario?.label || ''}`,
+    `已知槽位：${buildSlotStateSummary(session) || '暂无'}`,
+    `用户补充：${supplementText}`,
+    `可用槽位：${JSON.stringify(
+      slotCatalog.map((item) => ({
+        slot: item.slot,
+        slotLabel: item.slotLabel,
+      }))
+    )}`,
+    '只返回一个 JSON 对象，不要解释。',
+  ].join('\n');
+
+  const raw = await chatCompletions({
+    model: getConfig().textModel,
+    messages: [{ role: 'user', content: prompt }],
+    temperature: 0,
+    maxTokens: 220,
+  });
+
+  const parsed = extractJsonObject(raw);
+  if (!parsed?.summary) return null;
+  return {
+    summary: String(parsed.summary || '').trim(),
+    relevantSlots: Array.isArray(parsed.relevantSlots) ? parsed.relevantSlots.filter(Boolean).slice(0, 3) : [],
+    normalizedFacts: Array.isArray(parsed.normalizedFacts) ? parsed.normalizedFacts.filter(Boolean).slice(0, 4) : [],
+  };
 }
 
 function detectMimeFromName(fileName = '') {
@@ -289,6 +354,7 @@ module.exports = {
   isConfigured,
   classifyComplaint,
   chooseNextFollowUp,
+  interpretSupplement,
   rewriteTriageResult,
   ocrFile,
 };

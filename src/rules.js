@@ -187,6 +187,48 @@ const INSURANCE_GUIDE = {
   '其他商业医保': '商业医保通常要看你买的险种和条款，先把病历和票据留好，后面理赔会更方便。',
 };
 
+const QUESTION_SLOT_META = {
+  chestPain: { slot: 'pain', slotLabel: '疼痛/压迫感' },
+  breath: { slot: 'breath', slotLabel: '气促程度' },
+  dizzy: { slot: 'dizziness', slotLabel: '头晕/黑朦' },
+  duration: { slot: 'duration', slotLabel: '持续时间' },
+  frequency: { slot: 'frequency', slotLabel: '发作频率' },
+  palpitationTime: { slot: 'triggerTime', slotLabel: '更容易发作的时间' },
+  history: { slot: 'history', slotLabel: '既往病史' },
+  sweat: { slot: 'associatedSymptoms', slotLabel: '伴随症状' },
+  trauma: { slot: 'cause', slotLabel: '诱因/外伤' },
+  numbness: { slot: 'neurologic', slotLabel: '麻木/无力' },
+  position: { slot: 'location', slotLabel: '症状位置' },
+  style: { slot: 'painStyle', slotLabel: '疼痛性质' },
+  movePain: { slot: 'activityRelation', slotLabel: '活动关系' },
+  morning: { slot: 'morningStiffness', slotLabel: '晨起变化' },
+  stool: { slot: 'bowelChange', slotLabel: '大便变化' },
+  fever: { slot: 'feverVomiting', slotLabel: '发热/呕吐' },
+  location: { slot: 'location', slotLabel: '症状位置' },
+  eatRel: { slot: 'mealRelation', slotLabel: '与进食关系' },
+  appetite: { slot: 'appetite', slotLabel: '食欲变化' },
+  bloat: { slot: 'refluxBloating', slotLabel: '反酸/胀气' },
+  meal: { slot: 'foodTrigger', slotLabel: '饮食诱因' },
+  nightPain: { slot: 'nightPattern', slotLabel: '夜间/空腹变化' },
+  blood: { slot: 'bloodInUrine', slotLabel: '血尿' },
+  pain: { slot: 'urinationPain', slotLabel: '排尿疼痛' },
+  night: { slot: 'nightUrination', slotLabel: '夜尿' },
+  repeat: { slot: 'repeatHistory', slotLabel: '是否反复' },
+  water: { slot: 'waterResponse', slotLabel: '喝水后变化' },
+  feverDays: { slot: 'feverDuration', slotLabel: '发热天数' },
+  sputum: { slot: 'sputum', slotLabel: '痰的情况' },
+  chronic: { slot: 'chronicHistory', slotLabel: '慢性病史' },
+  throat: { slot: 'upperRespSymptoms', slotLabel: '上呼吸道症状' },
+  days: { slot: 'duration', slotLabel: '持续时间' },
+  nightCough: { slot: 'nightPattern', slotLabel: '夜间变化' },
+  contact: { slot: 'contactHistory', slotLabel: '接触史' },
+  infection: { slot: 'infectionSigns', slotLabel: '感染迹象' },
+  type: { slot: 'problemType', slotLabel: '问题类型' },
+  spread: { slot: 'spread', slotLabel: '范围变化' },
+  itchPain: { slot: 'itchVsPain', slotLabel: '痒痛特点' },
+  medicine: { slot: 'exposureHistory', slotLabel: '药物/接触史' },
+};
+
 function normalizeText(v) {
   return String(v || '').trim().toLowerCase();
 }
@@ -236,6 +278,22 @@ function detectScenario(chiefComplaint = '') {
   return detectScenarioDetailed(chiefComplaint).scenario;
 }
 
+function getQuestionSlotMeta(question = {}) {
+  return QUESTION_SLOT_META[question.id] || {
+    slot: question.id,
+    slotLabel: question.id,
+  };
+}
+
+function getScenarioSlotCatalog(scenario = {}) {
+  return (scenario.questions || []).map((question) => ({
+    questionId: question.id,
+    questionText: question.text,
+    options: question.options,
+    ...getQuestionSlotMeta(question),
+  }));
+}
+
 function hasRedFlag({ chiefComplaint = '', answers = {}, supplements = [] }) {
   const text = `${chiefComplaint} ${Object.values(answers).join(' ')} ${(supplements || []).join(' ')}`;
   return RED_FLAG_KEYWORDS.some((k) => text.includes(k));
@@ -266,6 +324,10 @@ function buildTriageResult(session) {
   const answerCount = Object.keys(session.answers || {}).length;
   const confidence = confidenceLevel(answerCount, redFlag);
   const baseCost = calcBaseCost(scenario.baseChecks);
+  const supplementInsightSummaries = (session.supplementInsights || [])
+    .map((item) => item.summary)
+    .filter(Boolean)
+    .slice(0, 2);
   const supplementNote = (session.supplements || []).length
     ? `已参考你补充的 ${session.supplements.length} 条信息。`
     : '';
@@ -291,7 +353,11 @@ function buildTriageResult(session) {
         suspectedDirections: redFlag
           ? ['存在需要急诊先排查的风险']
           : [`当前最相关：${scenario.label}`, '先做基础检查后再决定是否追加影像检查'],
-        stepByStep: supplementNote ? [supplementNote, ...scenario.nextStepRules] : scenario.nextStepRules,
+        stepByStep: [
+          ...(supplementNote ? [supplementNote] : []),
+          ...supplementInsightSummaries.map((item) => `补充信息提示：${item}`),
+          ...scenario.nextStepRules,
+        ],
       },
       riskReminder: [
         '如果出现胸痛加重、呼吸困难、意识模糊、剧烈头痛、肢体无力等情况，请尽快去急诊。',
@@ -346,6 +412,7 @@ module.exports = {
   SCENARIOS,
   detectScenarioDetailed,
   detectScenario,
+  getScenarioSlotCatalog,
   buildTriageResult,
   buildCostEstimate,
   buildBookingSuggestion,
