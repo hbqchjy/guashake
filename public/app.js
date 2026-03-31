@@ -20,6 +20,7 @@ const state = {
   speechRecognition: null,
   speechSynthesisEnabled: false,
   speechSynthesisPrimed: false,
+  speechPlaybackAllowed: false,
   speechListening: false,
   speechPressing: false,
   speechBuffer: '',
@@ -47,6 +48,7 @@ const state = {
   pendingThinkingRow: null,
   conversationStage: 'idle',
   currentPrompt: null,
+  isWeChat: false,
 };
 
 let botTextQueue = Promise.resolve();
@@ -167,6 +169,7 @@ function speakGesturePrompt(text) {
 
 function speakBotText(text) {
   if (!state.speechSynthesisEnabled || !('speechSynthesis' in window)) return;
+  if (state.isWeChat && !state.speechPlaybackAllowed) return;
   const content = String(text || '').trim();
   if (!content) return;
   if (!state.speechSynthesisPrimed) {
@@ -189,6 +192,34 @@ function speakBotText(text) {
     utterance.voice = preferred;
   }
   window.speechSynthesis.speak(utterance);
+}
+
+function renderComposerHint() {
+  const hint = $('composerHint');
+  if (!hint) return;
+
+  if (state.composerMode === 'voice' && state.isWeChat) {
+    hint.classList.remove('hidden');
+    if (state.speechPlaybackAllowed) {
+      hint.innerHTML = '<span class="composer-hint-copy">语音回复已开启，后面会尽量自动播报。</span>';
+      return;
+    }
+    hint.innerHTML = [
+      '<span class="composer-hint-copy">微信里首次需要手动开启语音回复。</span>',
+      '<button id="enableVoiceReplyBtn" class="composer-hint-btn" type="button">开启语音回复</button>',
+    ].join('');
+    return;
+  }
+
+  hint.innerHTML = '';
+  hint.classList.add('hidden');
+}
+
+function enableSpeechPlaybackByGesture() {
+  state.speechPlaybackAllowed = true;
+  primeSpeechPlayback();
+  speakGesturePrompt('语音回复已开启');
+  renderComposerHint();
 }
 
 function isRegionValid(region) {
@@ -534,6 +565,7 @@ async function askQuestion(question, note = '') {
 function setComposerState(mode) {
   state.inputMode = mode;
   $('composerInput').placeholder = '';
+  renderComposerHint();
 }
 
 function setComposerMode(mode) {
@@ -549,8 +581,10 @@ function setComposerMode(mode) {
   $('plusBtn').innerHTML = ICONS.plus;
   syncVoiceButton();
   if (isVoice) {
-    primeSpeechPlayback();
-    if (previousMode !== 'voice') {
+    if (!state.isWeChat) {
+      primeSpeechPlayback();
+    }
+    if (previousMode !== 'voice' && !state.isWeChat) {
       speakGesturePrompt('语音模式已开启');
     }
   }
@@ -561,6 +595,7 @@ function setComposerMode(mode) {
       $('composerInput').value = '';
     }
   }
+  renderComposerHint();
   if (!isVoice) setComposerState(state.inputMode);
 }
 
@@ -2015,6 +2050,11 @@ function bindEvents() {
       clearBrowserSelection();
     }
   });
+  $('composerHint')?.addEventListener('click', (event) => {
+    if (event.target?.id === 'enableVoiceReplyBtn') {
+      enableSpeechPlaybackByGesture();
+    }
+  });
 
   $('plusBtn')?.addEventListener('click', () => {
     $('plusMenu').classList.toggle('hidden');
@@ -2085,6 +2125,8 @@ async function loadSharedSession(sessionId) {
 }
 
 async function bootstrap() {
+  state.isWeChat = /MicroMessenger/i.test(navigator.userAgent || '');
+  state.speechPlaybackAllowed = !state.isWeChat;
   loadAuthState();
   loadSavedRegion();
   if ('speechSynthesis' in window && typeof window.speechSynthesis.onvoiceschanged !== 'undefined') {
