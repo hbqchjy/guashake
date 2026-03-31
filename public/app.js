@@ -110,6 +110,7 @@ function speakBotText(text) {
   if (!content) return;
 
   stopSpeechPlayback();
+  window.speechSynthesis.resume?.();
   const utterance = new SpeechSynthesisUtterance(content);
   utterance.lang = 'zh-CN';
   utterance.rate = 1;
@@ -467,6 +468,7 @@ function setComposerState(mode) {
 }
 
 function setComposerMode(mode) {
+  const previousMode = state.composerMode;
   state.composerMode = mode;
   state.speechSynthesisEnabled = mode === 'voice';
   const isVoice = mode === 'voice';
@@ -479,6 +481,10 @@ function setComposerMode(mode) {
   syncVoiceButton();
   if (!isVoice) {
     stopSpeechPlayback();
+    state.speechBuffer = '';
+    if (previousMode === 'voice') {
+      $('composerInput').value = '';
+    }
   }
   if (!isVoice) setComposerState(state.inputMode);
 }
@@ -638,15 +644,14 @@ async function continueOpenConversation(value) {
     }),
   });
 
-  if (data.assistantReply) {
-    await addBotText(data.assistantReply);
-  }
-
   if (data.needsConfirmation) {
     state.currentPrompt = null;
     state.currentQuestion = null;
     state.generationReady = true;
     state.conversationStage = 'structured';
+    if (data.assistantReply) {
+      await addBotText(data.assistantReply);
+    }
     await showGenerationConfirmCard('如果你愿意，还可以再补充一点；如果没有，现在可以直接生成总结。');
     return;
   }
@@ -669,8 +674,6 @@ async function continueOpenConversation(value) {
     await addBotText(data.nextPrompt.text);
     return;
   }
-
-  await addBotText('我先把这条信息记下了。');
 }
 
 async function submitText(text) {
@@ -1496,14 +1499,14 @@ async function renderResultCards() {
   const actionButtons = state.sharedView
     ? [
         needsBooking ? '<button class="result-action primary" data-action="booking">去挂号</button>' : '',
-        medicationAdvice.length ? '<button class="result-action primary" data-action="medication">推荐用药</button>' : '',
-        '<button class="result-action" data-action="deep">深度探讨</button>',
+        '<button class="result-action" data-action="deep">继续咨询</button>',
+        '<button class="result-action" data-action="restart">新的咨询</button>',
         '<button class="result-action" data-action="share">分享给家属</button>',
       ].filter(Boolean)
     : [
         needsBooking ? '<button class="result-action primary" data-action="booking">去挂号</button>' : '',
-        medicationAdvice.length ? '<button class="result-action primary" data-action="medication">推荐用药</button>' : '',
-        '<button class="result-action" data-action="deep">深度探讨</button>',
+        '<button class="result-action" data-action="deep">继续咨询</button>',
+        '<button class="result-action" data-action="restart">新的咨询</button>',
         '<button class="result-action" data-action="save">保存记录</button>',
         '<button class="result-action" data-action="share">分享给家属</button>',
       ].filter(Boolean);
@@ -1532,15 +1535,6 @@ async function renderResultCards() {
       });
     };
   }
-  if (actionRow.querySelector('[data-action="medication"]')) {
-    actionRow.querySelector('[data-action="medication"]').onclick = () => {
-      state.resultViewMode = 'full';
-      setResultViewMode('full');
-      requestAnimationFrame(() => {
-        document.querySelector('[data-medication-card="true"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      });
-    };
-  }
   if (actionRow.querySelector('[data-action="deep"]')) {
     actionRow.querySelector('[data-action="deep"]').onclick = async () => {
       setResultViewMode('full');
@@ -1556,6 +1550,11 @@ async function renderResultCards() {
   actionRow.querySelector('[data-action="share"]').onclick = () => {
     shareCurrentSummary().catch((err) => alert(err.message));
   };
+  if (actionRow.querySelector('[data-action="restart"]')) {
+    actionRow.querySelector('[data-action="restart"]').onclick = () => {
+      resetConversation();
+    };
+  }
   setResultViewMode(state.resultViewMode || 'simple');
   requestAnimationFrame(() => {
     if (state.resultAnchor === 'booking') {
@@ -1711,6 +1710,7 @@ function ensureSpeechRecognition() {
   recognition.onerror = () => {
     state.speechListening = false;
     state.speechPressing = false;
+    document.body.classList.remove('voice-pressing');
     syncVoiceButton();
   };
   state.speechRecognition = recognition;
@@ -1733,6 +1733,7 @@ function startVoiceCapture(event) {
   state.speechBuffer = '';
   stopSpeechPlayback();
   state.speechPressing = true;
+  document.body.classList.add('voice-pressing');
   state.speechListening = true;
   syncVoiceButton();
   try {
@@ -1750,6 +1751,7 @@ function stopVoiceCapture(event) {
   }
 
   state.speechPressing = false;
+  document.body.classList.remove('voice-pressing');
   const recognition = ensureSpeechRecognition();
   if (recognition) {
     recognition.stop();
@@ -1901,6 +1903,9 @@ function bindEvents() {
   $('voiceCaptureBtn').addEventListener('pointerdown', startVoiceCapture);
   $('voiceCaptureBtn').addEventListener('pointerup', stopVoiceCapture);
   $('voiceCaptureBtn').addEventListener('pointercancel', stopVoiceCapture);
+  $('voiceCaptureBtn').addEventListener('touchstart', startVoiceCapture, { passive: false });
+  $('voiceCaptureBtn').addEventListener('touchend', stopVoiceCapture, { passive: false });
+  $('voiceCaptureBtn').addEventListener('touchcancel', stopVoiceCapture, { passive: false });
   $('voiceCaptureBtn').addEventListener('click', (event) => event.preventDefault());
   $('voiceCaptureBtn').addEventListener('contextmenu', (event) => event.preventDefault());
   $('voiceCaptureBtn').addEventListener('selectstart', (event) => event.preventDefault());
