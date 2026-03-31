@@ -450,7 +450,7 @@ async function planOpenInterviewTurn(session, latestUserMessage, candidates = []
     '4. 如果 collectMode=summary，表示信息已足够生成初步总结。',
     '5. 不做诊断。',
     '6. 除非已经明确主问题、持续时间/频率、至少一个影响因素或伴随信息，否则优先继续开放式追问，不要过早切按钮题。',
-    '7. 通常至少先开放式聊 2 轮，再考虑 structured；只有用户一开始就把信息说得非常完整才可以更早切换。',
+    '7. 只根据当前信息是否足够来判断 open 还是 structured，不要机械要求必须聊满几轮。',
     '输出 JSON，字段固定：collectMode、assistantReply、nextPromptText、questionId、questionText、options、reason。',
     `当前任务类型：${session.taskType || 'symptom_consult'}`,
     `当前场景：${session.scenario?.label || ''}`,

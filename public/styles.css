@@ -1072,11 +1072,18 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
+html.voice-pressing,
+html.voice-pressing *,
 body.voice-pressing,
 body.voice-pressing * {
   user-select: none !important;
   -webkit-user-select: none !important;
   -webkit-touch-callout: none !important;
+}
+
+.voice-capture,
+.voice-capture * {
+  -webkit-touch-callout: none;
 }
 
 .voice-capture.active {
@@ -1542,7 +1549,7 @@ body.voice-pressing * {
   }
 
   .action-card .result-actions {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .quick-row {

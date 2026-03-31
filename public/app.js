@@ -19,6 +19,7 @@ const state = {
   composerMode: 'text',
   speechRecognition: null,
   speechSynthesisEnabled: false,
+  speechSynthesisPrimed: false,
   speechListening: false,
   speechPressing: false,
   speechBuffer: '',
@@ -104,18 +105,60 @@ function stopSpeechPlayback() {
   }
 }
 
+function getPreferredSpeechVoice() {
+  if (!('speechSynthesis' in window)) return null;
+  const voices = window.speechSynthesis.getVoices?.() || [];
+  if (!voices.length) return null;
+  return voices.find((voice) => /zh|Chinese/i.test(`${voice.lang} ${voice.name}`)) || voices[0];
+}
+
+function primeSpeechPlayback() {
+  if (!('speechSynthesis' in window)) return;
+  try {
+    window.speechSynthesis.getVoices?.();
+    if (state.speechSynthesisPrimed) return;
+    const utterance = new SpeechSynthesisUtterance('。');
+    utterance.lang = 'zh-CN';
+    utterance.volume = 0;
+    const preferred = getPreferredSpeechVoice();
+    if (preferred) {
+      utterance.voice = preferred;
+    }
+    utterance.onend = () => {
+      state.speechSynthesisPrimed = true;
+    };
+    utterance.onerror = () => {
+      state.speechSynthesisPrimed = true;
+    };
+    stopSpeechPlayback();
+    window.speechSynthesis.resume?.();
+    window.speechSynthesis.speak(utterance);
+    state.speechSynthesisPrimed = true;
+  } catch (_error) {
+    state.speechSynthesisPrimed = false;
+  }
+}
+
 function speakBotText(text) {
   if (!state.speechSynthesisEnabled || !('speechSynthesis' in window)) return;
   const content = String(text || '').trim();
   if (!content) return;
+  if (!state.speechSynthesisPrimed) {
+    primeSpeechPlayback();
+    setTimeout(() => {
+      if (state.speechSynthesisEnabled) {
+        speakBotText(content);
+      }
+    }, 180);
+    return;
+  }
 
   stopSpeechPlayback();
   window.speechSynthesis.resume?.();
   const utterance = new SpeechSynthesisUtterance(content);
   utterance.lang = 'zh-CN';
   utterance.rate = 1;
-  const voices = window.speechSynthesis.getVoices?.() || [];
-  const preferred = voices.find((voice) => /zh|Chinese/i.test(`${voice.lang} ${voice.name}`));
+  const preferred = getPreferredSpeechVoice();
   if (preferred) {
     utterance.voice = preferred;
   }
@@ -479,6 +522,9 @@ function setComposerMode(mode) {
   $('modeToggleBtn').innerHTML = isVoice ? ICONS.keyboard : ICONS.mic;
   $('plusBtn').innerHTML = ICONS.plus;
   syncVoiceButton();
+  if (isVoice) {
+    primeSpeechPlayback();
+  }
   if (!isVoice) {
     stopSpeechPlayback();
     state.speechBuffer = '';
@@ -1409,6 +1455,7 @@ async function renderResultCards() {
   const personalizedTips = triage.detail.personalizedTips || [];
   const possibleTypes = triage.core.possibleTypes || [];
   const recommendationLevel = triage.core.recommendationLevel || 'routine_clinic';
+  const requiresClinicalVisit = ['routine_clinic', 'specialist_clinic', 'hospital_priority_high'].includes(recommendationLevel);
   const selfCareAdvice = triage.detail.selfCareAdvice || [];
   const medicationAdvice = triage.detail.medicationAdvice || [];
   const visitAdvice = triage.detail.visitAdvice || [];
@@ -1470,7 +1517,7 @@ async function renderResultCards() {
   }
 
   let essentialChecks = null;
-  if (examAdvice.length || needsBooking || needsCost) {
+  if (requiresClinicalVisit && (examAdvice.length || (triage.core.firstChecks || []).length)) {
     essentialChecks = buildResultCard('第一步检查', `${buildAdviceListHtml(examAdvice)}${firstChecks}`, 'strong');
     essentialChecks.dataset.resultView = 'full';
   }
@@ -1499,16 +1546,16 @@ async function renderResultCards() {
   const actionButtons = state.sharedView
     ? [
         needsBooking ? '<button class="result-action primary" data-action="booking">去挂号</button>' : '',
-        '<button class="result-action" data-action="deep">继续咨询</button>',
+        `<button class="result-action ${needsBooking ? '' : 'primary'}" data-action="deep">继续咨询</button>`,
         '<button class="result-action" data-action="restart">新的咨询</button>',
-        '<button class="result-action" data-action="share">分享给家属</button>',
+        '<button class="result-action" data-action="share">分享结果</button>',
       ].filter(Boolean)
     : [
         needsBooking ? '<button class="result-action primary" data-action="booking">去挂号</button>' : '',
-        '<button class="result-action" data-action="deep">继续咨询</button>',
+        `<button class="result-action ${needsBooking ? '' : 'primary'}" data-action="deep">继续咨询</button>`,
         '<button class="result-action" data-action="restart">新的咨询</button>',
         '<button class="result-action" data-action="save">保存记录</button>',
-        '<button class="result-action" data-action="share">分享给家属</button>',
+        '<button class="result-action" data-action="share">分享结果</button>',
       ].filter(Boolean);
   const actionRow = markResultRow(addRow(
     'bot',
@@ -1675,6 +1722,13 @@ function syncVoiceButton() {
   $('voiceCaptureBtn').classList.toggle('active', state.speechListening);
 }
 
+function clearBrowserSelection() {
+  try {
+    window.getSelection?.()?.removeAllRanges?.();
+  } catch (_error) {
+  }
+}
+
 function ensureSpeechRecognition() {
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SpeechRecognition) return null;
@@ -1700,6 +1754,8 @@ function ensureSpeechRecognition() {
     }
     state.speechListening = false;
     state.speechPressing = false;
+    document.documentElement.classList.remove('voice-pressing');
+    document.body.classList.remove('voice-pressing');
     syncVoiceButton();
     const transcript = state.speechBuffer.trim();
     state.speechBuffer = '';
@@ -1710,6 +1766,7 @@ function ensureSpeechRecognition() {
   recognition.onerror = () => {
     state.speechListening = false;
     state.speechPressing = false;
+    document.documentElement.classList.remove('voice-pressing');
     document.body.classList.remove('voice-pressing');
     syncVoiceButton();
   };
@@ -1719,6 +1776,7 @@ function ensureSpeechRecognition() {
 
 function startVoiceCapture(event) {
   event.preventDefault();
+  event.stopPropagation();
   const recognition = ensureSpeechRecognition();
   if (!recognition) {
     addBotText('当前浏览器不支持语音识别。你可以继续直接打字。');
@@ -1732,7 +1790,10 @@ function startVoiceCapture(event) {
 
   state.speechBuffer = '';
   stopSpeechPlayback();
+  primeSpeechPlayback();
   state.speechPressing = true;
+  clearBrowserSelection();
+  document.documentElement.classList.add('voice-pressing');
   document.body.classList.add('voice-pressing');
   state.speechListening = true;
   syncVoiceButton();
@@ -1746,11 +1807,16 @@ function startVoiceCapture(event) {
 
 function stopVoiceCapture(event) {
   if (event) event.preventDefault();
+  if (event) event.stopPropagation();
   if (!state.speechListening) {
+    state.speechPressing = false;
+    document.documentElement.classList.remove('voice-pressing');
+    document.body.classList.remove('voice-pressing');
     return;
   }
 
   state.speechPressing = false;
+  document.documentElement.classList.remove('voice-pressing');
   document.body.classList.remove('voice-pressing');
   const recognition = ensureSpeechRecognition();
   if (recognition) {
@@ -1903,12 +1969,19 @@ function bindEvents() {
   $('voiceCaptureBtn').addEventListener('pointerdown', startVoiceCapture);
   $('voiceCaptureBtn').addEventListener('pointerup', stopVoiceCapture);
   $('voiceCaptureBtn').addEventListener('pointercancel', stopVoiceCapture);
+  $('voiceCaptureBtn').addEventListener('mousedown', startVoiceCapture);
+  $('voiceCaptureBtn').addEventListener('mouseup', stopVoiceCapture);
   $('voiceCaptureBtn').addEventListener('touchstart', startVoiceCapture, { passive: false });
   $('voiceCaptureBtn').addEventListener('touchend', stopVoiceCapture, { passive: false });
   $('voiceCaptureBtn').addEventListener('touchcancel', stopVoiceCapture, { passive: false });
   $('voiceCaptureBtn').addEventListener('click', (event) => event.preventDefault());
   $('voiceCaptureBtn').addEventListener('contextmenu', (event) => event.preventDefault());
   $('voiceCaptureBtn').addEventListener('selectstart', (event) => event.preventDefault());
+  document.addEventListener('selectionchange', () => {
+    if (state.speechPressing) {
+      clearBrowserSelection();
+    }
+  });
 
   $('plusBtn').onclick = () => {
     $('plusMenu').classList.toggle('hidden');
@@ -1990,6 +2063,11 @@ async function loadSharedSession(sessionId) {
 async function bootstrap() {
   loadAuthState();
   loadSavedRegion();
+  if ('speechSynthesis' in window && typeof window.speechSynthesis.onvoiceschanged !== 'undefined') {
+    window.speechSynthesis.onvoiceschanged = () => {
+      window.speechSynthesis.getVoices?.();
+    };
+  }
   renderQuickSymptoms();
   syncAuthUi();
   bindEvents();
