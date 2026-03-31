@@ -408,8 +408,41 @@ body {
   font-weight: 600;
 }
 
+.summary-focus {
+  margin-top: -2px;
+  color: rgba(20, 36, 31, 0.62);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .summary-slot-chips {
   margin-top: 12px;
+}
+
+.topic-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.topic-chip {
+  appearance: none;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(20, 36, 31, 0.1);
+  background: rgba(255, 255, 255, 0.88);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.topic-chip.active {
+  border-color: rgba(7, 193, 96, 0.26);
+  background: rgba(7, 193, 96, 0.12);
+  color: var(--brand-dark);
 }
 
 .summary-next {

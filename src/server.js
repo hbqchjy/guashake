@@ -95,6 +95,58 @@ function isSlotFilled(session, slot) {
   return Boolean(slotState[slot]?.answer);
 }
 
+function mapIntentToFocus(intentType = '', topicKey = '', focusLabel = '') {
+  const intentMap = {
+    medical_followup: { key: 'symptom', label: '症状判断' },
+    medication_question: { key: 'medication', label: '用药顾虑' },
+    booking_question: { key: 'booking', label: '挂号医院' },
+    cost_question: { key: 'cost', label: '费用医保' },
+    report_notice: { key: 'report', label: '报告解读' },
+    new_issue: { key: 'new_issue', label: '新的问题' },
+    off_topic: { key: 'other', label: '当前无关' },
+  };
+  const fallback = intentMap[intentType] || { key: 'symptom', label: '症状判断' };
+  return {
+    key: topicKey || fallback.key,
+    label: focusLabel || fallback.label,
+  };
+}
+
+function buildTopicChips(session, triageResult) {
+  const core = triageResult?.layeredOutput?.core || {};
+  const detail = triageResult?.layeredOutput?.detail || {};
+  const chips = [{ key: 'summary', label: '先看总结' }];
+  const requestedFocus =
+    session?.currentFocus && !['summary', 'other', 'new_issue'].includes(session.currentFocus)
+      ? { key: session.currentFocus, label: session.currentFocusLabel || session.currentFocus }
+      : null;
+
+  if ((detail.selfCareAdvice || []).length || (detail.visitAdvice || []).length) {
+    chips.push({ key: 'care', label: '处理建议' });
+  }
+  if ((detail.medicationAdvice || []).length) {
+    chips.push({ key: 'medication', label: '用药顾虑' });
+  }
+  if (core.needsBooking) {
+    chips.push({ key: 'booking', label: '挂号医院' });
+  }
+  if (core.needsCost) {
+    chips.push({ key: 'cost', label: '费用医保' });
+  }
+  if ((session?.supplementFiles || []).length) {
+    chips.push({ key: 'report', label: '报告解读' });
+  }
+  if (core.needsBooking && ((detail.examAdvice || []).length || (core.firstChecks || []).length)) {
+    chips.push({ key: 'checks', label: '第一步检查' });
+  }
+  chips.push({ key: 'continue', label: '继续追问' });
+  if (requestedFocus) {
+    chips.push(requestedFocus);
+  }
+
+  return chips.filter((chip, index, array) => array.findIndex((item) => item.key === chip.key) === index);
+}
+
 async function resolveNextQuestion(session, options = {}) {
   const asked = getAskedQuestionIds(session);
   const slotCatalog = getScenarioSlotCatalog(session.scenario || {});
@@ -391,6 +443,7 @@ async function createTriageSession(payload = {}) {
   const slotState = mergeSlotHintsIntoState({}, slotHints, 'init');
   const taskType = initialAnalysis?.taskType || 'symptom_consult';
   const conversationStage = shouldPreferOpenIntake(chiefComplaint, initialAnalysis) ? 'open' : 'structured';
+  const initialFocus = mapIntentToFocus('medical_followup', 'symptom', '症状判断');
 
   const session = upsertSession(sessionId, {
     id: sessionId,
@@ -408,6 +461,8 @@ async function createTriageSession(payload = {}) {
     routeMeta,
     taskType,
     conversationStage,
+    currentFocus: initialFocus.key,
+    currentFocusLabel: initialFocus.label,
     openTurns: 0,
     openPromptText: initialAnalysis?.nextPromptText || '',
     stepIndex: 0,
@@ -432,6 +487,7 @@ async function createTriageSession(payload = {}) {
       scenario: scenario.label,
       routeMeta,
       followUpMeta: null,
+      currentFocus: initialFocus,
     };
   }
 
@@ -453,6 +509,7 @@ async function createTriageSession(payload = {}) {
         mode: 'open',
         reason: initialAnalysis?.reason || '先开放式收集信息',
       },
+      currentFocus: initialFocus,
     };
   }
 
@@ -472,6 +529,7 @@ async function createTriageSession(payload = {}) {
     scenario: scenario.label,
     routeMeta,
     followUpMeta: nextQuestionState.followUpMeta,
+    currentFocus: initialFocus,
   };
 }
 
@@ -702,6 +760,7 @@ app.post('/triage/message', async (req, res) => {
     turnIntent = null;
   }
   const intentType = turnIntent?.intentType || 'medical_followup';
+  const currentFocus = mapIntentToFocus(intentType, turnIntent?.topicKey, turnIntent?.focusLabel);
   if (intentType === 'off_topic') {
     return res.json({
       ok: true,
@@ -711,9 +770,14 @@ app.post('/triage/message', async (req, res) => {
         type: 'text',
         text: session.openPromptText || '你继续说说这次最困扰你的不舒服是怎么表现的。',
       },
+      currentFocus,
     });
   }
   if (intentType === 'report_notice') {
+    upsertSession(sessionId, {
+      currentFocus: currentFocus.key,
+      currentFocusLabel: currentFocus.label,
+    });
     return res.json({
       ok: true,
       mode: 'text',
@@ -722,6 +786,23 @@ app.post('/triage/message', async (req, res) => {
         type: 'text',
         text: session.openPromptText || '如果你还想先说症状，也可以继续补充。',
       },
+      currentFocus,
+    });
+  }
+  if (intentType === 'new_issue') {
+    upsertSession(sessionId, {
+      currentFocus: currentFocus.key,
+      currentFocusLabel: currentFocus.label,
+    });
+    return res.json({
+      ok: true,
+      mode: 'text',
+      assistantReply: turnIntent?.reply || '这更像另一个新问题。如果你想换问题，点“新的咨询”会更清楚。',
+      nextPrompt: {
+        type: 'text',
+        text: session.openPromptText || '如果还是继续这次问题，就再说说现在最困扰你的症状。',
+      },
+      currentFocus,
     });
   }
 
@@ -745,6 +826,8 @@ app.post('/triage/message', async (req, res) => {
   const updatedSession = upsertSession(sessionId, {
     supplements,
     supplementInsights,
+    currentFocus: currentFocus.key,
+    currentFocusLabel: currentFocus.label,
     followUp: {
       ...(session.followUp || {}),
       slotState: mergeSlotHintsIntoState(
@@ -803,6 +886,7 @@ app.post('/triage/message', async (req, res) => {
       assistantReply: openPlan.assistantReply || '我这边先整理一下，现在可以给你初步总结了。',
       insight,
       needsConfirmation: true,
+      currentFocus,
     });
   }
 
@@ -846,6 +930,7 @@ app.post('/triage/message', async (req, res) => {
         reason: openPlan.reason || '开放式信息已足够，开始进入精准提问',
       },
       insight,
+      currentFocus,
     });
   }
 
@@ -862,6 +947,7 @@ app.post('/triage/message', async (req, res) => {
       text: openPlan.nextPromptText || '你再多说一点最近的变化。',
     },
     insight,
+    currentFocus,
   });
 });
 
@@ -881,10 +967,16 @@ app.post('/triage/supplement', async (req, res) => {
   }
 
   const intentType = turnIntent?.intentType || 'medical_followup';
+  const currentFocus = mapIntentToFocus(intentType, turnIntent?.topicKey, turnIntent?.focusLabel);
   if (intentType === 'off_topic') {
+    upsertSession(sessionId, {
+      currentFocus: currentFocus.key,
+      currentFocusLabel: currentFocus.label,
+    });
     return res.json({
       ok: true,
       intentType,
+      currentFocus,
       reply: turnIntent?.reply || '这条和当前咨询关系不大。你可以继续补充症状、病史、报告，或者重新开始一个新问题。',
       insight: null,
       refreshSummary: false,
@@ -893,10 +985,30 @@ app.post('/triage/supplement', async (req, res) => {
   }
 
   if (intentType === 'report_notice') {
+    upsertSession(sessionId, {
+      currentFocus: currentFocus.key,
+      currentFocusLabel: currentFocus.label,
+    });
     return res.json({
       ok: true,
       intentType,
+      currentFocus,
       reply: turnIntent?.reply || '可以，直接点左下角加号，把检查报告、相册图片或者拍照发给我就行。',
+      insight: null,
+      refreshSummary: false,
+      supplements: session.supplements || [],
+    });
+  }
+  if (intentType === 'new_issue') {
+    upsertSession(sessionId, {
+      currentFocus: currentFocus.key,
+      currentFocusLabel: currentFocus.label,
+    });
+    return res.json({
+      ok: true,
+      intentType,
+      currentFocus,
+      reply: turnIntent?.reply || '这更像另一个新问题。你可以点“新的咨询”，或者继续追问当前这次问题。',
       insight: null,
       refreshSummary: false,
       supplements: session.supplements || [],
@@ -928,6 +1040,8 @@ app.post('/triage/supplement', async (req, res) => {
   const updated = upsertSession(sessionId, {
     supplements,
     supplementInsights,
+    currentFocus: currentFocus.key,
+    currentFocusLabel: currentFocus.label,
     followUp: {
       ...(session.followUp || {}),
       slotState: mergeSlotHintsIntoState(
@@ -941,6 +1055,7 @@ app.post('/triage/supplement', async (req, res) => {
   return res.json({
     ok: true,
     intentType,
+    currentFocus,
     supplements: updated.supplements || [],
     insight,
     reply: turnIntent?.reply || '',
@@ -1000,6 +1115,8 @@ app.post('/triage/supplement-file', upload.single('file'), async (req, res) => {
   const nextSlotState = mergeSlotHintsIntoState(session.followUp?.slotState || {}, summarySlotHints, 'file');
   upsertSession(sessionId, {
     supplementFiles,
+    currentFocus: 'report',
+    currentFocusLabel: '报告解读',
     triageResult: null,
     followUp: {
       ...(session.followUp || {}),
@@ -1012,6 +1129,7 @@ app.post('/triage/supplement-file', upload.single('file'), async (req, res) => {
     file: fileRecord,
     total: supplementFiles.length,
     slotHints: summarySlotHints,
+    currentFocus: { key: 'report', label: '报告解读' },
   });
 });
 
@@ -1133,7 +1251,17 @@ app.get('/triage/result/:id', async (req, res) => {
     }
   }
   upsertSession(req.params.id, { triageResult });
-  return res.json(triageResult);
+  const topicChips = buildTopicChips(session, triageResult);
+  const currentFocus = topicChips.find((chip) => chip.key === session.currentFocus)
+    ? { key: session.currentFocus, label: session.currentFocusLabel || topicChips.find((chip) => chip.key === session.currentFocus)?.label || '' }
+    : { key: 'summary', label: '先看总结' };
+  return res.json({
+    ...triageResult,
+    snapshot: {
+      currentFocus,
+      topicChips,
+    },
+  });
 });
 
 app.post('/cost/estimate', (req, res) => {

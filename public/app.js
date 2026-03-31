@@ -47,6 +47,8 @@ const state = {
   pendingThinkingRow: null,
   conversationStage: 'idle',
   currentPrompt: null,
+  currentFocus: { key: 'summary', label: '先看总结' },
+  topicChips: [],
 };
 
 let botTextQueue = Promise.resolve();
@@ -386,6 +388,30 @@ function getSupplementStatusText() {
   return `已补充 ${items.join(' · ')}`;
 }
 
+function setCurrentFocus(focus, options = {}) {
+  if (!focus?.key) return;
+  state.currentFocus = {
+    key: focus.key,
+    label: focus.label || focus.key,
+  };
+  if (!state.topicChips.some((chip) => chip.key === focus.key) && !['other', 'new_issue'].includes(focus.key)) {
+    state.topicChips = [...state.topicChips, { key: focus.key, label: focus.label || focus.key }];
+  }
+  if (options.switchToFull) {
+    state.resultViewMode = 'full';
+  }
+}
+
+function syncSnapshotMeta(snapshot) {
+  if (!snapshot) return;
+  if (Array.isArray(snapshot.topicChips)) {
+    state.topicChips = snapshot.topicChips;
+  }
+  if (snapshot.currentFocus?.key) {
+    setCurrentFocus(snapshot.currentFocus);
+  }
+}
+
 function addUserText(text) {
   return addRow('user', `<p>${escapeHtml(text)}</p>`);
 }
@@ -590,6 +616,8 @@ function resetConversation() {
   state.sharedView = false;
   state.conversationStage = 'idle';
   state.currentPrompt = null;
+  state.currentFocus = { key: 'summary', label: '先看总结' };
+  state.topicChips = [];
   state.resultAnchor = 'summary';
   state.profile = {
     province: '',
@@ -638,6 +666,9 @@ async function startSymptomSession(symptomText) {
   state.currentPrompt = null;
   state.conversationStage = data.conversationStage || 'structured';
   state.followUpProgress = data.progress || null;
+  if (data.currentFocus) {
+    setCurrentFocus(data.currentFocus);
+  }
   $('quickRow').classList.add('hidden');
 
   if (data.conversationStage === 'closed') {
@@ -680,19 +711,34 @@ async function appendContextMessage(value) {
   });
 
   state.awaitingContext = null;
+  if (data.currentFocus) {
+    setCurrentFocus(data.currentFocus, { switchToFull: ['booking', 'cost', 'report', 'medication'].includes(data.currentFocus.key) });
+  }
 
-  if (data.intentType === 'off_topic' || data.intentType === 'report_notice') {
+  if (['off_topic', 'report_notice', 'new_issue'].includes(data.intentType)) {
     await addBotText(data.reply || '这条和当前咨询关系不大。');
     return;
   }
 
-  state.supplementStats.text += 1;
-  state.supplementCount = data.supplements.length;
-  addStatusPill(getSupplementStatusText());
+  if (data.intentType === 'medical_followup') {
+    state.supplementStats.text += 1;
+    state.supplementCount = data.supplements.length;
+    addStatusPill(getSupplementStatusText());
+  }
 
   if (state.triageResult && data.refreshSummary) {
-    await addBotText(data.reply || '我把这条补充合进这次咨询里了，更新一下建议。');
+    if (data.reply) {
+      await addBotText(data.reply);
+    }
     await directResult();
+    return;
+  }
+
+  if (state.triageResult && ['medication_question', 'booking_question', 'cost_question', 'report_notice'].includes(data.intentType)) {
+    if (data.reply) {
+      await addBotText(data.reply);
+    }
+    await renderResultCards();
     return;
   }
 
@@ -718,6 +764,9 @@ async function continueOpenConversation(value) {
       message: value,
     }),
   });
+  if (data.currentFocus) {
+    setCurrentFocus(data.currentFocus);
+  }
 
   if (data.needsConfirmation) {
     state.currentPrompt = null;
@@ -826,6 +875,7 @@ async function answerQuestion(answer) {
 
 async function directResult() {
   const data = await api(`/triage/result/${encodeURIComponent(state.sessionId)}`);
+  syncSnapshotMeta(data.snapshot);
   state.triageResult = data;
   state.followUpProgress = null;
   state.generationReady = false;
@@ -1158,6 +1208,9 @@ function setResultViewMode(mode) {
   document.querySelectorAll('[data-mode-toggle]').forEach((button) => {
     button.classList.toggle('active', button.dataset.modeToggle === mode);
   });
+  document.querySelectorAll('[data-topic-chip]').forEach((button) => {
+    button.classList.toggle('active', button.dataset.topicChip === state.currentFocus?.key);
+  });
 }
 
 function clearResultRows() {
@@ -1175,7 +1228,7 @@ function buildReportSummaryCard(summary, filePath = '') {
   const metrics = (summary.keyMetrics || [])
     .map((item) => `<span class="record-chip metric-chip">${escapeHtml(item)}</span>`)
     .join('');
-  return addRow(
+  const row = addRow(
     'bot',
     [
       '<div class="result-card report-summary-card">',
@@ -1195,6 +1248,8 @@ function buildReportSummaryCard(summary, filePath = '') {
       '</div>',
     ].join('')
   );
+  row.dataset.topicCard = 'report';
+  return row;
 }
 
 function buildInsightChipHtml(items = [], extraClass = '') {
@@ -1203,6 +1258,49 @@ function buildInsightChipHtml(items = [], extraClass = '') {
   return `<div class="record-checks ${extraClass}">${list
     .map((item) => `<span class="record-chip">${escapeHtml(item)}</span>`)
     .join('')}</div>`;
+}
+
+function buildTopicChipsHtml(chips = []) {
+  const list = Array.isArray(chips) ? chips.filter(Boolean) : [];
+  if (!list.length) return '';
+  return [
+    '<div class="topic-chip-row">',
+    ...list.map((chip) => {
+      const active = chip.key === state.currentFocus?.key ? 'active' : '';
+      return `<button class="topic-chip ${active}" type="button" data-topic-chip="${escapeHtml(chip.key)}">${escapeHtml(chip.label)}</button>`;
+    }),
+    '</div>',
+  ].join('');
+}
+
+function focusResultTopic(topicKey) {
+  if (!topicKey) return;
+  if (topicKey === 'summary') {
+    state.resultViewMode = 'simple';
+    state.resultAnchor = 'summary';
+    setCurrentFocus({ key: 'summary', label: '先看总结' });
+    setResultViewMode('simple');
+    requestAnimationFrame(() => {
+      document.querySelector('.summary-shell')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    return;
+  }
+  if (topicKey === 'continue') {
+    state.resultViewMode = 'full';
+    setCurrentFocus({ key: 'continue', label: '继续追问' }, { switchToFull: true });
+    setResultViewMode('full');
+    $('composerInput').focus();
+    return;
+  }
+  state.resultViewMode = 'full';
+  setCurrentFocus(
+    state.topicChips.find((chip) => chip.key === topicKey) || { key: topicKey, label: topicKey },
+    { switchToFull: true }
+  );
+  setResultViewMode('full');
+  requestAnimationFrame(() => {
+    document.querySelector(`[data-topic-card="${topicKey}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
 }
 
 function buildBookingCard(booking, prepItems) {
@@ -1484,11 +1582,11 @@ async function renderResultCards() {
   const personalizedTips = triage.detail.personalizedTips || [];
   const possibleTypes = triage.core.possibleTypes || [];
   const recommendationLevel = triage.core.recommendationLevel || 'routine_clinic';
-  const requiresClinicalVisit = ['routine_clinic', 'specialist_clinic', 'hospital_priority_high'].includes(recommendationLevel);
   const selfCareAdvice = triage.detail.selfCareAdvice || [];
   const medicationAdvice = triage.detail.medicationAdvice || [];
   const visitAdvice = triage.detail.visitAdvice || [];
   const examAdvice = triage.detail.examAdvice || [];
+  const topicChips = state.topicChips || [];
   const summaryHtml = [
     '<div class="summary-card">',
     '<div class="summary-top">',
@@ -1498,6 +1596,7 @@ async function renderResultCards() {
     possibleTypes[1] ? `<p class="summary-text">${escapeHtml(possibleTypes[1])}</p>` : '',
     triage.core.personalizedText ? `<p class="summary-subtext">${escapeHtml(triage.core.personalizedText)}</p>` : '',
     triage.core.severityText ? `<p class="summary-subtext">${escapeHtml(triage.core.severityText)}</p>` : '',
+    state.currentFocus?.label ? `<p class="summary-focus">当前在聊：${escapeHtml(state.currentFocus.label)}</p>` : '',
     `<div class="summary-next"><span class="summary-next-label">现在更建议</span><strong>${escapeHtml(triage.core.text || '')}</strong></div>`,
     buildInsightChipHtml(slotHighlights.slice(0, 3), 'summary-slot-chips'),
     '</div>',
@@ -1505,6 +1604,7 @@ async function renderResultCards() {
     '<button class="result-mode-btn active" data-mode-toggle="simple">只看重点</button>',
     '<button class="result-mode-btn" data-mode-toggle="full">查看完整版</button>',
     '</div>',
+    buildTopicChipsHtml(topicChips),
     '<div class="summary-metrics" data-result-view="full">',
     `<div class="summary-metric"><span class="summary-label">当前程度</span><strong>${escapeHtml(triage.core.severityText || '继续结合症状判断')}</strong></div>`,
     `<div class="summary-metric"><span class="summary-label">建议科室</span><strong>${escapeHtml(triage.core.suggestDepartment)}</strong></div>`,
@@ -1528,11 +1628,13 @@ async function renderResultCards() {
     'strong'
   );
   actionCard.dataset.resultView = 'full';
+  actionCard.dataset.topicCard = 'care';
 
   let selfCareCard = null;
   if (selfCareAdvice.length) {
     selfCareCard = buildResultCard('先自己怎么处理', buildAdviceListHtml(selfCareAdvice));
     selfCareCard.dataset.resultView = 'full';
+    selfCareCard.dataset.topicCard = 'care';
   }
 
   let medicationCard = null;
@@ -1543,18 +1645,21 @@ async function renderResultCards() {
     );
     medicationCard.dataset.resultView = 'full';
     medicationCard.dataset.medicationCard = 'true';
+    medicationCard.dataset.topicCard = 'medication';
   }
 
   let essentialChecks = null;
   if (needsBooking && (examAdvice.length || (triage.core.firstChecks || []).length)) {
     essentialChecks = buildResultCard('第一步检查', `${buildAdviceListHtml(examAdvice)}${firstChecks}`, 'strong');
     essentialChecks.dataset.resultView = 'full';
+    essentialChecks.dataset.topicCard = 'checks';
   }
 
   let essentialCost = null;
   if (needsCost) {
     essentialCost = buildResultCard('费用与医保', costItems);
     essentialCost.dataset.resultView = 'full';
+    essentialCost.dataset.topicCard = 'cost';
     attachInsuranceActions(essentialCost);
   }
 
@@ -1563,14 +1668,17 @@ async function renderResultCards() {
     bookingCard = buildBookingCard(booking, prepItems);
     bookingCard.dataset.resultView = 'full';
     bookingCard.dataset.bookingCard = 'true';
+    bookingCard.dataset.topicCard = 'booking';
   }
   let prepCard = null;
   if (needsBooking) {
     prepCard = buildCollapsibleResultCard('去医院前带什么', '身份证、医保卡、近期检查结果', `<ul>${prepItems}</ul>`);
     prepCard.dataset.resultView = 'full';
+    prepCard.dataset.topicCard = 'booking';
   }
   const riskCard = buildCollapsibleResultCard('风险提醒', '有胸痛加重或呼吸困难要尽快急诊', `<ul>${riskItems}</ul>`, 'risk');
   riskCard.dataset.resultView = 'full';
+  riskCard.dataset.topicCard = 'care';
 
   const actionButtons = state.sharedView
     ? [
@@ -1605,6 +1713,7 @@ async function renderResultCards() {
     ].join('')
   ));
   actionRow.dataset.resultView = 'full';
+  actionRow.dataset.topicCard = 'continue';
   if (actionRow.querySelector('[data-action="booking"]')) {
     actionRow.querySelector('[data-action="booking"]').onclick = () => {
       state.resultViewMode = 'full';
@@ -1636,6 +1745,11 @@ async function renderResultCards() {
     };
   }
   setResultViewMode(state.resultViewMode || 'simple');
+  summaryRow.querySelectorAll('[data-topic-chip]').forEach((button) => {
+    button.onclick = () => {
+      focusResultTopic(button.dataset.topicChip);
+    };
+  });
   requestAnimationFrame(() => {
     if (state.resultAnchor === 'booking') {
       document.querySelector('[data-booking-card="true"]')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
@@ -1684,6 +1798,9 @@ async function handlePickedFile(file, label) {
     state.currentPrompt = null;
     state.conversationStage = data.conversationStage || 'structured';
     state.followUpProgress = data.progress || null;
+    if (data.currentFocus) {
+      setCurrentFocus(data.currentFocus);
+    }
     $('quickRow').classList.add('hidden');
     buildReportSummaryCard(data.file.summary, data.file.path);
     if (data.conversationStage === 'closed') {
@@ -1720,6 +1837,9 @@ async function handlePickedFile(file, label) {
     method: 'POST',
     body: formData,
   });
+  if (uploadResult.currentFocus) {
+    setCurrentFocus(uploadResult.currentFocus, { switchToFull: true });
+  }
   if (label === '检验报告') {
     state.supplementStats.report += 1;
   } else {
@@ -2080,6 +2200,7 @@ async function loadSharedSession(sessionId) {
   document.querySelector('.composer-wrap').classList.add('hidden');
   addRow('bot', '<div class="intro-card-inner"><p class="intro-copy"><strong class="intro-accent">这是小科分享给家属的总结页</strong>，你可以直接查看这次建议、费用和挂号信息。</p></div>', 'intro-card');
   const result = await api(`/triage/result/${encodeURIComponent(sessionId)}`);
+  syncSnapshotMeta(result.snapshot);
   state.triageResult = result;
   await renderResultCards();
 }

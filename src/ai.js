@@ -168,16 +168,19 @@ async function classifyConversationTurn(session, userMessage) {
   const prompt = [
     '你是“小科”的对话意图判断器。',
     '任务：判断用户这条新消息，在当前医疗咨询上下文里属于哪一类。',
-    '可选 intentType：medical_followup、medication_question、booking_question、cost_question、report_notice、off_topic。',
+    '可选 intentType：medical_followup、medication_question、booking_question、cost_question、report_notice、new_issue、off_topic。',
+    '可选 topicKey：symptom、medication、booking、cost、report、new_issue、other。',
     '要求：',
     '1. medical_followup 表示继续补充症状、病史、检查、感受。',
     '2. medication_question 表示主要在问吃什么药、怎么用药。',
     '3. booking_question 表示主要在问挂什么科、去哪家医院、怎么挂号。',
     '4. cost_question 表示主要在问费用、医保、报销。',
     '5. report_notice 表示主要在说要发报告、刚发了报告、让系统看报告。',
-    '6. off_topic 表示和当前医疗咨询关系不大，或者明显跑题。',
-    '7. reply 用一句自然的话回复用户，不要解释内部判断。',
-    '输出 JSON，字段固定：intentType、reply、reason。',
+    '6. new_issue 表示用户开始问另一个明显不同的新问题，不适合继续当作当前症状补充。',
+    '7. off_topic 表示和当前医疗咨询关系不大，或者明显跑题。',
+    '8. reply 用一句自然的话回复用户，不要解释内部判断。',
+    '9. focusLabel 用 2 到 6 个字概括这轮主要在聊什么，例如：症状判断、用药顾虑、挂号医院、费用医保、报告解读。',
+    '输出 JSON，字段固定：intentType、topicKey、focusLabel、reply、reason。',
     `当前主诉：${session.chiefComplaint || ''}`,
     `当前场景：${session.scenario?.label || ''}`,
     `当前任务：${session.taskType || 'symptom_consult'}`,
@@ -195,7 +198,13 @@ async function classifyConversationTurn(session, userMessage) {
 
   const parsed = extractJsonObject(raw);
   if (!parsed?.intentType) return null;
-  return parsed;
+  return {
+    intentType: String(parsed.intentType || '').trim(),
+    topicKey: String(parsed.topicKey || '').trim(),
+    focusLabel: String(parsed.focusLabel || '').trim(),
+    reply: String(parsed.reply || '').trim(),
+    reason: String(parsed.reason || '').trim(),
+  };
 }
 
 function buildAnswerSummary(session) {
