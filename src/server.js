@@ -24,6 +24,7 @@ const {
   interpretSupplement,
   personalizeTriageResult,
   buildGuidanceDecision,
+  answerFollowUpTurn,
   rewriteTriageResult,
   getStatus: getAiStatus,
 } = require('./ai');
@@ -1015,14 +1016,15 @@ app.post('/triage/supplement', async (req, res) => {
     });
   }
 
+  const shouldPersistAsSupplement = ['medical_followup', 'cost_question', 'booking_question', 'report_notice'].includes(intentType);
   const supplements = [...(session.supplements || [])];
-  if (text) {
+  if (text && shouldPersistAsSupplement) {
     supplements.push(text);
   }
 
   let insight = null;
   const supplementInsights = [...(session.supplementInsights || [])];
-  if (text && ['medical_followup', 'medication_question'].includes(intentType)) {
+  if (text && intentType === 'medical_followup') {
     try {
       insight = await interpretSupplement(session, text, getScenarioSlotCatalog(session.scenario || {}));
       if (insight?.summary) {
@@ -1052,14 +1054,25 @@ app.post('/triage/supplement', async (req, res) => {
     },
     triageResult: null,
   });
+  let followUpAnswer = null;
+  if (session.triageResult && ['medical_followup', 'medication_question', 'booking_question', 'cost_question'].includes(intentType)) {
+    try {
+      followUpAnswer = await answerFollowUpTurn(updated, text, intentType);
+    } catch (_error) {
+      followUpAnswer = null;
+    }
+  }
   return res.json({
     ok: true,
     intentType,
     currentFocus,
     supplements: updated.supplements || [],
     insight,
-    reply: turnIntent?.reply || '',
-    refreshSummary: Boolean(session.triageResult) && ['medical_followup', 'medication_question', 'booking_question', 'cost_question'].includes(intentType),
+    reply: followUpAnswer?.answer || turnIntent?.reply || '',
+    refreshSummary:
+      Boolean(session.triageResult) &&
+      ['medical_followup', 'medication_question', 'booking_question', 'cost_question'].includes(intentType) &&
+      (followUpAnswer?.shouldRefreshSummary !== false),
   });
 });
 

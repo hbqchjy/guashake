@@ -381,6 +381,49 @@ async function buildGuidanceDecision(session, fallbackResult) {
   };
 }
 
+async function answerFollowUpTurn(session, userMessage, intentType = 'medical_followup') {
+  if (!isConfigured()) return null;
+
+  const prompt = [
+    '你是“小科”的继续追问回答器。',
+    '任务：在当前已经有初步总结的前提下，针对用户新追问先给一句自然、直接、有帮助的回答。',
+    '要求：',
+    '1. 不要重复整份总结。',
+    '2. 先正面回应用户当前这句在问什么。',
+    '3. 语气像真人助手，不要官话，不要说内部流程。',
+    '4. 不要确诊，只能说“更像”“先考虑”“通常”。',
+    '5. 如果用户问的是药，可以直接给常见药名或药物类别，但最多 3 条，语气要克制。',
+    '6. 如果用户问的是挂号/医院/费用，就优先回答那个问题，不要再泛泛重复病情。',
+    '7. 输出 JSON，字段固定：answer、shouldRefreshSummary。',
+    JSON.stringify({
+      intentType,
+      chiefComplaint: session.chiefComplaint,
+      currentFocus: session.currentFocusLabel || '',
+      currentSummary: session.triageResult?.layeredOutput?.core || {},
+      currentDetail: session.triageResult?.layeredOutput?.detail || {},
+      slotState: buildSlotStateSummary(session),
+      supplementInsights: (session.supplementInsights || []).map((item) => item.summary).slice(-5),
+      fileInsights: buildFileInsightSummary(session),
+      userMessage,
+    }),
+    '只返回一个 JSON 对象。',
+  ].join('\n');
+
+  const raw = await chatCompletions({
+    model: getConfig().textModel,
+    messages: [{ role: 'user', content: prompt }],
+    temperature: 0.2,
+    maxTokens: 260,
+  });
+
+  const parsed = extractJsonObject(raw);
+  if (!parsed?.answer) return null;
+  return {
+    answer: String(parsed.answer || '').trim(),
+    shouldRefreshSummary: parsed.shouldRefreshSummary !== false,
+  };
+}
+
 async function chooseNextFollowUp(session, candidates, meta = {}) {
   if (!isConfigured() || !Array.isArray(candidates) || !candidates.length) return null;
 
@@ -595,6 +638,7 @@ module.exports = {
   interpretSupplement,
   personalizeTriageResult,
   buildGuidanceDecision,
+  answerFollowUpTurn,
   rewriteTriageResult,
   ocrFile,
 };

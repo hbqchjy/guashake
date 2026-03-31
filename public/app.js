@@ -734,14 +734,6 @@ async function appendContextMessage(value) {
     return;
   }
 
-  if (state.triageResult && ['medication_question', 'booking_question', 'cost_question', 'report_notice'].includes(data.intentType)) {
-    if (data.reply) {
-      await addBotText(data.reply);
-    }
-    await renderResultCards();
-    return;
-  }
-
   if (state.generationReady) {
     if (data.reply) {
       await addBotText(data.reply);
