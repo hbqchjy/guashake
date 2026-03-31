@@ -113,6 +113,10 @@ function mapIntentToFocus(intentType = '', topicKey = '', focusLabel = '') {
   };
 }
 
+function shouldPersistAsSupplement(intentType = '') {
+  return ['medical_followup', 'cost_question', 'booking_question', 'report_notice'].includes(intentType);
+}
+
 function buildTopicChips(session, triageResult) {
   const core = triageResult?.layeredOutput?.core || {};
   const detail = triageResult?.layeredOutput?.detail || {};
@@ -1016,9 +1020,8 @@ app.post('/triage/supplement', async (req, res) => {
     });
   }
 
-  const shouldPersistAsSupplement = ['medical_followup', 'cost_question', 'booking_question', 'report_notice'].includes(intentType);
   const supplements = [...(session.supplements || [])];
-  if (text && shouldPersistAsSupplement) {
+  if (text && shouldPersistAsSupplement(intentType)) {
     supplements.push(text);
   }
 
@@ -1069,9 +1072,12 @@ app.post('/triage/supplement', async (req, res) => {
     supplements: updated.supplements || [],
     insight,
     reply: followUpAnswer?.answer || turnIntent?.reply || '',
+    affectsSummary: Boolean(followUpAnswer?.affectsSummary),
+    impactLevel: followUpAnswer?.impactLevel || 'none',
     refreshSummary:
       Boolean(session.triageResult) &&
       ['medical_followup', 'medication_question', 'booking_question', 'cost_question'].includes(intentType) &&
+      Boolean(followUpAnswer?.affectsSummary) &&
       (followUpAnswer?.shouldRefreshSummary !== false),
   });
 });

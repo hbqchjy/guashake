@@ -394,7 +394,9 @@ async function answerFollowUpTurn(session, userMessage, intentType = 'medical_fo
     '4. 不要确诊，只能说“更像”“先考虑”“通常”。',
     '5. 如果用户问的是药，可以直接给常见药名或药物类别，但最多 3 条，语气要克制。',
     '6. 如果用户问的是挂号/医院/费用，就优先回答那个问题，不要再泛泛重复病情。',
-    '7. 输出 JSON，字段固定：answer、shouldRefreshSummary。',
+    '7. affectsSummary 表示这条新信息是否会让原来的总结更准确。',
+    '8. impactLevel 只能是 none、minor、major。',
+    '9. 输出 JSON，字段固定：answer、shouldRefreshSummary、affectsSummary、impactLevel。',
     JSON.stringify({
       intentType,
       chiefComplaint: session.chiefComplaint,
@@ -421,6 +423,8 @@ async function answerFollowUpTurn(session, userMessage, intentType = 'medical_fo
   return {
     answer: String(parsed.answer || '').trim(),
     shouldRefreshSummary: parsed.shouldRefreshSummary !== false,
+    affectsSummary: Boolean(parsed.affectsSummary),
+    impactLevel: ['none', 'minor', 'major'].includes(parsed.impactLevel) ? parsed.impactLevel : 'none',
   };
 }
 
