@@ -18,6 +18,7 @@ const state = {
   activeChoiceBlock: null,
   composerMode: 'text',
   speechRecognition: null,
+  speechSynthesisEnabled: false,
   speechListening: false,
   speechPressing: false,
   speechBuffer: '',
@@ -95,6 +96,29 @@ function escapeHtml(value) {
 
 function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function stopSpeechPlayback() {
+  if ('speechSynthesis' in window) {
+    window.speechSynthesis.cancel();
+  }
+}
+
+function speakBotText(text) {
+  if (!state.speechSynthesisEnabled || !('speechSynthesis' in window)) return;
+  const content = String(text || '').trim();
+  if (!content) return;
+
+  stopSpeechPlayback();
+  const utterance = new SpeechSynthesisUtterance(content);
+  utterance.lang = 'zh-CN';
+  utterance.rate = 1;
+  const voices = window.speechSynthesis.getVoices?.() || [];
+  const preferred = voices.find((voice) => /zh|Chinese/i.test(`${voice.lang} ${voice.name}`));
+  if (preferred) {
+    utterance.voice = preferred;
+  }
+  window.speechSynthesis.speak(utterance);
 }
 
 function isRegionValid(region) {
@@ -267,6 +291,7 @@ async function addBotText(text) {
     await wait(180);
     await typeTextInto(p, text);
     row.classList.remove('is-typing');
+    speakBotText(text);
     return row;
   });
 
@@ -443,6 +468,7 @@ function setComposerState(mode) {
 
 function setComposerMode(mode) {
   state.composerMode = mode;
+  state.speechSynthesisEnabled = mode === 'voice';
   const isVoice = mode === 'voice';
 
   $('composerInput').classList.toggle('hidden', isVoice);
@@ -451,6 +477,9 @@ function setComposerMode(mode) {
   $('modeToggleBtn').innerHTML = isVoice ? ICONS.keyboard : ICONS.mic;
   $('plusBtn').innerHTML = ICONS.plus;
   syncVoiceButton();
+  if (!isVoice) {
+    stopSpeechPlayback();
+  }
   if (!isVoice) setComposerState(state.inputMode);
 }
 
@@ -1397,7 +1426,7 @@ async function renderResultCards() {
     '<button class="result-mode-btn active" data-mode-toggle="simple">只看重点</button>',
     '<button class="result-mode-btn" data-mode-toggle="full">查看完整版</button>',
     '</div>',
-    '<div class="summary-metrics">',
+    '<div class="summary-metrics" data-result-view="full">',
     `<div class="summary-metric"><span class="summary-label">当前程度</span><strong>${escapeHtml(triage.core.severityText || '继续结合症状判断')}</strong></div>`,
     `<div class="summary-metric"><span class="summary-label">建议科室</span><strong>${escapeHtml(triage.core.suggestDepartment)}</strong></div>`,
     `<div class="summary-metric"><span class="summary-label">建议级别</span><strong>${escapeHtml(formatRecommendationLevel(recommendationLevel))}</strong></div>`,
@@ -1660,7 +1689,7 @@ function ensureSpeechRecognition() {
     const transcript = event.results?.[0]?.[0]?.transcript?.trim();
     if (!transcript) return;
     state.speechBuffer = `${state.speechBuffer} ${transcript}`.trim();
-    $('composerInput').value = transcript;
+    $('composerInput').value = state.speechBuffer;
   };
   recognition.onend = () => {
     if (state.speechPressing) {
@@ -1676,9 +1705,7 @@ function ensureSpeechRecognition() {
     const transcript = state.speechBuffer.trim();
     state.speechBuffer = '';
     if (transcript) {
-      $('composerInput').value = transcript;
-      setComposerMode('text');
-      $('sendBtn').click();
+      submitText(transcript).catch((err) => alert(err.message));
     }
   };
   recognition.onerror = () => {
@@ -1704,6 +1731,7 @@ function startVoiceCapture(event) {
   }
 
   state.speechBuffer = '';
+  stopSpeechPlayback();
   state.speechPressing = true;
   state.speechListening = true;
   syncVoiceButton();
@@ -1874,6 +1902,8 @@ function bindEvents() {
   $('voiceCaptureBtn').addEventListener('pointerup', stopVoiceCapture);
   $('voiceCaptureBtn').addEventListener('pointercancel', stopVoiceCapture);
   $('voiceCaptureBtn').addEventListener('click', (event) => event.preventDefault());
+  $('voiceCaptureBtn').addEventListener('contextmenu', (event) => event.preventDefault());
+  $('voiceCaptureBtn').addEventListener('selectstart', (event) => event.preventDefault());
 
   $('plusBtn').onclick = () => {
     $('plusMenu').classList.toggle('hidden');
