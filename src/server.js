@@ -14,7 +14,6 @@ const {
 } = require('./rules');
 const { searchRegions } = require('./regions');
 const { upsertSession, getSession, saveArchive, getArchive, getArchives, deleteArchive } = require('./store');
-const { buildArchivePdf } = require('./pdf');
 const { summarizeFile, buildSummarySlotHints } = require('./file-summary');
 const {
   classifyComplaint,
@@ -90,6 +89,12 @@ function getFallbackNextQuestion(session) {
   return (session.scenario?.questions || []).find((question) => !asked.has(question.id)) || null;
 }
 
+function isSlotFilled(session, slot) {
+  if (!slot) return false;
+  const slotState = session.followUp?.slotState || {};
+  return Boolean(slotState[slot]?.answer);
+}
+
 async function resolveNextQuestion(session, options = {}) {
   const asked = getAskedQuestionIds(session);
   const slotCatalog = getScenarioSlotCatalog(session.scenario || {});
@@ -104,7 +109,8 @@ async function resolveNextQuestion(session, options = {}) {
       };
     })
     .filter(Boolean)
-    .filter((question) => !asked.includes(question.id));
+    .filter((question) => !asked.includes(question.id))
+    .filter((question) => !isSlotFilled(session, question.slot));
   const config = getFollowUpConfig(session);
   const stepCount = Number(session.followUp?.stepCount || 0);
 
@@ -286,6 +292,23 @@ function mergeSlotHintsIntoState(existingState = {}, hints = [], sourcePrefix = 
   }
 
   return slotState;
+}
+
+function buildInsightSlotHints(insight = {}, sourceText = '') {
+  if (!insight || !Array.isArray(insight.relevantSlots) || !insight.relevantSlots.length) {
+    return [];
+  }
+  const answer = Array.isArray(insight.normalizedFacts) && insight.normalizedFacts.length
+    ? insight.normalizedFacts.join('；')
+    : (insight.summary || sourceText || '').trim();
+
+  return insight.relevantSlots
+    .filter(Boolean)
+    .map((slot) => ({
+      slot,
+      slotLabel: slot,
+      answer,
+    }));
 }
 
 async function buildScenarioRoute(chiefComplaint = '') {
@@ -722,6 +745,14 @@ app.post('/triage/message', async (req, res) => {
   const updatedSession = upsertSession(sessionId, {
     supplements,
     supplementInsights,
+    followUp: {
+      ...(session.followUp || {}),
+      slotState: mergeSlotHintsIntoState(
+        session.followUp?.slotState || {},
+        buildInsightSlotHints(insight, text),
+        'open'
+      ),
+    },
     openTurns,
     triageResult: null,
   });
@@ -746,7 +777,8 @@ app.post('/triage/message', async (req, res) => {
       };
     })
     .filter(Boolean)
-    .filter((item) => !asked.includes(item.id));
+    .filter((item) => !asked.includes(item.id))
+    .filter((item) => !isSlotFilled(updatedSession, item.slot));
 
   const openPlan = await planOpenInterviewTurn(updatedSession, text, candidates, {
     openTurns,
@@ -896,6 +928,14 @@ app.post('/triage/supplement', async (req, res) => {
   const updated = upsertSession(sessionId, {
     supplements,
     supplementInsights,
+    followUp: {
+      ...(session.followUp || {}),
+      slotState: mergeSlotHintsIntoState(
+        session.followUp?.slotState || {},
+        buildInsightSlotHints(insight, text),
+        'supplement'
+      ),
+    },
     triageResult: null,
   });
   return res.json({
@@ -1134,6 +1174,9 @@ app.post('/archive/upload', upload.array('files', 10), (req, res) => {
     userId,
     sessionId: sessionId || null,
     summary: summary || triageResult?.layeredOutput?.core?.text || '就医记录',
+    summaryText: triageResult?.layeredOutput?.core?.text || '',
+    likelyType: triageResult?.layeredOutput?.core?.possibleTypes?.[0] || '',
+    severityText: triageResult?.layeredOutput?.core?.severityText || '',
     doctorAdvice: doctorAdvice || '',
     department: triageResult?.layeredOutput?.core?.suggestDepartment || '',
     costRange: triageResult?.layeredOutput?.core?.firstCostRange || '',
@@ -1186,19 +1229,6 @@ app.delete('/archive/:userId/:recordId', (req, res) => {
   const { userId, recordId } = req.params;
   const records = deleteArchive(userId, recordId);
   return res.json({ ok: true, total: records.length, records });
-});
-
-app.get('/archive/export', (req, res) => {
-  const userId = req.query.userId || 'guest';
-  const recordId = req.query.recordId;
-  const records = getArchives(userId);
-
-  const target = recordId ? records.find((r) => r.id === recordId) : records[0];
-  if (!target) {
-    return res.status(404).json({ error: 'record not found' });
-  }
-
-  buildArchivePdf(target, res);
 });
 
 app.get('*', (_req, res) => {

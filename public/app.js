@@ -19,6 +19,7 @@ const state = {
   composerMode: 'text',
   speechRecognition: null,
   speechListening: false,
+  speechPressing: false,
   speechBuffer: '',
   autoLocateTried: false,
   followUpProgress: null,
@@ -465,6 +466,7 @@ function resetConversation() {
   state.activeChoiceBlock = null;
   state.autoLocateTried = false;
   state.speechListening = false;
+  state.speechPressing = false;
   state.speechBuffer = '';
   state.followUpProgress = null;
   state.generationReady = false;
@@ -499,7 +501,7 @@ function updateRecordsDialogCopy() {
   syncAuthUi();
   const browseMode = state.recordsMode !== 'context';
   $('recordsSubcopy').textContent = browseMode
-    ? '这里会保存你之前的总结、材料和导出记录。'
+    ? '这里会保存你之前的总结和相关材料。'
     : '选择一条之前保存的记录，发到当前对话里，作为这次咨询的补充上下文。';
   $('listRecordsBtn').textContent = browseMode ? '刷新列表' : '刷新记录';
 }
@@ -528,10 +530,10 @@ async function startSymptomSession(symptomText) {
   state.followUpProgress = data.progress || null;
   $('quickRow').classList.add('hidden');
 
-  if (data.assistantReply) {
-    await addBotText(data.assistantReply);
-  }
   if (data.conversationStage === 'closed') {
+    if (data.assistantReply) {
+      await addBotText(data.assistantReply);
+    }
     state.currentPrompt = null;
     state.currentQuestion = null;
     setComposerState('symptom');
@@ -549,7 +551,7 @@ async function startSymptomSession(symptomText) {
     return;
   }
 
-  await addBotText('我先问你几个关键问题。');
+  await addBotText('为了更准确地帮你分析，需要你回答几个问题。');
   await askQuestion(data.nextQuestion);
 }
 
@@ -625,6 +627,7 @@ async function continueOpenConversation(value) {
     state.currentQuestion = null;
     state.conversationStage = 'structured';
     state.followUpProgress = data.progress || null;
+    await addBotText('为了更准确地帮你分析，需要你回答几个问题。');
     await askQuestion(data.nextQuestion);
     return;
   }
@@ -1378,7 +1381,6 @@ async function renderResultCards() {
   const medicationAdvice = triage.detail.medicationAdvice || [];
   const visitAdvice = triage.detail.visitAdvice || [];
   const examAdvice = triage.detail.examAdvice || [];
-  const primaryActionText = needsBooking ? '去挂号' : '查看完整建议';
   const summaryHtml = [
     '<div class="summary-card">',
     '<div class="summary-top">',
@@ -1388,7 +1390,6 @@ async function renderResultCards() {
     possibleTypes[1] ? `<p class="summary-text">${escapeHtml(possibleTypes[1])}</p>` : '',
     triage.core.personalizedText ? `<p class="summary-subtext">${escapeHtml(triage.core.personalizedText)}</p>` : '',
     triage.core.severityText ? `<p class="summary-subtext">${escapeHtml(triage.core.severityText)}</p>` : '',
-    triage.core.userGoal ? `<p class="summary-subtext">这次你更想解决的是：${escapeHtml(triage.core.userGoal)}</p>` : '',
     `<div class="summary-next"><span class="summary-next-label">现在更建议</span><strong>${escapeHtml(triage.core.text || '')}</strong></div>`,
     buildInsightChipHtml(slotHighlights.slice(0, 3), 'summary-slot-chips'),
     '</div>',
@@ -1403,35 +1404,9 @@ async function renderResultCards() {
     needsCost ? `<div class="summary-metric"><span class="summary-label">首轮费用</span><strong>${escapeHtml(triage.core.firstCostRange)}</strong></div>` : '',
     needsCost ? `<div class="summary-metric"><span class="summary-label">医保参考</span><strong>${escapeHtml(cost.simple.insuranceCoverage)}</strong></div>` : '',
     '</div>',
-    '<div class="summary-actions">',
-    `<button class="result-action primary" data-action="summary-primary">${escapeHtml(primaryActionText)}</button>`,
-    '<button class="result-action" data-action="summary-expand">查看完整建议</button>',
-    '<button class="result-action" data-action="summary-share">分享给家属</button>',
-    '</div>',
     '</div>',
   ].join('');
   const summaryRow = markResultRow(addRow('bot', summaryHtml, 'summary-shell'));
-  summaryRow.querySelector('[data-action="summary-primary"]').onclick = () => {
-    state.resultViewMode = 'full';
-    state.resultAnchor = needsBooking ? 'booking' : 'summary';
-    setResultViewMode('full');
-    requestAnimationFrame(() => {
-      if (needsBooking) {
-        document.querySelector('[data-booking-card="true"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      } else {
-        summaryRow.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
-    });
-  };
-  summaryRow.querySelector('[data-action="summary-expand"]').onclick = () => {
-    document.querySelectorAll('.result-collapse').forEach((node) => {
-      node.open = true;
-    });
-    setResultViewMode('full');
-  };
-  summaryRow.querySelector('[data-action="summary-share"]').onclick = () => {
-    shareCurrentSummary().catch((err) => alert(err.message));
-  };
   summaryRow.querySelectorAll('[data-mode-toggle]').forEach((button) => {
     button.onclick = () => {
       const mode = button.dataset.modeToggle;
@@ -1444,12 +1419,12 @@ async function renderResultCards() {
     buildAdviceListHtml(visitAdvice.length ? visitAdvice : [triage.core.text || '先继续观察变化']),
     'strong'
   );
-  actionCard.dataset.resultView = 'simple';
+  actionCard.dataset.resultView = 'full';
 
   let selfCareCard = null;
   if (selfCareAdvice.length) {
     selfCareCard = buildResultCard('先自己怎么处理', buildAdviceListHtml(selfCareAdvice));
-    selfCareCard.dataset.resultView = 'simple';
+    selfCareCard.dataset.resultView = 'full';
   }
 
   let medicationCard = null;
@@ -1458,19 +1433,20 @@ async function renderResultCards() {
       '用药建议',
       buildAdviceListHtml(medicationAdvice, '测试期建议仅供参考，最好结合既往病史和说明书一起看。')
     );
-    medicationCard.dataset.resultView = 'simple';
+    medicationCard.dataset.resultView = 'full';
+    medicationCard.dataset.medicationCard = 'true';
   }
 
   let essentialChecks = null;
   if (examAdvice.length || needsBooking || needsCost) {
     essentialChecks = buildResultCard('第一步检查', `${buildAdviceListHtml(examAdvice)}${firstChecks}`, 'strong');
-    essentialChecks.dataset.resultView = 'simple';
+    essentialChecks.dataset.resultView = 'full';
   }
 
   let essentialCost = null;
   if (needsCost) {
     essentialCost = buildResultCard('费用与医保', costItems);
-    essentialCost.dataset.resultView = 'simple';
+    essentialCost.dataset.resultView = 'full';
     attachInsuranceActions(essentialCost);
   }
 
@@ -1487,30 +1463,21 @@ async function renderResultCards() {
   }
   const riskCard = buildCollapsibleResultCard('风险提醒', '有胸痛加重或呼吸困难要尽快急诊', `<ul>${riskItems}</ul>`, 'risk');
   riskCard.dataset.resultView = 'full';
-  const detailCard = buildCollapsibleResultCard(
-    '为什么这样建议',
-    '查看具体判断逻辑和后续路径',
-    [
-      `<div class="result-card-title-wrap"><h3>为什么这样建议</h3><p>${escapeHtml(triage.detail.whyDepartment)}</p></div>`,
-      slotHighlights.length ? `<div class="detail-section"><h4>这次主要抓到的线索</h4>${buildInsightChipHtml(slotHighlights)}</div>` : '',
-      personalizedTips.length ? `<div class="detail-section"><h4>小科特别提醒</h4>${buildInsightChipHtml(personalizedTips)}</div>` : '',
-      `<ul>${detailItems}</ul>`,
-    ].join('')
-  );
-  detailCard.dataset.resultView = 'full';
 
   const actionButtons = state.sharedView
     ? [
-        needsBooking ? '<button class="result-action primary" data-action="booking">去挂号</button>' : '<button class="result-action primary" data-action="expand">查看完整建议</button>',
+        needsBooking ? '<button class="result-action primary" data-action="booking">去挂号</button>' : '',
+        medicationAdvice.length ? '<button class="result-action primary" data-action="medication">推荐用药</button>' : '',
+        '<button class="result-action" data-action="deep">深度探讨</button>',
         '<button class="result-action" data-action="share">分享给家属</button>',
-      ]
+      ].filter(Boolean)
     : [
-        needsBooking ? '<button class="result-action primary" data-action="booking">去挂号</button>' : '<button class="result-action primary" data-action="expand">查看完整建议</button>',
+        needsBooking ? '<button class="result-action primary" data-action="booking">去挂号</button>' : '',
+        medicationAdvice.length ? '<button class="result-action primary" data-action="medication">推荐用药</button>' : '',
+        '<button class="result-action" data-action="deep">深度探讨</button>',
         '<button class="result-action" data-action="save">保存记录</button>',
         '<button class="result-action" data-action="share">分享给家属</button>',
-        '<button class="result-action" data-action="records">查看记录</button>',
-        '<button class="result-action" data-action="restart">重新咨询</button>',
-      ];
+      ].filter(Boolean);
   const actionRow = markResultRow(addRow(
     'bot',
     [
@@ -1525,7 +1492,7 @@ async function renderResultCards() {
       '</div>',
     ].join('')
   ));
-  actionRow.dataset.resultView = 'simple';
+  actionRow.dataset.resultView = 'full';
   if (actionRow.querySelector('[data-action="booking"]')) {
     actionRow.querySelector('[data-action="booking"]').onclick = () => {
       state.resultViewMode = 'full';
@@ -1536,12 +1503,20 @@ async function renderResultCards() {
       });
     };
   }
-  if (actionRow.querySelector('[data-action="expand"]')) {
-    actionRow.querySelector('[data-action="expand"]').onclick = () => {
-      document.querySelectorAll('.result-collapse').forEach((node) => {
-        node.open = true;
-      });
+  if (actionRow.querySelector('[data-action="medication"]')) {
+    actionRow.querySelector('[data-action="medication"]').onclick = () => {
+      state.resultViewMode = 'full';
       setResultViewMode('full');
+      requestAnimationFrame(() => {
+        document.querySelector('[data-medication-card="true"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    };
+  }
+  if (actionRow.querySelector('[data-action="deep"]')) {
+    actionRow.querySelector('[data-action="deep"]').onclick = async () => {
+      setResultViewMode('full');
+      await addBotText('你可以继续追问，我会沿着这次咨询的上下文继续分析。');
+      $('composerInput').focus();
     };
   }
   if (actionRow.querySelector('[data-action="save"]')) {
@@ -1552,17 +1527,6 @@ async function renderResultCards() {
   actionRow.querySelector('[data-action="share"]').onclick = () => {
     shareCurrentSummary().catch((err) => alert(err.message));
   };
-  if (actionRow.querySelector('[data-action="records"]')) {
-    actionRow.querySelector('[data-action="records"]').onclick = () => {
-      openRecordsDialog('browse').catch((err) => alert(err.message));
-    };
-  }
-  if (actionRow.querySelector('[data-action="restart"]')) {
-    actionRow.querySelector('[data-action="restart"]').onclick = () => {
-      resetConversation();
-    };
-  }
-
   setResultViewMode(state.resultViewMode || 'simple');
   requestAnimationFrame(() => {
     if (state.resultAnchor === 'booking') {
@@ -1614,10 +1578,10 @@ async function handlePickedFile(file, label) {
     state.followUpProgress = data.progress || null;
     $('quickRow').classList.add('hidden');
     buildReportSummaryCard(data.file.summary, data.file.path);
-    if (data.assistantReply) {
-      await addBotText(data.assistantReply);
-    }
     if (data.conversationStage === 'closed') {
+      if (data.assistantReply) {
+        await addBotText(data.assistantReply);
+      }
       state.currentPrompt = null;
       state.currentQuestion = null;
       setComposerState('symptom');
@@ -1634,7 +1598,7 @@ async function handlePickedFile(file, label) {
       setComposerState('symptom');
       return;
     }
-    await addBotText('我先根据这份材料继续问你几个关键问题。');
+    await addBotText('为了更准确地帮你分析，需要你回答几个问题。');
     await askQuestion(data.nextQuestion);
     return;
   }
@@ -1695,16 +1659,22 @@ function ensureSpeechRecognition() {
   recognition.onresult = (event) => {
     const transcript = event.results?.[0]?.[0]?.transcript?.trim();
     if (!transcript) return;
-    state.speechBuffer = transcript;
+    state.speechBuffer = `${state.speechBuffer} ${transcript}`.trim();
     $('composerInput').value = transcript;
   };
   recognition.onend = () => {
+    if (state.speechPressing) {
+      try {
+        recognition.start();
+        return;
+      } catch (_error) {
+      }
+    }
     state.speechListening = false;
+    state.speechPressing = false;
     syncVoiceButton();
     const transcript = state.speechBuffer.trim();
     state.speechBuffer = '';
-    if (state.composerMode === 'voice') {
-    }
     if (transcript) {
       $('composerInput').value = transcript;
       setComposerMode('text');
@@ -1713,6 +1683,7 @@ function ensureSpeechRecognition() {
   };
   recognition.onerror = () => {
     state.speechListening = false;
+    state.speechPressing = false;
     syncVoiceButton();
   };
   state.speechRecognition = recognition;
@@ -1733,6 +1704,7 @@ function startVoiceCapture(event) {
   }
 
   state.speechBuffer = '';
+  state.speechPressing = true;
   state.speechListening = true;
   syncVoiceButton();
   try {
@@ -1749,11 +1721,13 @@ function stopVoiceCapture(event) {
     return;
   }
 
+  state.speechPressing = false;
   const recognition = ensureSpeechRecognition();
   if (recognition) {
     recognition.stop();
   } else {
     state.speechListening = false;
+    state.speechPressing = false;
     syncVoiceButton();
   }
 }
@@ -1790,9 +1764,10 @@ async function sendRecordAsContext(record) {
   state.supplementCount += 1;
   addStatusPill(getSupplementStatusText());
   $('recordsDialog').close();
-  await addBotText(`我已经把这条历史记录加到这次咨询的上下文里了：${buildRecordContextPreview(record) || '已补充历史记录'}`);
-  if (supplementResult.insight?.summary) {
-    await addBotText(`我补充理解到：${supplementResult.insight.summary}`);
+  await addBotText(`这条历史记录已经并到当前咨询里了：${buildRecordContextPreview(record) || '已补充历史记录'}`);
+  if (state.triageResult && supplementResult.refreshSummary) {
+    await directResult();
+    return;
   }
   if (state.generationReady) {
     await showGenerationConfirmCard('历史记录已经补进来了。你还可以继续补充，或者现在直接生成总结。');
@@ -1812,30 +1787,18 @@ async function listRecords() {
   data.records.forEach((record) => {
     const item = document.createElement('div');
     item.className = 'record-item';
-    const fileCount = Array.isArray(record.files) ? record.files.length : 0;
-    const reportCount = (record.files || []).filter((file) => file.summary?.title).length;
+    const leadText = record.likelyType || record.department || '历史咨询';
+    const summaryText = record.summaryText || record.summary || '-';
     item.innerHTML = [
       '<div class="record-top">',
       `<div><div class="record-tags"><span class="record-tag">历史记录</span>${record.department ? `<span class="record-tag subtle">${escapeHtml(record.department)}</span>` : ''}</div><p class="record-title">${escapeHtml(
-        record.summary || '-'
-      )}</p></div>`,
+        leadText
+      )}</p><p class="record-snippet">${escapeHtml(summaryText)}</p></div>`,
       `<span class="record-time">${escapeHtml((record.createdAt || '-').slice(0, 16).replace('T', ' '))}</span>`,
       '</div>',
-      '<div class="record-metrics">',
-      `<div class="record-metric"><span>首轮费用</span><strong>${escapeHtml(record.costRange || '-')}</strong></div>`,
-      `<div class="record-metric"><span>材料数量</span><strong>${fileCount} 份</strong></div>`,
-      `<div class="record-metric"><span>摘要材料</span><strong>${reportCount} 份</strong></div>`,
-      '</div>',
-      record.firstChecks?.length
-        ? `<div class="record-checks">${record.firstChecks
-            .slice(0, 3)
-            .map((item) => `<span class="record-chip">${escapeHtml(item.name)}</span>`)
-            .join('')}</div>`
-        : '',
       '<div class="record-actions">',
       `<button class="record-action" data-detail="${record.id}">查看详情</button>`,
       state.recordsMode === 'context' ? `<button class="record-action" data-send-context="${record.id}">发送到当前对话</button>` : '',
-      `<a class="record-action" target="_blank" href="/archive/export?userId=${encodeURIComponent(state.auth.userId)}&recordId=${record.id}">导出 PDF</a>`,
       `<button class="record-action" data-delete="${record.id}">删除</button>`,
       '</div>',
     ].join('');
@@ -1864,7 +1827,8 @@ function openRecordDetail(record) {
     `<div class="record-tags"><span class="record-tag">记录详情</span>${record.department ? `<span class="record-tag subtle">${escapeHtml(
       record.department
     )}</span>` : ''}</div>`,
-    `<p class="record-title">${escapeHtml(record.summary || '-')}</p>`,
+    `<p class="record-title">${escapeHtml(record.likelyType || record.department || '本次咨询')}</p>`,
+    (record.summaryText || record.summary) ? `<div class="detail-section"><h4>小科总结</h4><p>${escapeHtml(record.summaryText || record.summary)}</p></div>` : '',
     '<div class="record-metrics">',
     `<div class="record-metric"><span>首轮费用</span><strong>${escapeHtml(record.costRange || '-')}</strong></div>`,
     `<div class="record-metric"><span>保存时间</span><strong>${escapeHtml((record.createdAt || '-').slice(0, 16).replace('T', ' '))}</strong></div>`,
@@ -1909,7 +1873,6 @@ function bindEvents() {
   $('voiceCaptureBtn').addEventListener('pointerdown', startVoiceCapture);
   $('voiceCaptureBtn').addEventListener('pointerup', stopVoiceCapture);
   $('voiceCaptureBtn').addEventListener('pointercancel', stopVoiceCapture);
-  $('voiceCaptureBtn').addEventListener('pointerleave', stopVoiceCapture);
   $('voiceCaptureBtn').addEventListener('click', (event) => event.preventDefault());
 
   $('plusBtn').onclick = () => {

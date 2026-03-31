@@ -1270,6 +1270,13 @@ body {
   color: var(--text);
 }
 
+.record-snippet {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
 .record-time {
   flex: 0 0 auto;
   color: var(--muted);
