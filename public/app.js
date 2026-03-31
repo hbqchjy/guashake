@@ -169,7 +169,7 @@ function speakGesturePrompt(text) {
 
 function speakBotText(text) {
   if (!state.speechSynthesisEnabled || !('speechSynthesis' in window)) return;
-  if (state.isWeChat && !state.speechPlaybackAllowed) return;
+  if (state.isWeChat) return;
   const content = String(text || '').trim();
   if (!content) return;
   if (!state.speechSynthesisPrimed) {
@@ -197,28 +197,11 @@ function speakBotText(text) {
 function renderComposerHint() {
   const hint = $('composerHint');
   if (!hint) return;
-
-  if (state.composerMode === 'voice' && state.isWeChat) {
-    hint.classList.remove('hidden');
-    if (state.speechPlaybackAllowed) {
-      hint.innerHTML = '<span class="composer-hint-copy">语音回复已开启，后面会尽量自动播报。</span>';
-      return;
-    }
-    hint.innerHTML = [
-      '<span class="composer-hint-copy">微信里首次需要手动开启语音回复。</span>',
-      '<button id="enableVoiceReplyBtn" class="composer-hint-btn" type="button">开启语音回复</button>',
-    ].join('');
-    return;
-  }
-
   hint.innerHTML = '';
   hint.classList.add('hidden');
 }
 
 function enableSpeechPlaybackByGesture() {
-  state.speechPlaybackAllowed = true;
-  primeSpeechPlayback();
-  speakGesturePrompt('语音回复已开启');
   renderComposerHint();
 }
 
@@ -378,7 +361,7 @@ async function typeTextInto(node, text) {
   for (let i = 0; i < chars.length; i += 1) {
     node.textContent += chars[i];
     if (i < chars.length - 1) {
-      await wait(/[，。！？；：,.!?]/.test(chars[i]) ? 50 : 18);
+      await wait(/[，。！？；：,.!?]/.test(chars[i]) ? 26 : 8);
     }
   }
 }
@@ -389,7 +372,7 @@ async function addBotText(text) {
     const row = addRow('bot', '<p></p>');
     const p = row.querySelector('p');
     row.classList.add('is-typing');
-    await wait(180);
+    await wait(80);
     await typeTextInto(p, text);
     row.classList.remove('is-typing');
     speakBotText(text);
