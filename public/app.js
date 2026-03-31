@@ -1991,34 +1991,34 @@ async function handleComposerSubmit() {
 }
 
 function bindEvents() {
-  $('sendBtn').onclick = () => {
+  $('sendBtn')?.addEventListener('click', () => {
     handleComposerSubmit().catch((err) => alert(err.message));
-  };
+  });
 
-  $('modeToggleBtn').onclick = () => {
+  $('modeToggleBtn')?.addEventListener('click', () => {
     setComposerMode(state.composerMode === 'text' ? 'voice' : 'text');
-  };
+  });
 
-  $('voiceCaptureBtn').addEventListener('pointerdown', startVoiceCapture);
-  $('voiceCaptureBtn').addEventListener('pointerup', stopVoiceCapture);
-  $('voiceCaptureBtn').addEventListener('pointercancel', stopVoiceCapture);
-  $('voiceCaptureBtn').addEventListener('mousedown', startVoiceCapture);
-  $('voiceCaptureBtn').addEventListener('mouseup', stopVoiceCapture);
-  $('voiceCaptureBtn').addEventListener('touchstart', startVoiceCapture, { passive: false });
-  $('voiceCaptureBtn').addEventListener('touchend', stopVoiceCapture, { passive: false });
-  $('voiceCaptureBtn').addEventListener('touchcancel', stopVoiceCapture, { passive: false });
-  $('voiceCaptureBtn').addEventListener('click', (event) => event.preventDefault());
-  $('voiceCaptureBtn').addEventListener('contextmenu', (event) => event.preventDefault());
-  $('voiceCaptureBtn').addEventListener('selectstart', (event) => event.preventDefault());
+  $('voiceCaptureBtn')?.addEventListener('pointerdown', startVoiceCapture);
+  $('voiceCaptureBtn')?.addEventListener('pointerup', stopVoiceCapture);
+  $('voiceCaptureBtn')?.addEventListener('pointercancel', stopVoiceCapture);
+  $('voiceCaptureBtn')?.addEventListener('mousedown', startVoiceCapture);
+  $('voiceCaptureBtn')?.addEventListener('mouseup', stopVoiceCapture);
+  $('voiceCaptureBtn')?.addEventListener('touchstart', startVoiceCapture, { passive: false });
+  $('voiceCaptureBtn')?.addEventListener('touchend', stopVoiceCapture, { passive: false });
+  $('voiceCaptureBtn')?.addEventListener('touchcancel', stopVoiceCapture, { passive: false });
+  $('voiceCaptureBtn')?.addEventListener('click', (event) => event.preventDefault());
+  $('voiceCaptureBtn')?.addEventListener('contextmenu', (event) => event.preventDefault());
+  $('voiceCaptureBtn')?.addEventListener('selectstart', (event) => event.preventDefault());
   document.addEventListener('selectionchange', () => {
     if (state.speechPressing) {
       clearBrowserSelection();
     }
   });
 
-  $('plusBtn').onclick = () => {
+  $('plusBtn')?.addEventListener('click', () => {
     $('plusMenu').classList.toggle('hidden');
-  };
+  });
 
   $('plusMenu').querySelectorAll('[data-menu-action]').forEach((button) => {
     button.onclick = () => {
@@ -2038,7 +2038,7 @@ function bindEvents() {
   $('cameraInput').onchange = (event) => handlePickedFile(event.target.files?.[0], '拍照').catch((err) => alert(err.message));
   $('imageInput').onchange = (event) => handlePickedFile(event.target.files?.[0], '相册').catch((err) => alert(err.message));
 
-  $('composerInput').addEventListener('keydown', (event) => {
+  $('composerInput')?.addEventListener('keydown', (event) => {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
       $('sendBtn').click();
@@ -2051,25 +2051,25 @@ function bindEvents() {
     }
   });
 
-  $('closeRecordsBtn').onclick = () => $('recordsDialog').close();
-  $('closeRecordDetailBtn').onclick = () => $('recordDetailDialog').close();
-  $('closeLoginBtn').onclick = () => {
+  $('closeRecordsBtn')?.addEventListener('click', () => $('recordsDialog').close());
+  $('closeRecordDetailBtn')?.addEventListener('click', () => $('recordDetailDialog').close());
+  $('closeLoginBtn')?.addEventListener('click', () => {
     pendingAfterLogin = null;
     $('loginDialog').close();
-  };
-  $('closeShareGuideBtn').onclick = () => $('shareGuideDialog').close();
-  $('recordsLoginBtn').onclick = () => {
+  });
+  $('closeShareGuideBtn')?.addEventListener('click', () => $('shareGuideDialog').close());
+  $('recordsLoginBtn')?.addEventListener('click', () => {
     requireLogin(async () => {
       syncAuthUi();
       await listRecords();
     }).catch((err) => alert(err.message));
-  };
-  $('wechatLoginBtn').onclick = () => {
+  });
+  $('wechatLoginBtn')?.addEventListener('click', () => {
     performWechatLogin().catch((err) => alert(err.message));
-  };
-  $('listRecordsBtn').onclick = () => {
+  });
+  $('listRecordsBtn')?.addEventListener('click', () => {
     listRecords().catch((err) => alert(err.message));
-  };
+  });
 }
 
 async function loadSharedSession(sessionId) {
