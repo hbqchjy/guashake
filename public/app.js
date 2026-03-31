@@ -139,6 +139,32 @@ function primeSpeechPlayback() {
   }
 }
 
+function speakGesturePrompt(text) {
+  if (!('speechSynthesis' in window)) return;
+  const content = String(text || '').trim();
+  if (!content) return;
+  try {
+    stopSpeechPlayback();
+    window.speechSynthesis.resume?.();
+    const utterance = new SpeechSynthesisUtterance(content);
+    utterance.lang = 'zh-CN';
+    utterance.rate = 1;
+    const preferred = getPreferredSpeechVoice();
+    if (preferred) {
+      utterance.voice = preferred;
+    }
+    utterance.onend = () => {
+      state.speechSynthesisPrimed = true;
+    };
+    utterance.onerror = () => {
+      state.speechSynthesisPrimed = false;
+    };
+    window.speechSynthesis.speak(utterance);
+  } catch (_error) {
+    state.speechSynthesisPrimed = false;
+  }
+}
+
 function speakBotText(text) {
   if (!state.speechSynthesisEnabled || !('speechSynthesis' in window)) return;
   const content = String(text || '').trim();
@@ -524,6 +550,9 @@ function setComposerMode(mode) {
   syncVoiceButton();
   if (isVoice) {
     primeSpeechPlayback();
+    if (previousMode !== 'voice') {
+      speakGesturePrompt('语音模式已开启');
+    }
   }
   if (!isVoice) {
     stopSpeechPlayback();
@@ -1517,7 +1546,7 @@ async function renderResultCards() {
   }
 
   let essentialChecks = null;
-  if (requiresClinicalVisit && (examAdvice.length || (triage.core.firstChecks || []).length)) {
+  if (needsBooking && (examAdvice.length || (triage.core.firstChecks || []).length)) {
     essentialChecks = buildResultCard('第一步检查', `${buildAdviceListHtml(examAdvice)}${firstChecks}`, 'strong');
     essentialChecks.dataset.resultView = 'full';
   }
@@ -1545,14 +1574,18 @@ async function renderResultCards() {
 
   const actionButtons = state.sharedView
     ? [
-        needsBooking ? '<button class="result-action primary" data-action="booking">去挂号</button>' : '',
-        `<button class="result-action ${needsBooking ? '' : 'primary'}" data-action="deep">继续咨询</button>`,
+        needsBooking
+          ? '<button class="result-action primary is-default" data-action="booking">去挂号</button>'
+          : '<button class="result-action primary is-default" data-action="deep">继续咨询</button>',
+        needsBooking ? '<button class="result-action" data-action="deep">继续咨询</button>' : '',
         '<button class="result-action" data-action="restart">新的咨询</button>',
         '<button class="result-action" data-action="share">分享结果</button>',
       ].filter(Boolean)
     : [
-        needsBooking ? '<button class="result-action primary" data-action="booking">去挂号</button>' : '',
-        `<button class="result-action ${needsBooking ? '' : 'primary'}" data-action="deep">继续咨询</button>`,
+        needsBooking
+          ? '<button class="result-action primary is-default" data-action="booking">去挂号</button>'
+          : '<button class="result-action primary is-default" data-action="deep">继续咨询</button>',
+        needsBooking ? '<button class="result-action" data-action="deep">继续咨询</button>' : '',
         '<button class="result-action" data-action="restart">新的咨询</button>',
         '<button class="result-action" data-action="save">保存记录</button>',
         '<button class="result-action" data-action="share">分享结果</button>',
@@ -2025,15 +2058,6 @@ function bindEvents() {
     $('loginDialog').close();
   };
   $('closeShareGuideBtn').onclick = () => $('shareGuideDialog').close();
-  $('copyShareLinkBtn').onclick = async () => {
-    try {
-      await navigator.clipboard.writeText(state.shareUrl || window.location.href);
-      $('shareGuideDialog').close();
-      await addBotText('备用链接已经复制好了。如果微信菜单分享不方便，再把链接发给家属。');
-    } catch (_error) {
-      alert('复制失败，请直接用微信右上角菜单分享。');
-    }
-  };
   $('recordsLoginBtn').onclick = () => {
     requireLogin(async () => {
       syncAuthUi();

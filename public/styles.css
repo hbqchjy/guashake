@@ -835,6 +835,10 @@ body {
   border: 1px solid var(--brand-dark);
 }
 
+.result-action.is-default {
+  box-shadow: 0 10px 22px rgba(7, 193, 96, 0.18);
+}
+
 .record-action.disabled {
   opacity: 0.58;
   cursor: not-allowed;
