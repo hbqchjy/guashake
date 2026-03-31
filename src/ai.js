@@ -165,6 +165,11 @@ async function analyzeInitialTurn(userMessage, scenarios) {
 async function classifyConversationTurn(session, userMessage) {
   if (!isConfigured()) return null;
 
+  const ruleIntent = detectTurnIntentByRule(session, userMessage);
+  if (ruleIntent) {
+    return ruleIntent;
+  }
+
   const prompt = [
     '你是“小科”的对话意图判断器。',
     '任务：判断用户这条新消息，在当前医疗咨询上下文里属于哪一类。',
@@ -205,6 +210,83 @@ async function classifyConversationTurn(session, userMessage) {
     reply: String(parsed.reply || '').trim(),
     reason: String(parsed.reason || '').trim(),
   };
+}
+
+function detectMedicalDomainText(text = '') {
+  const normalized = String(text || '').toLowerCase();
+  const domains = [
+    ['sleep', /(失眠|睡不着|入睡难|易醒|早醒|睡眠|睡不好)/],
+    ['sexual', /(做爱|同房|早泄|勃起|射精|性功能|性欲|性生活)/],
+    ['digestive', /(胃|肚子|腹|胀|反酸|烧心|恶心|呕吐|拉肚子|腹泻|便秘|消化)/],
+    ['cardio', /(心慌|胸闷|胸痛|心跳|血压|心口)/],
+    ['respiratory', /(咳嗽|咳痰|喘|呼吸|鼻塞|流鼻涕|喉咙|咽痛)/],
+    ['urinary', /(尿频|尿急|尿痛|小便|排尿|前列腺|尿)/],
+    ['neuro', /(头晕|头痛|麻木|乏力|站不稳|眩晕)/],
+    ['musculoskeletal', /(腰酸|腰痛|背痛|腿麻|腿痛|关节|扭伤|骨头)/],
+    ['skin', /(皮肤|疹子|瘙痒|红肿|伤口|外伤)/],
+  ];
+  const matched = domains.find(([, pattern]) => pattern.test(normalized));
+  return matched ? matched[0] : '';
+}
+
+function detectTurnIntentByRule(session, userMessage) {
+  const text = String(userMessage || '').trim();
+  if (!text) return null;
+
+  if (/(报告|化验单|检查单|检验单|片子|结果单|报告单)/.test(text) && /(发|给你看|帮我看|解读)/.test(text)) {
+    return {
+      intentType: 'report_notice',
+      topicKey: 'report',
+      focusLabel: '报告解读',
+      reply: '可以，直接把检查报告发给我，我按当前这次咨询一起看。',
+      reason: 'rule: report intent',
+    };
+  }
+
+  if (/(吃什么药|买什么药|推荐.*药|用什么药|怎么吃药|药怎么吃|要不要吃药)/.test(text)) {
+    return {
+      intentType: 'medication_question',
+      topicKey: 'medication',
+      focusLabel: '用药顾虑',
+      reply: '',
+      reason: 'rule: medication intent',
+    };
+  }
+
+  if (/(挂什么科|去哪家医院|去哪个医院|怎么挂号|挂号|普通号|专家号)/.test(text)) {
+    return {
+      intentType: 'booking_question',
+      topicKey: 'booking',
+      focusLabel: '挂号医院',
+      reply: '',
+      reason: 'rule: booking intent',
+    };
+  }
+
+  if (/(多少钱|费用|花多少|医保|报销|能报多少)/.test(text)) {
+    return {
+      intentType: 'cost_question',
+      topicKey: 'cost',
+      focusLabel: '费用医保',
+      reply: '',
+      reason: 'rule: cost intent',
+    };
+  }
+
+  const newIssueHint = /(另一个问题|另外一个问题|换个问题|新的问题|顺便问|再问个|还想问|另外想问)/.test(text);
+  const currentDomain = detectMedicalDomainText(`${session?.scenario?.label || ''} ${session?.chiefComplaint || ''}`);
+  const nextDomain = detectMedicalDomainText(text);
+  if (newIssueHint && nextDomain && currentDomain && nextDomain !== currentDomain) {
+    return {
+      intentType: 'new_issue',
+      topicKey: 'new_issue',
+      focusLabel: '新的问题',
+      reply: '这更像另一个新问题。我可以继续聊当前这次情况，也可以帮你重新开始新的咨询。',
+      reason: 'rule: new issue with domain shift',
+    };
+  }
+
+  return null;
 }
 
 function buildAnswerSummary(session) {

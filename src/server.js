@@ -127,24 +127,24 @@ function buildTopicChips(session, triageResult) {
       : null;
 
   if ((detail.selfCareAdvice || []).length || (detail.visitAdvice || []).length) {
-    chips.push({ key: 'care', label: '处理建议' });
+    chips.push({ key: 'care', label: '现在怎么处理' });
   }
   if ((detail.medicationAdvice || []).length) {
-    chips.push({ key: 'medication', label: '用药顾虑' });
+    chips.push({ key: 'medication', label: '用什么药' });
   }
   if (core.needsBooking) {
-    chips.push({ key: 'booking', label: '挂号医院' });
+    chips.push({ key: 'booking', label: '去哪个医院' });
   }
   if (core.needsCost) {
-    chips.push({ key: 'cost', label: '费用医保' });
+    chips.push({ key: 'cost', label: '费用和医保' });
   }
   if ((session?.supplementFiles || []).length) {
-    chips.push({ key: 'report', label: '报告解读' });
+    chips.push({ key: 'report', label: '看检查报告' });
   }
   if (core.needsBooking && ((detail.examAdvice || []).length || (core.firstChecks || []).length)) {
-    chips.push({ key: 'checks', label: '第一步检查' });
+    chips.push({ key: 'checks', label: '要做哪些检查' });
   }
-  chips.push({ key: 'continue', label: '继续追问' });
+  chips.push({ key: 'continue', label: '继续聊当前问题' });
   if (requestedFocus) {
     chips.push(requestedFocus);
   }
@@ -769,6 +769,7 @@ app.post('/triage/message', async (req, res) => {
   if (intentType === 'off_topic') {
     return res.json({
       ok: true,
+      intentType,
       mode: 'text',
       assistantReply: turnIntent?.reply || '这条和当前咨询关系不大，我们先回到你这次不舒服本身。',
       nextPrompt: {
@@ -785,6 +786,7 @@ app.post('/triage/message', async (req, res) => {
     });
     return res.json({
       ok: true,
+      intentType,
       mode: 'text',
       assistantReply: turnIntent?.reply || '可以，直接点左下角加号，把检查报告、相册图片或者拍照发给我就行。',
       nextPrompt: {
@@ -801,6 +803,7 @@ app.post('/triage/message', async (req, res) => {
     });
     return res.json({
       ok: true,
+      intentType,
       mode: 'text',
       assistantReply: turnIntent?.reply || '这更像另一个新问题。如果你想换问题，点“新的咨询”会更清楚。',
       nextPrompt: {
@@ -887,6 +890,7 @@ app.post('/triage/message', async (req, res) => {
     });
     return res.json({
       ok: true,
+      intentType,
       mode: 'confirmation',
       assistantReply: openPlan.assistantReply || '我这边先整理一下，现在可以给你初步总结了。',
       insight,
@@ -923,6 +927,7 @@ app.post('/triage/message', async (req, res) => {
     });
     return res.json({
       ok: true,
+      intentType,
       mode: 'question',
       assistantReply: openPlan.assistantReply || '我大概有方向了，再确认一个关键点。',
       nextQuestion,
@@ -945,6 +950,7 @@ app.post('/triage/message', async (req, res) => {
   });
   return res.json({
     ok: true,
+    intentType,
     mode: 'text',
     assistantReply: openPlan.assistantReply || '我继续了解一下。',
     nextPrompt: {
