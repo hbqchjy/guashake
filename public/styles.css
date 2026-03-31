@@ -1136,37 +1136,6 @@ body.voice-pressing * {
   display: none;
 }
 
-.composer-hint.hidden {
-  display: none;
-}
-
-.composer-hint:not(.hidden) {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin: 8px 4px 0;
-  color: rgba(20, 36, 31, 0.72);
-  font-size: 13px;
-  line-height: 1.4;
-}
-
-.composer-hint-copy {
-  flex: 1;
-}
-
-.composer-hint-btn {
-  flex: 0 0 auto;
-  min-height: 34px;
-  padding: 0 12px;
-  border-radius: 999px;
-  border: 1px solid rgba(7, 193, 96, 0.32);
-  background: rgba(7, 193, 96, 0.1);
-  color: var(--brand-dark);
-  font: inherit;
-  font-weight: 700;
-}
-
 .records-dialog {
   width: min(720px, 96vw);
   border: 1px solid rgba(20, 36, 31, 0.12);

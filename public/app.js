@@ -20,7 +20,6 @@ const state = {
   speechRecognition: null,
   speechSynthesisEnabled: false,
   speechSynthesisPrimed: false,
-  speechPlaybackAllowed: false,
   speechListening: false,
   speechPressing: false,
   speechBuffer: '',
@@ -48,7 +47,6 @@ const state = {
   pendingThinkingRow: null,
   conversationStage: 'idle',
   currentPrompt: null,
-  isWeChat: false,
 };
 
 let botTextQueue = Promise.resolve();
@@ -169,7 +167,6 @@ function speakGesturePrompt(text) {
 
 function speakBotText(text) {
   if (!state.speechSynthesisEnabled || !('speechSynthesis' in window)) return;
-  if (state.isWeChat) return;
   const content = String(text || '').trim();
   if (!content) return;
   if (!state.speechSynthesisPrimed) {
@@ -192,17 +189,6 @@ function speakBotText(text) {
     utterance.voice = preferred;
   }
   window.speechSynthesis.speak(utterance);
-}
-
-function renderComposerHint() {
-  const hint = $('composerHint');
-  if (!hint) return;
-  hint.innerHTML = '';
-  hint.classList.add('hidden');
-}
-
-function enableSpeechPlaybackByGesture() {
-  renderComposerHint();
 }
 
 function isRegionValid(region) {
@@ -361,7 +347,7 @@ async function typeTextInto(node, text) {
   for (let i = 0; i < chars.length; i += 1) {
     node.textContent += chars[i];
     if (i < chars.length - 1) {
-      await wait(/[，。！？；：,.!?]/.test(chars[i]) ? 26 : 8);
+      await wait(/[，。！？；：,.!?]/.test(chars[i]) ? 50 : 18);
     }
   }
 }
@@ -372,7 +358,7 @@ async function addBotText(text) {
     const row = addRow('bot', '<p></p>');
     const p = row.querySelector('p');
     row.classList.add('is-typing');
-    await wait(80);
+    await wait(180);
     await typeTextInto(p, text);
     row.classList.remove('is-typing');
     speakBotText(text);
@@ -548,7 +534,6 @@ async function askQuestion(question, note = '') {
 function setComposerState(mode) {
   state.inputMode = mode;
   $('composerInput').placeholder = '';
-  renderComposerHint();
 }
 
 function setComposerMode(mode) {
@@ -564,10 +549,8 @@ function setComposerMode(mode) {
   $('plusBtn').innerHTML = ICONS.plus;
   syncVoiceButton();
   if (isVoice) {
-    if (!state.isWeChat) {
-      primeSpeechPlayback();
-    }
-    if (previousMode !== 'voice' && !state.isWeChat) {
+    primeSpeechPlayback();
+    if (previousMode !== 'voice') {
       speakGesturePrompt('语音模式已开启');
     }
   }
@@ -578,7 +561,6 @@ function setComposerMode(mode) {
       $('composerInput').value = '';
     }
   }
-  renderComposerHint();
   if (!isVoice) setComposerState(state.inputMode);
 }
 
@@ -2033,11 +2015,6 @@ function bindEvents() {
       clearBrowserSelection();
     }
   });
-  $('composerHint')?.addEventListener('click', (event) => {
-    if (event.target?.id === 'enableVoiceReplyBtn') {
-      enableSpeechPlaybackByGesture();
-    }
-  });
 
   $('plusBtn')?.addEventListener('click', () => {
     $('plusMenu').classList.toggle('hidden');
@@ -2108,8 +2085,6 @@ async function loadSharedSession(sessionId) {
 }
 
 async function bootstrap() {
-  state.isWeChat = /MicroMessenger/i.test(navigator.userAgent || '');
-  state.speechPlaybackAllowed = !state.isWeChat;
   loadAuthState();
   loadSavedRegion();
   if ('speechSynthesis' in window && typeof window.speechSynthesis.onvoiceschanged !== 'undefined') {
