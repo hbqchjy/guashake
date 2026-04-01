@@ -85,6 +85,12 @@ function getUser(userId) {
   return db.users[userId] || null;
 }
 
+
+function getUserByPhone(phone) {
+  const db = ensureCollections(readDb());
+  return Object.values(db.users).find((user) => user.phone === phone) || null;
+}
+
 function createAuthRequest(id, payload) {
   const db = ensureCollections(readDb());
   db.authRequests[id] = {
@@ -136,6 +142,7 @@ module.exports = {
   deleteArchive,
   upsertUser,
   getUser,
+  getUserByPhone,
   createAuthRequest,
   consumeAuthRequest,
   createAuthTicket,

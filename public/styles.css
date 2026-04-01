@@ -1689,3 +1689,11 @@ body.voice-pressing * {
     display: none;
   }
 }
+
+.phone-login-card {
+  gap: 12px;
+}
+
+.phone-login-card input {
+  width: 100%;
+}

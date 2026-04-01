@@ -46,6 +46,7 @@ const state = {
     nickname: '',
     avatarUrl: '',
     openId: '',
+    phone: '',
   },
   recordsMode: 'browse',
   shareUrl: '',
@@ -240,6 +241,7 @@ function loadAuthState() {
         nickname: parsed.nickname || '微信用户',
         avatarUrl: parsed.avatarUrl || '',
         openId: parsed.openId || '',
+        phone: parsed.phone || '',
       };
     }
   } catch (_error) {
@@ -252,6 +254,9 @@ function saveAuthState() {
 
 function getAuthDisplayName() {
   if (!state.auth.loggedIn) return '未登录';
+  if (state.auth.phone) {
+    return `${state.auth.nickname || '用户'} · ${state.auth.phone.slice(0, 3)}****${state.auth.phone.slice(-4)}`;
+  }
   return state.auth.openId
     ? `${state.auth.nickname || '微信用户'} · ${state.auth.openId.slice(0, 6)}...`
     : `${state.auth.nickname || '微信用户'} · ${state.auth.userId}`;
@@ -262,7 +267,7 @@ function syncAuthUi() {
     $('recordsLoginState').textContent = getAuthDisplayName();
   }
   if ($('recordsLoginBtn')) {
-    $('recordsLoginBtn').textContent = state.auth.loggedIn ? '已登录' : '微信登录';
+    $('recordsLoginBtn').textContent = state.auth.loggedIn ? '已登录' : '手机号登录';
     $('recordsLoginBtn').disabled = state.auth.loggedIn;
   }
 }
@@ -272,7 +277,7 @@ function syncMyUi() {
     $('myLoginState').textContent = getAuthDisplayName();
   }
   if ($('myLoginBtn')) {
-    $('myLoginBtn').textContent = state.auth.loggedIn ? '已登录' : '微信登录';
+    $('myLoginBtn').textContent = state.auth.loggedIn ? '已登录' : '手机号登录';
     $('myLoginBtn').disabled = state.auth.loggedIn;
   }
   if ($('myRegionValue')) {
@@ -299,6 +304,7 @@ function logoutAuth() {
     nickname: '',
     avatarUrl: '',
     openId: '',
+    phone: '',
   };
   localStorage.removeItem(AUTH_STORAGE_KEY);
   syncAuthUi();
@@ -346,13 +352,25 @@ async function consumeWechatAuthTicketIfPresent() {
   }
 }
 
-async function performWechatLogin() {
-  const status = await api('/auth/wechat/status');
-  if (!status.configured) {
-    throw new Error(status.message || '未配置公众号网页授权');
+async function performPasswordLogin() {
+  const phone = String($('phoneLoginInput')?.value || '').trim();
+  const password = String($('passwordLoginInput')?.value || '');
+  const data = await api('/auth/password/login', {
+    method: 'POST',
+    body: JSON.stringify({ phone, password }),
+  });
+  state.auth = data.auth;
+  saveAuthState();
+  syncAuthUi();
+  syncMyUi();
+  $('passwordLoginInput').value = '';
+  $('loginDialog').close();
+  await addBotText(data.mode === 'registered' ? '账号已创建，后面保存记录会直接用这个手机号账号。' : '手机号登录已完成。');
+  if (typeof pendingAfterLogin === 'function') {
+    const next = pendingAfterLogin;
+    pendingAfterLogin = null;
+    await next();
   }
-  const returnTo = `${window.location.origin}${window.location.pathname}`;
-  window.location.href = `/auth/wechat/start?returnTo=${encodeURIComponent(returnTo)}`;
 }
 
 async function requireLogin(nextAction) {
@@ -2348,8 +2366,14 @@ function bindEvents() {
   $('myLogoutBtn')?.addEventListener('click', () => {
     logoutAuth();
   });
-  $('wechatLoginBtn')?.addEventListener('click', () => {
-    performWechatLogin().catch((err) => alert(err.message));
+  $('passwordLoginBtn')?.addEventListener('click', () => {
+    performPasswordLogin().catch((err) => alert(err.message));
+  });
+  $('passwordLoginInput')?.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      $('passwordLoginBtn').click();
+    }
   });
   $('listRecordsBtn')?.addEventListener('click', () => {
     listRecords().catch((err) => alert(err.message));
@@ -2373,7 +2397,6 @@ async function bootstrap() {
   state.isWeChat = /MicroMessenger/i.test(navigator.userAgent || '');
   loadAuthState();
   loadSavedRegion();
-  await consumeWechatAuthTicketIfPresent();
   if ('speechSynthesis' in window && typeof window.speechSynthesis.onvoiceschanged !== 'undefined') {
     window.speechSynthesis.onvoiceschanged = () => {
       window.speechSynthesis.getVoices?.();

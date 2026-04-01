@@ -24,6 +24,7 @@ const {
   deleteArchive,
   upsertUser,
   getUser,
+  getUserByPhone,
   createAuthRequest,
   consumeAuthRequest,
   createAuthTicket,
@@ -95,6 +96,30 @@ function appendQuery(rawUrl, key, value) {
   const target = new URL(rawUrl);
   target.searchParams.set(key, value);
   return target.toString();
+}
+
+function hashPassword(password, salt = crypto.randomBytes(16).toString('hex')) {
+  const hash = crypto.scryptSync(password, salt, 64).toString('hex');
+  return `${salt}:${hash}`;
+}
+
+function verifyPassword(password, digest = '') {
+  const [salt, expected] = String(digest || '').split(':');
+  if (!salt || !expected) return false;
+  const actual = crypto.scryptSync(password, salt, 64).toString('hex');
+  return crypto.timingSafeEqual(Buffer.from(actual, 'hex'), Buffer.from(expected, 'hex'));
+}
+
+function buildPasswordAuthPayload(user) {
+  return {
+    loggedIn: true,
+    provider: 'password',
+    userId: user.userId,
+    nickname: user.nickname || `用户${String(user.phone || '').slice(-4)}`,
+    avatarUrl: '',
+    openId: '',
+    phone: user.phone || '',
+  };
 }
 
 async function requestWechatToken(code, config) {
@@ -629,6 +654,36 @@ app.get('/api/health', (_req, res) => {
     ocrMode: aiStatus.enabled ? 'dashscope' : process.env.OCR_WEBHOOK_URL ? 'webhook' : 'fallback',
     ai: aiStatus,
   });
+});
+
+app.post('/auth/password/login', (req, res) => {
+  const phone = String(req.body.phone || '').trim();
+  const password = String(req.body.password || '');
+  if (!/^1\d{10}$/.test(phone)) {
+    return res.status(400).json({ error: '请输入正确的手机号' });
+  }
+  if (password.length < 4) {
+    return res.status(400).json({ error: '密码至少 4 位' });
+  }
+
+  const existing = getUserByPhone(phone);
+  if (!existing) {
+    const userId = `phone_${phone}`;
+    const user = upsertUser(userId, {
+      provider: 'password',
+      phone,
+      nickname: `用户${phone.slice(-4)}`,
+      passwordDigest: hashPassword(password),
+    });
+    return res.json({ ok: true, mode: 'registered', auth: buildPasswordAuthPayload(user) });
+  }
+
+  if (!verifyPassword(password, existing.passwordDigest)) {
+    return res.status(401).json({ error: '手机号或密码不正确' });
+  }
+
+  const user = upsertUser(existing.userId, { lastLoginAt: new Date().toISOString() });
+  return res.json({ ok: true, mode: 'login', auth: buildPasswordAuthPayload(user) });
 });
 
 app.get('/auth/wechat/status', (req, res) => {
