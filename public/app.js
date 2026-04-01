@@ -59,6 +59,7 @@ const state = {
   summaryDirty: false,
   summaryImpactLevel: 'none',
   isWeChat: false,
+  isTouchDevice: false,
 };
 
 let botTextQueue = Promise.resolve();
@@ -2055,7 +2056,10 @@ async function handlePickedFile(file, label) {
 }
 
 function syncVoiceButton() {
-  $('voiceCaptureBtn').textContent = state.speechListening ? '松开发送' : '按住说话';
+  const tapMode = state.isTouchDevice;
+  $('voiceCaptureBtn').textContent = tapMode
+    ? (state.speechListening ? '点一下结束语音' : '点一下开始语音')
+    : (state.speechListening ? '松开发送' : '按住说话');
   $('voiceCaptureBtn').classList.toggle('active', state.speechListening);
 }
 
@@ -2115,7 +2119,7 @@ function startVoiceCapture(event) {
 
   state.speechBuffer = '';
   stopSpeechPlayback();
-  state.speechPressing = true;
+  state.speechPressing = !state.isTouchDevice;
   state.speechListening = true;
   syncVoiceButton();
   try {
@@ -2141,6 +2145,23 @@ function stopVoiceCapture(event) {
     state.speechPressing = false;
     syncVoiceButton();
   }
+}
+
+function toggleVoiceCaptureTap(event) {
+  event.preventDefault();
+  const recognition = ensureSpeechRecognition();
+  if (!recognition) {
+    addBotText('当前浏览器不支持语音识别。你可以继续直接打字。');
+    setComposerMode('text');
+    return;
+  }
+
+  if (state.speechListening) {
+    stopVoiceCapture(event);
+    return;
+  }
+
+  startVoiceCapture(event);
 }
 
 function buildRecordContextPreview(record) {
@@ -2398,10 +2419,15 @@ function bindEvents() {
     setComposerMode(state.composerMode === 'text' ? 'voice' : 'text');
   });
 
-  $('voiceCaptureBtn')?.addEventListener('pointerdown', startVoiceCapture);
-  $('voiceCaptureBtn')?.addEventListener('pointerup', stopVoiceCapture);
-  $('voiceCaptureBtn')?.addEventListener('pointercancel', stopVoiceCapture);
-  $('voiceCaptureBtn')?.addEventListener('click', (event) => event.preventDefault());
+  if (state.isTouchDevice) {
+    $('voiceCaptureBtn')?.addEventListener('click', toggleVoiceCaptureTap);
+  } else {
+    $('voiceCaptureBtn')?.addEventListener('pointerdown', startVoiceCapture);
+    $('voiceCaptureBtn')?.addEventListener('pointerup', stopVoiceCapture);
+    $('voiceCaptureBtn')?.addEventListener('pointercancel', stopVoiceCapture);
+    $('voiceCaptureBtn')?.addEventListener('pointerleave', stopVoiceCapture);
+    $('voiceCaptureBtn')?.addEventListener('click', (event) => event.preventDefault());
+  }
   $('voiceCaptureBtn')?.addEventListener('contextmenu', (event) => event.preventDefault());
   $('voiceCaptureBtn')?.addEventListener('selectstart', (event) => event.preventDefault());
 
@@ -2501,6 +2527,7 @@ async function loadSharedSession(sessionId) {
 
 async function bootstrap() {
   state.isWeChat = /MicroMessenger/i.test(navigator.userAgent || '');
+  state.isTouchDevice = ('ontouchstart' in window) || navigator.maxTouchPoints > 0 || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
   loadAuthState();
   loadSavedRegion();
   if ('speechSynthesis' in window && typeof window.speechSynthesis.onvoiceschanged !== 'undefined') {
