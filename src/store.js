@@ -75,7 +75,13 @@ function deleteArchive(userId, recordId) {
 function upsertUser(userId, patch) {
   const db = ensureCollections(readDb());
   const current = db.users[userId] || {};
-  db.users[userId] = { ...current, ...patch, userId, updatedAt: new Date().toISOString() };
+  db.users[userId] = {
+    ...current,
+    ...patch,
+    userId,
+    createdAt: current.createdAt || patch.createdAt || new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
   writeDb(db);
   return db.users[userId];
 }

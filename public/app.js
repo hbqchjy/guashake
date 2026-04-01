@@ -48,6 +48,7 @@ const state = {
     openId: '',
     phone: '',
   },
+  accountSummary: null,
   recordsMode: 'browse',
   shareUrl: '',
   pendingThinkingRow: null,
@@ -103,6 +104,11 @@ function escapeHtml(value) {
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;');
+}
+
+function formatDateTimeText(value, fallback = '暂无') {
+  if (!value) return fallback;
+  return String(value).slice(0, 16).replace('T', ' ');
 }
 
 function wait(ms) {
@@ -273,12 +279,39 @@ function syncAuthUi() {
 }
 
 function syncMyUi() {
+  const summary = state.accountSummary || null;
   if ($('myLoginState')) {
     $('myLoginState').textContent = getAuthDisplayName();
   }
   if ($('myLoginBtn')) {
     $('myLoginBtn').textContent = state.auth.loggedIn ? '已登录' : '手机号登录';
     $('myLoginBtn').disabled = state.auth.loggedIn;
+  }
+  if ($('myPhoneValue')) {
+    $('myPhoneValue').textContent = state.auth.loggedIn && state.auth.phone
+      ? state.auth.phone.slice(0, 3) + '****' + state.auth.phone.slice(-4)
+      : '未登录';
+  }
+  if ($('myProviderValue')) {
+    $('myProviderValue').textContent = summary?.providerLabel || (state.auth.loggedIn ? '手机号账号' : '测试账号');
+  }
+  if ($('myCreatedAtValue')) {
+    $('myCreatedAtValue').textContent = formatDateTimeText(summary?.createdAt, state.auth.loggedIn ? '刚刚创建' : '-');
+  }
+  if ($('myRecordCountValue')) {
+    $('myRecordCountValue').textContent = String(summary?.recordCount || 0) + ' 条';
+  }
+  if ($('myLastRecordValue')) {
+    $('myLastRecordValue').textContent = formatDateTimeText(summary?.latestRecordAt, '暂无');
+  }
+  if ($('myLatestSummaryTitle')) {
+    $('myLatestSummaryTitle').textContent = summary?.latestLikelyType || '最近一次记录';
+  }
+  if ($('myLatestSummaryText')) {
+    $('myLatestSummaryText').textContent = summary?.latestSummary || '登录后保存的问诊记录会显示在这里。';
+  }
+  if ($('myLatestSummaryCard')) {
+    $('myLatestSummaryCard').classList.toggle('hidden', !(summary?.latestSummary));
   }
   if ($('myRegionValue')) {
     $('myRegionValue').textContent = isRegionValid(state.savedRegion) ? formatRegion(state.savedRegion) : '未设置';
@@ -291,9 +324,25 @@ function syncMyUi() {
   }
 }
 
-function openMyDialog() {
+async function refreshMySummary() {
+  if (!state.auth.loggedIn || !state.auth.userId) {
+    state.accountSummary = null;
+    syncMyUi();
+    return;
+  }
+  try {
+    const data = await api('/account/summary?userId=' + encodeURIComponent(state.auth.userId));
+    state.accountSummary = data.summary || null;
+  } catch (_error) {
+    state.accountSummary = null;
+  }
+  syncMyUi();
+}
+
+async function openMyDialog() {
   syncMyUi();
   $('myDialog')?.showModal();
+  await refreshMySummary();
 }
 
 function logoutAuth() {
@@ -306,6 +355,7 @@ function logoutAuth() {
     openId: '',
     phone: '',
   };
+  state.accountSummary = null;
   localStorage.removeItem(AUTH_STORAGE_KEY);
   syncAuthUi();
   syncMyUi();
@@ -360,6 +410,7 @@ async function performPasswordLogin() {
     body: JSON.stringify({ phone, password }),
   });
   state.auth = data.auth;
+  state.accountSummary = null;
   saveAuthState();
   syncAuthUi();
   syncMyUi();
@@ -2310,7 +2361,7 @@ function bindEvents() {
 
       if (action === 'report') $('reportInput').click();
       if (action === 'camera') $('cameraInput').click();
-      if (action === 'my') openMyDialog();
+      if (action === 'my') openMyDialog().catch((err) => alert(err.message));
       if (action === 'records') {
         openRecordsDialog('context').catch((err) => alert(err.message));
       }

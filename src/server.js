@@ -122,6 +122,26 @@ function buildPasswordAuthPayload(user) {
   };
 }
 
+function buildAccountSummary(userId) {
+  const user = getUser(userId);
+  if (!user) return null;
+  const records = getArchives(userId).slice().sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+  const latest = records[0] || null;
+  return {
+    userId: user.userId,
+    provider: user.provider || 'password',
+    providerLabel: user.provider === 'password' ? '手机号账号' : '其他账号',
+    phone: user.phone || '',
+    nickname: user.nickname || '',
+    createdAt: user.createdAt || user.updatedAt || '',
+    lastLoginAt: user.lastLoginAt || '',
+    recordCount: records.length,
+    latestRecordAt: latest?.createdAt || '',
+    latestLikelyType: latest?.likelyType || latest?.summarySnapshot?.core?.possibleTypes?.[0] || '',
+    latestSummary: latest?.summaryText || latest?.summary || '',
+  };
+}
+
 async function requestWechatToken(code, config) {
   const tokenUrl = new URL('https://api.weixin.qq.com/sns/oauth2/access_token');
   tokenUrl.searchParams.set('appid', config.appId);
@@ -684,6 +704,18 @@ app.post('/auth/password/login', (req, res) => {
 
   const user = upsertUser(existing.userId, { lastLoginAt: new Date().toISOString() });
   return res.json({ ok: true, mode: 'login', auth: buildPasswordAuthPayload(user) });
+});
+
+app.get('/account/summary', (req, res) => {
+  const userId = String(req.query.userId || '').trim();
+  if (!userId) {
+    return res.status(400).json({ error: 'userId is required' });
+  }
+  const summary = buildAccountSummary(userId);
+  if (!summary) {
+    return res.status(404).json({ error: 'user not found' });
+  }
+  return res.json({ ok: true, summary });
 });
 
 app.get('/auth/wechat/status', (req, res) => {

@@ -79,7 +79,7 @@ function buildKnownHospitalCard(name, department, index) {
     miniProgramPath,
     officialEntryFound,
     entryUrl,
-    entryLabel: bookingUrl ? '去挂号' : officialProfileUrl ? '打开公众号' : '未录入官方挂号入口',
+    entryLabel: getEntryLabel(known.verificationStatus || '', bookingUrl, officialProfileUrl, miniProgramPath),
     verificationStatus: known.verificationStatus || 'unknown',
     sourceUrl: known.sourceUrl || '',
     notes: known.notes || '',
@@ -90,6 +90,14 @@ function buildKnownHospitalCard(name, department, index) {
           ? '这家也可作为同城备选，适合进一步复诊或转诊。'
           : '作为样板库里的补充医院，可以按需再核对挂号入口。',
   };
+}
+
+function getEntryLabel(verificationStatus = '', bookingUrl = '', officialProfileUrl = '', miniProgramPath = '') {
+  if (bookingUrl && verificationStatus === 'confirmed_booking_url') return '去挂号';
+  if (bookingUrl) return '查看挂号方式';
+  if (officialProfileUrl) return '打开公众号';
+  if (miniProgramPath) return '打开小程序';
+  return '未录入官方挂号入口';
 }
 
 function findDirectoryMatches(region = {}) {
@@ -131,7 +139,7 @@ function buildTemplateRecommendations(region = {}, scenario = {}) {
       miniProgramPath,
       officialEntryFound,
       entryUrl,
-      entryLabel: bookingUrl ? '去挂号' : officialProfileUrl ? '打开公众号' : '未录入官方挂号入口',
+      entryLabel: getEntryLabel(known.verificationStatus || '', bookingUrl, officialProfileUrl, miniProgramPath),
       verificationStatus: known.verificationStatus || 'unknown',
       sourceUrl: known.sourceUrl || '',
       notes: known.notes || '',

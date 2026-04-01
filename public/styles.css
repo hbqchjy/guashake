@@ -1361,6 +1361,28 @@ body.voice-pressing * {
   gap: 10px;
 }
 
+.my-summary-card {
+  margin-top: 12px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(20, 36, 31, 0.08);
+}
+
+.my-summary-title {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.my-summary-text {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--muted);
+}
+
 .subtle-btn {
   opacity: 0.82;
 }

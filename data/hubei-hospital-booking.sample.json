@@ -25,9 +25,9 @@
     "bookingUrl": "",
     "officialProfileUrl": "",
     "miniProgramName": "",
-    "verificationStatus": "official_name_pending_entry",
-    "sourceUrl": "",
-    "notes": "已纳入样板数据，待补官方挂号入口。"
+    "verificationStatus": "official_name_confirmed",
+    "sourceUrl": "https://news.cnhubei.com/content/2023-12/11/content_17086712.html",
+    "notes": "荆楚网百佳新媒体账号名单明确出现“黄冈市中心医院（微信公众号）”，已确认公众号名称，待补挂号直达入口。"
   },
   {
     "province": "湖北省",
@@ -52,12 +52,12 @@
     "level": "三级综合医院",
     "officialWechatName": "黄石市中心医院",
     "wechatAccount": "",
-    "bookingUrl": "",
+    "bookingUrl": "https://www.hszxyy.com.cn/news/8415.html",
     "officialProfileUrl": "",
     "miniProgramName": "黄石市中心医院",
-    "verificationStatus": "official_name_confirmed",
+    "verificationStatus": "official_booking_guide",
     "sourceUrl": "https://www.hszxyy.com.cn/news/8415.html",
-    "notes": "已确认官方公众号和小程序名称，待补可直达挂号入口。"
+    "notes": "医院官方文章明确说明可通过“黄石市中心医院”微信公众号和同名小程序完成智慧医院挂号等服务，当前先收录官方挂号方式说明页。"
   },
   {
     "province": "湖北省",
@@ -70,9 +70,9 @@
     "bookingUrl": "",
     "officialProfileUrl": "",
     "miniProgramName": "",
-    "verificationStatus": "official_name_pending_entry",
-    "sourceUrl": "",
-    "notes": "样板数据，待补挂号入口。"
+    "verificationStatus": "official_channel_confirmed",
+    "sourceUrl": "https://www.hssfybjy.com.cn/",
+    "notes": "医院官网首页明确展示微信小程序入口，已确认存在官方线上服务渠道，待补可直达挂号入口。"
   },
   {
     "province": "湖北省",
@@ -95,14 +95,14 @@
     "district": "武昌区",
     "hospitalName": "武汉大学人民医院",
     "level": "三级甲等综合医院",
-    "officialWechatName": "武汉大学人民医院",
+    "officialWechatName": "湖北省人民医院",
     "wechatAccount": "",
-    "bookingUrl": "",
+    "bookingUrl": "https://rm.rmhospital.com/article/id/13372.html",
     "officialProfileUrl": "",
-    "miniProgramName": "",
-    "verificationStatus": "official_name_pending_entry",
-    "sourceUrl": "",
-    "notes": "武汉样板数据，待补真实公众号/挂号入口。"
+    "miniProgramName": "武大云医",
+    "verificationStatus": "official_booking_guide",
+    "sourceUrl": "https://rm.rmhospital.com/article/id/13372.html",
+    "notes": "武汉大学人民医院官方新闻明确写到可通过微信公众号“湖北省人民医院”预约挂号；当前先收录官方就诊指引页。"
   },
   {
     "province": "湖北省",
@@ -112,11 +112,11 @@
     "level": "三级甲等综合医院",
     "officialWechatName": "武汉市中心医院",
     "wechatAccount": "",
-    "bookingUrl": "",
+    "bookingUrl": "https://news.cjn.cn/bsy/jk_20092/202211/t4330566.htm",
     "officialProfileUrl": "",
     "miniProgramName": "",
-    "verificationStatus": "official_name_pending_entry",
-    "sourceUrl": "",
-    "notes": "武汉样板数据，待补真实公众号/挂号入口。"
+    "verificationStatus": "official_booking_guide",
+    "sourceUrl": "https://news.cjn.cn/bsy/jk_20092/202211/t4330566.htm",
+    "notes": "长江网就诊攻略明确写到可关注“武汉市中心医院”官方微信公众号预约挂号，当前先收录官方挂号方式说明页。"
   }
 ]

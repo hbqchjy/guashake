@@ -75,7 +75,23 @@
           <button id="myLoginBtn" class="record-action">手机号登录</button>
         </div>
         <div class="my-section">
+          <h4>账号信息</h4>
+          <div class="my-info-list">
+            <div class="my-info-item"><span>手机号</span><strong id="myPhoneValue">未登录</strong></div>
+            <div class="my-info-item"><span>账号类型</span><strong id="myProviderValue">测试账号</strong></div>
+            <div class="my-info-item"><span>注册时间</span><strong id="myCreatedAtValue">-</strong></div>
+          </div>
+        </div>
+        <div class="my-section">
           <h4>我的记录</h4>
+          <div class="my-info-list">
+            <div class="my-info-item"><span>已保存记录</span><strong id="myRecordCountValue">0 条</strong></div>
+            <div class="my-info-item"><span>最近保存</span><strong id="myLastRecordValue">暂无</strong></div>
+          </div>
+          <div id="myLatestSummaryCard" class="my-summary-card hidden">
+            <p id="myLatestSummaryTitle" class="my-summary-title">最近一次记录</p>
+            <p id="myLatestSummaryText" class="my-summary-text">暂无保存记录</p>
+          </div>
           <div class="my-actions">
             <button id="myRecordsBtn" class="record-action">查看历史记录</button>
           </div>
@@ -85,12 +101,6 @@
           <div class="my-info-list">
             <div class="my-info-item"><span>常用地区</span><strong id="myRegionValue">未设置</strong></div>
             <div class="my-info-item"><span>医保类型</span><strong id="myInsuranceValue">未设置</strong></div>
-          </div>
-        </div>
-        <div class="my-section">
-          <h4>服务</h4>
-          <div class="my-info-list">
-            <div class="my-info-item"><span>收费能力</span><strong>后续接入</strong></div>
             <div class="my-info-item"><span>当前阶段</span><strong>测试版</strong></div>
           </div>
         </div>
