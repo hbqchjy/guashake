@@ -22,12 +22,6 @@
             </span>
             <span class="plus-item-label">检验报告</span>
           </button>
-          <button class="plus-item" data-menu-action="my">
-            <span class="plus-item-icon my">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.2"></circle><path d="M6 18.2c0-2.9 2.7-5 6-5s6 2.1 6 5"></path></svg>
-            </span>
-            <span class="plus-item-label">我的</span>
-          </button>
           <button class="plus-item" data-menu-action="camera">
             <span class="plus-item-icon camera">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 8h2l1.2-2h3.6L15 8h2a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2Z"></path><circle cx="12" cy="13" r="3.2"></circle></svg>
@@ -39,6 +33,12 @@
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 9h6"></path><path d="M9 13h6"></path><path d="M9 17h4"></path></svg>
             </span>
             <span class="plus-item-label">记录</span>
+          </button>
+          <button class="plus-item" data-menu-action="my">
+            <span class="plus-item-icon my">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.2"></circle><path d="M6 18.2c0-2.9 2.7-5 6-5s6 2.1 6 5"></path></svg>
+            </span>
+            <span class="plus-item-label">我的</span>
           </button>
         </div>
         <div class="composer">
@@ -52,7 +52,7 @@
             <button id="voiceCaptureBtn" class="voice-capture hidden">按住说话</button>
           </div>
           <button id="plusBtn" class="icon-btn plus-btn" aria-label="更多功能"></button>
-          <button id="sendBtn" class="send-btn">发送</button>
+          <button id="sendBtn" class="send-btn hidden">发送</button>
         </div>
         <p id="composerHint" class="composer-hint"></p>
       </div>
@@ -145,7 +145,7 @@
           </span>
           <div>
             <p class="login-card-title">微信一键登录</p>
-            <p class="login-card-copy">当前先使用演示登录流程，后续接入真实公众号网页授权。</p>
+            <p class="login-card-copy">这里会走真实公众号网页授权。未配置公众号参数时，会明确提示无法登录。</p>
           </div>
         </div>
         <button id="wechatLoginBtn" class="send-btn wide">用微信登录</button>

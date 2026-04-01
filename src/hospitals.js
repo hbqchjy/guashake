@@ -1,3 +1,5 @@
+const hubeiHospitalDirectory = require('../data/hubei-hospital-booking.sample.json');
+
 function formatRegionName(region = {}) {
   return [region.province, region.city, region.district].filter(Boolean).join('');
 }
@@ -17,19 +19,23 @@ function buildOfficialProfileUrl(__biz = '') {
   return `https://mp.weixin.qq.com/mp/profile_ext?action=home&__biz=${encodeURIComponent(__biz)}#wechat_redirect`;
 }
 
-const KNOWN_HOSPITALS = {
-  '蕲春县人民医院': {
-    officialWechatName: '蕲春县人民医院',
-    wechatAccount: 'qcxyy-cn',
-    bookingUrl: 'https://zsyy.1451cn.com/#/choice-room-today',
-    channel: '医院服务号 / H5挂号',
-  },
-  '黄石市中心医院': {
-    officialWechatName: '黄石市中心医院',
-    miniProgramName: '黄石市中心医院',
-    channel: '医院公众号 / 微信小程序',
-  },
-};
+const KNOWN_HOSPITALS = Object.fromEntries(
+  hubeiHospitalDirectory.map((item) => [
+    item.hospitalName,
+    {
+      level: item.level || '',
+      officialWechatName: item.officialWechatName || '',
+      wechatAccount: item.wechatAccount || '',
+      bookingUrl: item.bookingUrl || '',
+      officialProfileUrl: item.officialProfileUrl || '',
+      miniProgramName: item.miniProgramName || '',
+      verificationStatus: item.verificationStatus || 'unknown',
+      sourceUrl: item.sourceUrl || '',
+      notes: item.notes || '',
+      channel: item.bookingUrl ? '医院服务号 / H5挂号' : item.miniProgramName ? '医院公众号 / 微信小程序' : '待补官方挂号入口',
+    },
+  ])
+);
 
 function getHospitalTemplates(scenarioId) {
   const shared = [
@@ -51,7 +57,53 @@ function getHospitalTemplates(scenarioId) {
   return shared;
 }
 
-function buildHospitalRecommendations(region = {}, scenario = {}) {
+function buildKnownHospitalCard(name, department, index) {
+  const known = KNOWN_HOSPITALS[name] || {};
+  const officialProfileUrl = known.officialProfileUrl || buildOfficialProfileUrl(known.officialBiz || '');
+  const bookingUrl = known.bookingUrl || '';
+  const miniProgramPath = known.miniProgramPath || '';
+  const entryUrl = bookingUrl || officialProfileUrl || '';
+  const officialEntryFound = Boolean(entryUrl || miniProgramPath);
+
+  return {
+    id: `known-${index}`,
+    name,
+    level: known.level || '综合医院',
+    department,
+    channel: known.channel || '待补官方挂号入口',
+    officialWechatName: known.officialWechatName || buildWechatKeyword(name),
+    wechatAccount: known.wechatAccount || '',
+    miniProgramName: known.miniProgramName || '',
+    officialProfileUrl,
+    bookingUrl,
+    miniProgramPath,
+    officialEntryFound,
+    entryUrl,
+    entryLabel: bookingUrl ? '去挂号' : officialProfileUrl ? '打开公众号' : '未录入官方挂号入口',
+    verificationStatus: known.verificationStatus || 'unknown',
+    sourceUrl: known.sourceUrl || '',
+    notes: known.notes || '',
+    recommendation:
+      index === 0
+        ? '优先推荐这一家，当前地区样板库里已收录。'
+        : index === 1
+          ? '这家也可作为同城备选，适合进一步复诊或转诊。'
+          : '作为样板库里的补充医院，可以按需再核对挂号入口。',
+  };
+}
+
+function findDirectoryMatches(region = {}) {
+  const district = region.district || '';
+  const city = region.city || '';
+  const province = region.province || '';
+  return hubeiHospitalDirectory.filter((item) => {
+    if (district && item.district === district) return true;
+    if (city && item.city === city) return true;
+    return province && item.province === province;
+  });
+}
+
+function buildTemplateRecommendations(region = {}, scenario = {}) {
   const districtBase = region.district || region.city || region.province || '本地';
   const cityBase = region.city && region.city !== '市辖区' ? region.city : region.province || districtBase;
   const department = scenario.department || '内科';
@@ -68,7 +120,7 @@ function buildHospitalRecommendations(region = {}, scenario = {}) {
     return {
       id: `${template.type}-${index}`,
       name,
-      level: template.level,
+      level: known.level || template.level,
       department,
       channel: known.channel || template.channel,
       officialWechatName: known.officialWechatName || buildWechatKeyword(name),
@@ -80,6 +132,9 @@ function buildHospitalRecommendations(region = {}, scenario = {}) {
       officialEntryFound,
       entryUrl,
       entryLabel: bookingUrl ? '去挂号' : officialProfileUrl ? '打开公众号' : '未录入官方挂号入口',
+      verificationStatus: known.verificationStatus || 'unknown',
+      sourceUrl: known.sourceUrl || '',
+      notes: known.notes || '',
       recommendation:
         index === 0
           ? '首诊优先这一家，通常离得近，先做基础检查更省时间。'
@@ -90,7 +145,17 @@ function buildHospitalRecommendations(region = {}, scenario = {}) {
   });
 }
 
+function buildHospitalRecommendations(region = {}, scenario = {}) {
+  const department = scenario.department || '内科';
+  const matches = findDirectoryMatches(region).slice(0, 5);
+  if (matches.length) {
+    return matches.map((item, index) => buildKnownHospitalCard(item.hospitalName, department, index));
+  }
+  return buildTemplateRecommendations(region, scenario);
+}
+
 module.exports = {
   formatRegionName,
   buildHospitalRecommendations,
+  hubeiHospitalDirectory,
 };

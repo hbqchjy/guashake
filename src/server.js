@@ -1,4 +1,5 @@
 const express = require('express');
+const crypto = require('crypto');
 const path = require('path');
 const cors = require('cors');
 const multer = require('multer');
@@ -13,7 +14,21 @@ const {
   buildBookingSuggestion,
 } = require('./rules');
 const { searchRegions } = require('./regions');
-const { upsertSession, getSession, saveArchive, getArchive, getArchives, deleteArchive } = require('./store');
+const { hubeiHospitalDirectory } = require('./hospitals');
+const {
+  upsertSession,
+  getSession,
+  saveArchive,
+  getArchive,
+  getArchives,
+  deleteArchive,
+  upsertUser,
+  getUser,
+  createAuthRequest,
+  consumeAuthRequest,
+  createAuthTicket,
+  consumeAuthTicket,
+} = require('./store');
 const { summarizeFile, buildSummarySlotHints } = require('./file-summary');
 const {
   classifyComplaint,
@@ -45,6 +60,69 @@ const storage = multer.diskStorage({
   filename: (_req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`),
 });
 const upload = multer({ storage });
+
+function getOrigin(req) {
+  const proto = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+  const host = req.headers['x-forwarded-host'] || req.get('host');
+  return `${proto}://${host}`;
+}
+
+function getWechatOauthConfig(req) {
+  const appId = process.env.WECHAT_APP_ID || '';
+  const appSecret = process.env.WECHAT_APP_SECRET || '';
+  const callbackUrl = process.env.WECHAT_OAUTH_CALLBACK_URL || `${getOrigin(req)}/auth/wechat/callback`;
+  return {
+    configured: Boolean(appId && appSecret),
+    appId,
+    appSecret,
+    callbackUrl,
+    scope: process.env.WECHAT_OAUTH_SCOPE || 'snsapi_userinfo',
+  };
+}
+
+function sanitizeReturnTo(raw, req) {
+  const origin = getOrigin(req);
+  try {
+    const target = new URL(raw || '/', origin);
+    if (target.origin !== origin) return `${origin}/`;
+    return `${target.origin}${target.pathname}${target.search}`;
+  } catch (_error) {
+    return `${origin}/`;
+  }
+}
+
+function appendQuery(rawUrl, key, value) {
+  const target = new URL(rawUrl);
+  target.searchParams.set(key, value);
+  return target.toString();
+}
+
+async function requestWechatToken(code, config) {
+  const tokenUrl = new URL('https://api.weixin.qq.com/sns/oauth2/access_token');
+  tokenUrl.searchParams.set('appid', config.appId);
+  tokenUrl.searchParams.set('secret', config.appSecret);
+  tokenUrl.searchParams.set('code', code);
+  tokenUrl.searchParams.set('grant_type', 'authorization_code');
+  const response = await fetch(tokenUrl);
+  const payload = await response.json();
+  if (!response.ok || payload.errcode) {
+    throw new Error(payload.errmsg || 'wechat access_token failed');
+  }
+  return payload;
+}
+
+async function requestWechatUserInfo(tokenPayload) {
+  const userInfoUrl = new URL('https://api.weixin.qq.com/sns/userinfo');
+  userInfoUrl.searchParams.set('access_token', tokenPayload.access_token);
+  userInfoUrl.searchParams.set('openid', tokenPayload.openid);
+  userInfoUrl.searchParams.set('lang', 'zh_CN');
+  const response = await fetch(userInfoUrl);
+  const payload = await response.json();
+  if (!response.ok || payload.errcode) {
+    throw new Error(payload.errmsg || 'wechat userinfo failed');
+  }
+  return payload;
+}
 
 function mergeTriageWithAi(fallbackResult, aiRewrite) {
   if (!aiRewrite) return fallbackResult;
@@ -551,6 +629,110 @@ app.get('/api/health', (_req, res) => {
     ocrMode: aiStatus.enabled ? 'dashscope' : process.env.OCR_WEBHOOK_URL ? 'webhook' : 'fallback',
     ai: aiStatus,
   });
+});
+
+app.get('/auth/wechat/status', (req, res) => {
+  const config = getWechatOauthConfig(req);
+  return res.json({
+    configured: config.configured,
+    appId: config.appId ? `${config.appId.slice(0, 4)}***` : '',
+    callbackUrl: config.callbackUrl,
+    scope: config.scope,
+    message: config.configured ? '已配置公众号网页授权' : '未配置公众号网页授权参数',
+  });
+});
+
+app.get('/auth/wechat/start', (req, res) => {
+  const config = getWechatOauthConfig(req);
+  const returnTo = sanitizeReturnTo(req.query.returnTo, req);
+  if (!config.configured) {
+    return res.redirect(appendQuery(returnTo, 'wx_auth_error', 'not_configured'));
+  }
+
+  const stateId = crypto.randomUUID();
+  createAuthRequest(stateId, { returnTo });
+  const authorizeUrl = new URL('https://open.weixin.qq.com/connect/oauth2/authorize');
+  authorizeUrl.searchParams.set('appid', config.appId);
+  authorizeUrl.searchParams.set('redirect_uri', config.callbackUrl);
+  authorizeUrl.searchParams.set('response_type', 'code');
+  authorizeUrl.searchParams.set('scope', config.scope);
+  authorizeUrl.searchParams.set('state', stateId);
+  return res.redirect(`${authorizeUrl.toString()}#wechat_redirect`);
+});
+
+app.get('/auth/wechat/callback', async (req, res) => {
+  const config = getWechatOauthConfig(req);
+  const code = req.query.code || '';
+  const stateId = req.query.state || '';
+  const authRequest = consumeAuthRequest(stateId);
+  const returnTo = sanitizeReturnTo(authRequest?.returnTo, req);
+
+  if (!config.configured) {
+    return res.redirect(appendQuery(returnTo, 'wx_auth_error', 'not_configured'));
+  }
+  if (!code || !authRequest) {
+    return res.redirect(appendQuery(returnTo, 'wx_auth_error', 'invalid_callback'));
+  }
+
+  try {
+    const tokenPayload = await requestWechatToken(code, config);
+    const userInfo = await requestWechatUserInfo(tokenPayload);
+    const userId = `wx_${tokenPayload.openid}`;
+    const user = upsertUser(userId, {
+      provider: 'wechat_oauth',
+      openId: tokenPayload.openid,
+      unionId: tokenPayload.unionid || userInfo.unionid || '',
+      nickname: userInfo.nickname || '微信用户',
+      avatarUrl: userInfo.headimgurl || '',
+      province: userInfo.province || '',
+      city: userInfo.city || '',
+      country: userInfo.country || '',
+    });
+    const ticket = crypto.randomUUID();
+    createAuthTicket(ticket, {
+      userId,
+      nickname: user.nickname || '微信用户',
+      avatarUrl: user.avatarUrl || '',
+      openId: user.openId || '',
+      provider: 'wechat_oauth',
+    });
+    return res.redirect(appendQuery(returnTo, 'wx_auth_ticket', ticket));
+  } catch (error) {
+    return res.redirect(appendQuery(returnTo, 'wx_auth_error', error.message || 'oauth_failed'));
+  }
+});
+
+app.get('/auth/wechat/consume', (req, res) => {
+  const ticket = String(req.query.ticket || '');
+  if (!ticket) {
+    return res.status(400).json({ error: 'ticket required' });
+  }
+  const payload = consumeAuthTicket(ticket);
+  if (!payload) {
+    return res.status(404).json({ error: 'ticket expired' });
+  }
+  return res.json({
+    ok: true,
+    auth: {
+      loggedIn: true,
+      provider: payload.provider || 'wechat_oauth',
+      userId: payload.userId,
+      nickname: payload.nickname || '微信用户',
+      avatarUrl: payload.avatarUrl || '',
+      openId: payload.openId || '',
+    },
+  });
+});
+
+app.get('/api/hospitals/hubei', (req, res) => {
+  const city = String(req.query.city || '');
+  const district = String(req.query.district || '');
+  const rows = hubeiHospitalDirectory.filter((item) => {
+    if (district) return item.district === district;
+    if (city) return item.city === city;
+    return true;
+  });
+  return res.json({ total: rows.length, rows });
 });
 
 app.get('/api/region/search', (req, res) => {

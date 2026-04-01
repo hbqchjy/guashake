@@ -44,6 +44,8 @@ const state = {
     provider: '',
     userId: '',
     nickname: '',
+    avatarUrl: '',
+    openId: '',
   },
   recordsMode: 'browse',
   shareUrl: '',
@@ -225,19 +227,6 @@ function persistRegion(region) {
   syncMyUi();
 }
 
-function createDemoWechatAuth() {
-  const randomPart =
-    typeof crypto !== 'undefined' && crypto.randomUUID
-      ? crypto.randomUUID().slice(0, 8)
-      : Math.random().toString(36).slice(2, 10);
-  return {
-    loggedIn: true,
-    provider: 'wechat',
-    userId: `wx_demo_${randomPart}`,
-    nickname: '微信用户',
-  };
-}
-
 function loadAuthState() {
   try {
     const raw = localStorage.getItem(AUTH_STORAGE_KEY);
@@ -246,9 +235,11 @@ function loadAuthState() {
     if (parsed && parsed.loggedIn && parsed.userId) {
       state.auth = {
         loggedIn: true,
-        provider: parsed.provider || 'wechat',
+        provider: parsed.provider || 'wechat_oauth',
         userId: parsed.userId,
         nickname: parsed.nickname || '微信用户',
+        avatarUrl: parsed.avatarUrl || '',
+        openId: parsed.openId || '',
       };
     }
   } catch (_error) {
@@ -261,7 +252,9 @@ function saveAuthState() {
 
 function getAuthDisplayName() {
   if (!state.auth.loggedIn) return '未登录';
-  return `${state.auth.nickname || '微信用户'} · ${state.auth.userId}`;
+  return state.auth.openId
+    ? `${state.auth.nickname || '微信用户'} · ${state.auth.openId.slice(0, 6)}...`
+    : `${state.auth.nickname || '微信用户'} · ${state.auth.userId}`;
 }
 
 function syncAuthUi() {
@@ -273,7 +266,6 @@ function syncAuthUi() {
     $('recordsLoginBtn').disabled = state.auth.loggedIn;
   }
 }
-
 
 function syncMyUi() {
   if ($('myLoginState')) {
@@ -305,25 +297,62 @@ function logoutAuth() {
     provider: '',
     userId: '',
     nickname: '',
+    avatarUrl: '',
+    openId: '',
   };
   localStorage.removeItem(AUTH_STORAGE_KEY);
   syncAuthUi();
   syncMyUi();
 }
 
-async function performWechatLogin() {
-  await wait(180);
-  state.auth = createDemoWechatAuth();
-  saveAuthState();
-  syncAuthUi();
-  syncMyUi();
-  $('loginDialog').close();
-  await addBotText('微信登录已完成。后面保存记录和调用历史记录都会用这个账号。');
-  if (typeof pendingAfterLogin === 'function') {
-    const next = pendingAfterLogin;
-    pendingAfterLogin = null;
-    await next();
+function cleanupAuthQueryParams() {
+  const url = new URL(window.location.href);
+  let changed = false;
+  ['wx_auth_ticket', 'wx_auth_error'].forEach((key) => {
+    if (url.searchParams.has(key)) {
+      url.searchParams.delete(key);
+      changed = true;
+    }
+  });
+  if (changed) {
+    history.replaceState({}, '', `${url.pathname}${url.search}`);
   }
+}
+
+async function consumeWechatAuthTicketIfPresent() {
+  const params = new URLSearchParams(window.location.search);
+  const authError = params.get('wx_auth_error');
+  const authTicket = params.get('wx_auth_ticket');
+  if (authError) {
+    cleanupAuthQueryParams();
+    const errorMap = {
+      not_configured: '公众号网页授权还没配置好，当前不能完成真实微信登录。',
+      invalid_callback: '微信登录回调无效，请重新发起登录。',
+    };
+    alert(errorMap[authError] || `微信登录失败：${authError}`);
+    return;
+  }
+  if (!authTicket) return;
+  try {
+    const data = await api(`/auth/wechat/consume?ticket=${encodeURIComponent(authTicket)}`);
+    state.auth = data.auth;
+    saveAuthState();
+    syncAuthUi();
+    syncMyUi();
+    cleanupAuthQueryParams();
+  } catch (error) {
+    cleanupAuthQueryParams();
+    alert(error.message || '微信登录失败');
+  }
+}
+
+async function performWechatLogin() {
+  const status = await api('/auth/wechat/status');
+  if (!status.configured) {
+    throw new Error(status.message || '未配置公众号网页授权');
+  }
+  const returnTo = `${window.location.origin}${window.location.pathname}`;
+  window.location.href = `/auth/wechat/start?returnTo=${encodeURIComponent(returnTo)}`;
 }
 
 async function requireLogin(nextAction) {
@@ -617,6 +646,13 @@ function setComposerState(mode) {
   $('composerInput').placeholder = '';
 }
 
+function syncComposerActions() {
+  const isVoice = state.composerMode === 'voice';
+  const hasText = Boolean(($('composerInput')?.value || '').trim());
+  $('plusBtn')?.classList.toggle('hidden', !isVoice && hasText);
+  $('sendBtn')?.classList.toggle('hidden', isVoice || !hasText);
+}
+
 function setComposerMode(mode) {
   const previousMode = state.composerMode;
   state.composerMode = mode;
@@ -625,7 +661,6 @@ function setComposerMode(mode) {
 
   $('composerInput').classList.toggle('hidden', isVoice);
   $('voiceCaptureBtn').classList.toggle('hidden', !isVoice);
-  $('sendBtn').classList.toggle('hidden', isVoice);
   $('modeToggleBtn').innerHTML = isVoice ? ICONS.keyboard : ICONS.mic;
   $('plusBtn').innerHTML = ICONS.plus;
   syncVoiceButton();
@@ -643,6 +678,7 @@ function setComposerMode(mode) {
     }
   }
   if (!isVoice) setComposerState(state.inputMode);
+  syncComposerActions();
 }
 
 function resetConversation() {
@@ -692,6 +728,7 @@ function resetConversation() {
   addIntroCard();
   renderQuickSymptoms();
   setComposerState('symptom');
+  syncComposerActions();
 }
 
 function updateRecordsDialogCopy() {
@@ -2214,6 +2251,7 @@ async function handleComposerSubmit() {
   if (!text) return;
 
   $('composerInput').value = '';
+  syncComposerActions();
   await submitText(text);
 }
 
@@ -2264,6 +2302,10 @@ function bindEvents() {
   $('reportInput').onchange = (event) => handlePickedFile(event.target.files?.[0], '检验报告').catch((err) => alert(err.message));
   $('cameraInput').onchange = (event) => handlePickedFile(event.target.files?.[0], '拍照').catch((err) => alert(err.message));
   $('imageInput').onchange = (event) => handlePickedFile(event.target.files?.[0], '相册').catch((err) => alert(err.message));
+
+  $('composerInput')?.addEventListener('input', () => {
+    syncComposerActions();
+  });
 
   $('composerInput')?.addEventListener('keydown', (event) => {
     if (event.key === 'Enter' && !event.shiftKey) {
@@ -2331,6 +2373,7 @@ async function bootstrap() {
   state.isWeChat = /MicroMessenger/i.test(navigator.userAgent || '');
   loadAuthState();
   loadSavedRegion();
+  await consumeWechatAuthTicketIfPresent();
   if ('speechSynthesis' in window && typeof window.speechSynthesis.onvoiceschanged !== 'undefined') {
     window.speechSynthesis.onvoiceschanged = () => {
       window.speechSynthesis.getVoices?.();
