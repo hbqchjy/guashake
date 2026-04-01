@@ -2254,7 +2254,7 @@ function bindEvents() {
 
       if (action === 'report') $('reportInput').click();
       if (action === 'camera') $('cameraInput').click();
-      if (action === 'image') $('imageInput').click();
+      if (action === 'my') openMyDialog();
       if (action === 'records') {
         openRecordsDialog('context').catch((err) => alert(err.message));
       }
@@ -2278,7 +2278,6 @@ function bindEvents() {
     }
   });
 
-  $('myBtn')?.addEventListener('click', () => openMyDialog());
   $('closeMyBtn')?.addEventListener('click', () => $('myDialog').close());
   $('closeRecordsBtn')?.addEventListener('click', () => $('recordsDialog').close());
   $('closeRecordDetailBtn')?.addEventListener('click', () => $('recordDetailDialog').close());

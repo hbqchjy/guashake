@@ -65,26 +65,8 @@ body {
 }
 
 
-.utility-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 52px;
-  padding: 0 16px;
-  border-bottom: 1px solid rgba(20, 36, 31, 0.08);
-  background: rgba(255, 255, 255, 0.42);
-}
 
-.utility-brand {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--text);
-}
 
-.utility-link {
-  color: var(--brand-dark);
-  font-weight: 700;
-}
 
 .chat-viewport {
   flex: 1;
@@ -987,6 +969,11 @@ body {
 
 .plus-item-icon.records {
   background: linear-gradient(180deg, #78a6ff 0%, #5b87f5 100%);
+}
+
+.plus-item-icon.my {
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(16, 185, 129, 0.14));
+  color: #137333;
 }
 
 .plus-item-label {
