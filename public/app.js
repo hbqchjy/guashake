@@ -32,7 +32,7 @@ const state = {
     image: 0,
     report: 0,
   },
-  resultViewMode: 'simple',
+  resultViewMode: 'full',
   sharedView: false,
   resultAnchor: 'summary',
   savedRegion: null,
@@ -625,7 +625,7 @@ function resetConversation() {
     image: 0,
     report: 0,
   };
-  state.resultViewMode = 'simple';
+  state.resultViewMode = 'full';
   state.sharedView = false;
   state.conversationStage = 'idle';
   state.currentPrompt = null;
@@ -1587,7 +1587,7 @@ function formatRecommendationLevel(level) {
 function attachInsuranceActions(row) {
   row.querySelectorAll('[data-insurance-option]').forEach((button) => {
     button.onclick = async () => {
-      state.resultViewMode = 'simple';
+      state.resultViewMode = 'full';
       state.resultAnchor = 'summary';
       await updateSessionProfile({ insuranceType: button.dataset.insuranceOption });
       state.awaitingContext = null;
@@ -1600,7 +1600,9 @@ function attachInsuranceActions(row) {
 async function renderResultCards() {
   clearResultRows();
   const triage = state.triageResult.layeredOutput;
-  const needsBooking = Boolean(triage.core.needsBooking);
+  const recommendationLevel = triage.core.recommendationLevel || 'routine_clinic';
+  const needsInPerson = ['routine_clinic', 'specialist_clinic', 'hospital_priority_high'].includes(recommendationLevel);
+  const needsBooking = Boolean(triage.core.needsBooking || needsInPerson);
   const needsCost = Boolean(triage.core.needsCost);
   const requests = [];
   if (needsCost) {
@@ -1638,10 +1640,7 @@ async function renderResultCards() {
   const prepItems = (booking.preparation || []).map((item) => `<li>${escapeHtml(item)}</li>`).join('');
   const riskItems = (triage.riskReminder || []).map((item) => `<li>${escapeHtml(item)}</li>`).join('');
   const detailItems = (triage.detail.stepByStep || []).map((item) => `<li>${escapeHtml(item)}</li>`).join('');
-  const slotHighlights = triage.detail.slotHighlights || [];
-  const personalizedTips = triage.detail.personalizedTips || [];
   const possibleTypes = triage.core.possibleTypes || [];
-  const recommendationLevel = triage.core.recommendationLevel || 'routine_clinic';
   const selfCareAdvice = triage.detail.selfCareAdvice || [];
   const medicationAdvice = triage.detail.medicationAdvice || [];
   const visitAdvice = triage.detail.visitAdvice || [];
@@ -1650,20 +1649,18 @@ async function renderResultCards() {
   const summaryHtml = [
     '<div class="summary-card">',
     '<div class="summary-top">',
-    '<span class="summary-badge">小科总结</span>',
-    possibleTypes[0] ? `<p class="summary-overline">更像哪类问题</p>` : '',
+    '<p class="summary-section-title">小科总结</p>',
+    possibleTypes[0] ? `<p class="summary-section-title">更像哪类问题</p>` : '',
     possibleTypes[0] ? `<p class="summary-title">${escapeHtml(possibleTypes[0])}</p>` : `<p class="summary-title">${escapeHtml(triage.core.suggestDepartment)}</p>`,
     possibleTypes[1] ? `<p class="summary-text">${escapeHtml(possibleTypes[1])}</p>` : '',
-    triage.core.personalizedText ? `<p class="summary-subtext">${escapeHtml(triage.core.personalizedText)}</p>` : '',
-    triage.core.severityText ? `<p class="summary-subtext">${escapeHtml(triage.core.severityText)}</p>` : '',
-    state.currentFocus?.label ? `<p class="summary-focus">当前在聊：${escapeHtml(state.currentFocus.label)}</p>` : '',
+    triage.core.severityText ? `<p class="summary-text">${escapeHtml(triage.core.severityText)}</p>` : '',
     state.summaryDirty ? `<p class="summary-dirty ${state.summaryImpactLevel === 'major' ? 'major' : ''}">根据你后面补充的新信息，这份总结可以再更新一次。</p>` : '',
-    `<div class="summary-next"><span class="summary-next-label">现在更建议</span><strong>${escapeHtml(triage.core.text || '')}</strong></div>`,
-    buildInsightChipHtml(slotHighlights.slice(0, 3), 'summary-slot-chips'),
+    '<p class="summary-section-title">现在更建议</p>',
+    `<div class="summary-next"><strong>${escapeHtml(triage.core.text || '')}</strong></div>`,
     '</div>',
     '<div class="result-mode-toggle">',
-    '<button class="result-mode-btn active" data-mode-toggle="simple">只看重点</button>',
-    '<button class="result-mode-btn" data-mode-toggle="full">查看完整版</button>',
+    '<button class="result-mode-btn" data-mode-toggle="simple">只看重点</button>',
+    '<button class="result-mode-btn active" data-mode-toggle="full">查看完整版</button>',
     '</div>',
     buildTopicChipsHtml(topicChips),
     '<div class="summary-metrics" data-result-view="full">',
@@ -1710,7 +1707,7 @@ async function renderResultCards() {
   }
 
   let essentialChecks = null;
-  if (needsBooking && (examAdvice.length || (triage.core.firstChecks || []).length)) {
+  if (needsInPerson && (examAdvice.length || (triage.core.firstChecks || []).length)) {
     essentialChecks = buildResultCard('第一步检查', `${buildAdviceListHtml(examAdvice)}${firstChecks}`, 'strong');
     essentialChecks.dataset.resultView = 'full';
     essentialChecks.dataset.topicCard = 'checks';
@@ -1743,18 +1740,18 @@ async function renderResultCards() {
 
   const actionButtons = state.sharedView
     ? [
-        needsBooking
+        needsInPerson
           ? '<button class="result-action primary is-default" data-action="booking">去挂号</button>'
           : '<button class="result-action primary is-default" data-action="deep">继续咨询</button>',
-        needsBooking ? '<button class="result-action" data-action="deep">继续咨询</button>' : '',
+        needsInPerson ? '<button class="result-action" data-action="deep">继续咨询</button>' : '',
         '<button class="result-action" data-action="restart">新的咨询</button>',
         '<button class="result-action" data-action="share">分享结果</button>',
       ].filter(Boolean)
     : [
-        needsBooking
+        needsInPerson
           ? '<button class="result-action primary is-default" data-action="booking">去挂号</button>'
           : '<button class="result-action primary is-default" data-action="deep">继续咨询</button>',
-        needsBooking ? '<button class="result-action" data-action="deep">继续咨询</button>' : '',
+        needsInPerson ? '<button class="result-action" data-action="deep">继续咨询</button>' : '',
         '<button class="result-action" data-action="restart">新的咨询</button>',
         '<button class="result-action" data-action="save">保存记录</button>',
         '<button class="result-action" data-action="share">分享结果</button>',
@@ -1765,7 +1762,7 @@ async function renderResultCards() {
       '<div class="result-card action-card">',
       '<div class="action-head">',
       `<h3>${state.sharedView ? '后续建议' : '下一步'}</h3>`,
-      `<p>${state.sharedView ? '家属可以根据这份总结，继续陪你处理这次问题。' : needsBooking ? '先继续看挂号建议，还是先把这次结果存下来。' : '先按建议处理，后面也可以继续补充再更新。'}</p>`,
+      `<p>${state.sharedView ? '家属可以根据这份总结，继续陪你处理这次问题。' : needsInPerson ? '先继续看挂号建议，还是先把这次结果存下来。' : '先按建议处理，后面也可以继续补充再更新。'}</p>`,
       '</div>',
       '<div class="result-actions">',
       ...actionButtons,
@@ -1805,7 +1802,7 @@ async function renderResultCards() {
       resetConversation();
     };
   }
-  setResultViewMode(state.resultViewMode || 'simple');
+  setResultViewMode(state.resultViewMode || 'full');
   summaryRow.querySelectorAll('[data-topic-chip]').forEach((button) => {
     button.onclick = () => {
       focusResultTopic(button.dataset.topicChip);

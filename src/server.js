@@ -120,6 +120,7 @@ function shouldPersistAsSupplement(intentType = '') {
 function buildTopicChips(session, triageResult) {
   const core = triageResult?.layeredOutput?.core || {};
   const detail = triageResult?.layeredOutput?.detail || {};
+  const needsInPerson = ['routine_clinic', 'specialist_clinic', 'hospital_priority_high'].includes(core.recommendationLevel);
   const chips = [{ key: 'summary', label: '先看总结' }];
   const requestedFocus =
     session?.currentFocus && !['summary', 'other', 'new_issue'].includes(session.currentFocus)
@@ -132,7 +133,7 @@ function buildTopicChips(session, triageResult) {
   if ((detail.medicationAdvice || []).length) {
     chips.push({ key: 'medication', label: '用什么药' });
   }
-  if (core.needsBooking) {
+  if (needsInPerson) {
     chips.push({ key: 'booking', label: '去哪个医院' });
   }
   if (core.needsCost) {
@@ -141,7 +142,7 @@ function buildTopicChips(session, triageResult) {
   if ((session?.supplementFiles || []).length) {
     chips.push({ key: 'report', label: '看检查报告' });
   }
-  if (core.needsBooking && ((detail.examAdvice || []).length || (core.firstChecks || []).length)) {
+  if (needsInPerson && ((detail.examAdvice || []).length || (core.firstChecks || []).length)) {
     chips.push({ key: 'checks', label: '要做哪些检查' });
   }
   chips.push({ key: 'continue', label: '继续聊当前问题' });
