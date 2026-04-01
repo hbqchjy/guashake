@@ -1083,7 +1083,7 @@ body {
   display: grid;
   grid-template-columns: 44px 1fr 44px;
   gap: 8px;
-  align-items: center;
+  align-items: end;
 }
 
 .input-slot {
@@ -1091,7 +1091,6 @@ body {
   min-width: 0;
   display: flex;
   align-items: center;
-  align-self: stretch;
 }
 
 .composer textarea,
