@@ -1083,7 +1083,7 @@ body {
   display: grid;
   grid-template-columns: 44px 1fr 44px;
   gap: 8px;
-  align-items: end;
+  align-items: center;
 }
 
 .input-slot {
@@ -1107,6 +1107,7 @@ body {
   min-height: 44px;
   max-height: 132px;
   margin: 0;
+  display: block;
   line-height: 1.4;
   font-size: 16px;
 }
@@ -1114,6 +1115,7 @@ body {
 .voice-capture {
   width: 100%;
   min-height: 44px;
+  display: block;
   border-radius: 18px;
   background: #f6f7f8;
   border: 2px solid rgba(20, 36, 31, 0.22);
