@@ -2080,30 +2080,31 @@ function ensureSpeechRecognition() {
     if (!transcript) return;
     state.speechBuffer = `${state.speechBuffer} ${transcript}`.trim();
     $('composerInput').value = state.speechBuffer;
-    if (!state.speechPressing) {
+  };
+  recognition.onend = () => {
+    if (state.speechPressing) {
       try {
-        recognition.stop();
+        recognition.start();
+        return;
       } catch (_error) {
       }
     }
-  };
-  recognition.onend = () => {
     state.speechListening = false;
     state.speechPressing = false;
+    document.documentElement.classList.remove('voice-pressing');
+    document.body.classList.remove('voice-pressing');
     syncVoiceButton();
     const transcript = state.speechBuffer.trim();
     state.speechBuffer = '';
     if (transcript) {
       submitText(transcript).catch((err) => alert(err.message));
-      return;
-    }
-    if (!state.speechPressing && state.composerMode === 'voice') {
-      addBotText('这次没有识别到语音内容。你可以再按住说一次，或者直接打字。');
     }
   };
   recognition.onerror = () => {
     state.speechListening = false;
     state.speechPressing = false;
+    document.documentElement.classList.remove('voice-pressing');
+    document.body.classList.remove('voice-pressing');
     syncVoiceButton();
   };
   state.speechRecognition = recognition;
@@ -2129,6 +2130,8 @@ function startVoiceCapture(event) {
   primeSpeechPlayback();
   state.speechPressing = true;
   clearBrowserSelection();
+  document.documentElement.classList.add('voice-pressing');
+  document.body.classList.add('voice-pressing');
   state.speechListening = true;
   syncVoiceButton();
   try {
@@ -2143,23 +2146,23 @@ function stopVoiceCapture(event) {
   if (event) event.preventDefault();
   if (event) event.stopPropagation();
   if (!state.speechListening) {
+    state.speechPressing = false;
+    document.documentElement.classList.remove('voice-pressing');
+    document.body.classList.remove('voice-pressing');
     return;
   }
 
   state.speechPressing = false;
-  syncVoiceButton();
-  window.setTimeout(() => {
-    const recognition = ensureSpeechRecognition();
-    if (recognition && state.speechListening && !state.speechPressing) {
-      try {
-        recognition.stop();
-      } catch (_error) {
-      }
-    } else if (!recognition) {
-      state.speechListening = false;
-      syncVoiceButton();
-    }
-  }, 420);
+  document.documentElement.classList.remove('voice-pressing');
+  document.body.classList.remove('voice-pressing');
+  const recognition = ensureSpeechRecognition();
+  if (recognition) {
+    recognition.stop();
+  } else {
+    state.speechListening = false;
+    state.speechPressing = false;
+    syncVoiceButton();
+  }
 }
 
 function buildRecordContextPreview(record) {
@@ -2420,6 +2423,11 @@ function bindEvents() {
   $('voiceCaptureBtn')?.addEventListener('pointerdown', startVoiceCapture);
   $('voiceCaptureBtn')?.addEventListener('pointerup', stopVoiceCapture);
   $('voiceCaptureBtn')?.addEventListener('pointercancel', stopVoiceCapture);
+  $('voiceCaptureBtn')?.addEventListener('mousedown', startVoiceCapture);
+  $('voiceCaptureBtn')?.addEventListener('mouseup', stopVoiceCapture);
+  $('voiceCaptureBtn')?.addEventListener('touchstart', startVoiceCapture, { passive: false });
+  $('voiceCaptureBtn')?.addEventListener('touchend', stopVoiceCapture, { passive: false });
+  $('voiceCaptureBtn')?.addEventListener('touchcancel', stopVoiceCapture, { passive: false });
   $('voiceCaptureBtn')?.addEventListener('click', (event) => event.preventDefault());
   $('voiceCaptureBtn')?.addEventListener('contextmenu', (event) => event.preventDefault());
   $('voiceCaptureBtn')?.addEventListener('selectstart', (event) => event.preventDefault());
