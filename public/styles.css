@@ -1081,7 +1081,7 @@ body {
 
 .composer {
   display: grid;
-  grid-template-columns: 44px 1fr 56px;
+  grid-template-columns: 40px 1fr 52px;
   gap: 8px;
   align-items: end;
 }
@@ -1096,7 +1096,7 @@ body {
   width: 100%;
   border: 2px solid rgba(20, 36, 31, 0.22);
   border-radius: 18px;
-  padding: 14px 16px;
+  padding: 10px 14px;
   resize: none;
   font: inherit;
   color: var(--text);
@@ -1104,7 +1104,7 @@ body {
 }
 
 .composer textarea {
-  min-height: 52px;
+  min-height: 44px;
   max-height: 132px;
   margin: 0;
   line-height: 1.4;
@@ -1113,7 +1113,7 @@ body {
 
 .voice-capture {
   width: 100%;
-  min-height: 52px;
+  min-height: 44px;
   border-radius: 18px;
   background: #f6f7f8;
   border: 2px solid rgba(20, 36, 31, 0.22);
@@ -1151,7 +1151,7 @@ body.voice-pressing * {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 44px;
+  width: 40px;
   height: 44px;
   border-radius: 999px;
   background: #ffffff;
@@ -1176,10 +1176,10 @@ body.voice-pressing * {
 }
 
 .send-btn {
-  min-width: 56px;
+  min-width: 52px;
   min-height: 44px;
   border-radius: 16px;
-  padding: 0 14px;
+  padding: 0 12px;
   font-weight: 700;
 }
 
@@ -1633,15 +1633,15 @@ body.voice-pressing * {
   }
 
   .send-btn {
-    min-width: 68px;
+    min-width: 58px;
     min-height: 46px;
     border-radius: 18px;
-    padding: 0 14px;
+    padding: 0 12px;
     font-size: 15px;
   }
 
   .icon-btn {
-    width: 46px;
+    width: 40px;
     height: 46px;
   }
 
@@ -1652,9 +1652,9 @@ body.voice-pressing * {
 
   .composer textarea,
   .voice-capture {
-    min-height: 52px;
-    border-radius: 20px;
-    padding: 12px 14px;
+    min-height: 46px;
+    border-radius: 18px;
+    padding: 10px 14px;
     font-size: 16px;
   }
 

@@ -65,6 +65,7 @@ let botTextQueue = Promise.resolve();
 let pendingAfterLogin = null;
 const AUTH_STORAGE_KEY = 'guashake-auth-v1';
 const REGION_STORAGE_KEY = 'guashake-last-region-v1';
+const RUNTIME_STORAGE_KEY = 'guashake-runtime-v1';
 
 const $ = (id) => document.getElementById(id);
 
@@ -256,6 +257,34 @@ function loadAuthState() {
 
 function saveAuthState() {
   localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(state.auth));
+}
+
+function saveRuntimeState() {
+  if (!state.sessionId) {
+    sessionStorage.removeItem(RUNTIME_STORAGE_KEY);
+    return;
+  }
+  const payload = {
+    sessionId: state.sessionId,
+    resultViewMode: state.resultViewMode,
+    showBookingPanel: state.showBookingPanel,
+    resultAnchor: state.resultAnchor,
+    currentFocus: state.currentFocus,
+    profile: state.profile,
+  };
+  sessionStorage.setItem(RUNTIME_STORAGE_KEY, JSON.stringify(payload));
+}
+
+function clearRuntimeState() {
+  sessionStorage.removeItem(RUNTIME_STORAGE_KEY);
+}
+
+function loadRuntimeState() {
+  try {
+    return JSON.parse(sessionStorage.getItem(RUNTIME_STORAGE_KEY) || 'null');
+  } catch (_error) {
+    return null;
+  }
 }
 
 function getAuthDisplayName() {
@@ -798,6 +827,7 @@ function resetConversation() {
   renderQuickSymptoms();
   setComposerState('symptom');
   syncComposerActions();
+  clearRuntimeState();
 }
 
 function updateRecordsDialogCopy() {
@@ -835,6 +865,7 @@ async function startSymptomSession(symptomText) {
     setCurrentFocus(data.currentFocus);
   }
   $('quickRow').classList.add('hidden');
+  saveRuntimeState();
 
   if (data.conversationStage === 'closed') {
     if (data.assistantReply) {
@@ -965,6 +996,7 @@ async function continueOpenConversation(value) {
     state.currentQuestion = null;
     state.conversationStage = 'structured';
     state.followUpProgress = data.progress || null;
+    saveRuntimeState();
     await addBotText('为了更准确地帮你分析，需要你回答几个问题。');
     await askQuestion(data.nextQuestion);
     return;
@@ -975,6 +1007,7 @@ async function continueOpenConversation(value) {
     state.currentQuestion = null;
     state.conversationStage = 'open';
     setComposerState('symptom');
+    saveRuntimeState();
     await addBotText(data.nextPrompt.text);
     return;
   }
@@ -1050,6 +1083,7 @@ async function answerQuestion(answer) {
   }
 
   state.followUpProgress = data.progress || null;
+  saveRuntimeState();
   await askQuestion(data.nextQuestion);
 }
 
@@ -1062,6 +1096,7 @@ async function directResult() {
   state.currentPrompt = null;
   state.showBookingPanel = false;
   clearSummaryDirty();
+  saveRuntimeState();
   await ensureContextAndRenderResult();
 }
 
@@ -1355,6 +1390,7 @@ async function selectRegion(region) {
   state.awaitingContext = null;
   await addBotText(`地区已确认：${formatRegion(region)}`);
   setComposerState('symptom');
+  saveRuntimeState();
   await ensureContextAndRenderResult();
 }
 
@@ -1510,7 +1546,7 @@ function buildBookingCard(booking, prepItems) {
   const cachedRegion = isRegionValid(state.savedRegion) ? state.savedRegion : null;
   const hospitalCardHtml = (hospital) => {
     const entryButton = hospital.entryUrl
-      ? `<a class="record-action" target="_blank" rel="noreferrer" href="${escapeHtml(hospital.entryUrl)}">${escapeHtml(hospital.entryLabel || '去挂号')}</a>`
+      ? `<button type="button" class="record-action" data-booking-entry="${escapeHtml(hospital.entryUrl)}">${escapeHtml(hospital.entryLabel || '去挂号')}</button>`
       : '<span class="record-action disabled">未录入官方挂号入口</span>';
     const channelHint = hospital.entryUrl
       ? `公众号：${escapeHtml(hospital.officialWechatName || '未录入')}${hospital.wechatAccount ? `（微信号：${escapeHtml(hospital.wechatAccount)}）` : ''}${hospital.miniProgramName ? ` / 小程序：${escapeHtml(hospital.miniProgramName)}` : ''}`
@@ -1586,6 +1622,12 @@ function buildBookingCard(booking, prepItems) {
       await addBotText('你直接输入县、区或市名就行，我会自动补全。');
       setComposerState('region');
       $('composerInput').focus();
+    };
+  });
+  row.querySelectorAll('[data-booking-entry]').forEach((button) => {
+    button.onclick = () => {
+      saveRuntimeState();
+      window.location.href = button.dataset.bookingEntry;
     };
   });
   return row;
@@ -2013,7 +2055,9 @@ async function handlePickedFile(file, label) {
 }
 
 function syncVoiceButton() {
-  $('voiceCaptureBtn').textContent = state.speechListening ? '松开发送' : '按住说话';
+  $('voiceCaptureBtn').textContent = state.speechListening
+    ? (state.speechPressing ? '松开发送' : '识别中...')
+    : '按住说话';
   $('voiceCaptureBtn').classList.toggle('active', state.speechListening);
 }
 
@@ -2038,6 +2082,12 @@ function ensureSpeechRecognition() {
     if (!transcript) return;
     state.speechBuffer = `${state.speechBuffer} ${transcript}`.trim();
     $('composerInput').value = state.speechBuffer;
+    if (!state.speechPressing) {
+      try {
+        recognition.stop();
+      } catch (_error) {
+      }
+    }
   };
   recognition.onend = () => {
     if (state.speechPressing) {
@@ -2056,6 +2106,10 @@ function ensureSpeechRecognition() {
     state.speechBuffer = '';
     if (transcript) {
       submitText(transcript).catch((err) => alert(err.message));
+      return;
+    }
+    if (!state.speechPressing && state.composerMode === 'voice') {
+      addBotText('这次没有识别到语音内容。你可以再按住说一次，或者直接打字。');
     }
   };
   recognition.onerror = () => {
@@ -2113,14 +2167,19 @@ function stopVoiceCapture(event) {
   state.speechPressing = false;
   document.documentElement.classList.remove('voice-pressing');
   document.body.classList.remove('voice-pressing');
-  const recognition = ensureSpeechRecognition();
-  if (recognition) {
-    recognition.stop();
-  } else {
-    state.speechListening = false;
-    state.speechPressing = false;
-    syncVoiceButton();
-  }
+  syncVoiceButton();
+  window.setTimeout(() => {
+    const recognition = ensureSpeechRecognition();
+    if (recognition && state.speechListening && !state.speechPressing) {
+      try {
+        recognition.stop();
+      } catch (_error) {
+      }
+    } else if (!recognition) {
+      state.speechListening = false;
+      syncVoiceButton();
+    }
+  }, 420);
 }
 
 function buildRecordContextPreview(record) {
@@ -2136,14 +2195,48 @@ function buildRecordContextPreview(record) {
 }
 
 async function sendRecordAsContext(record) {
+  addUserText(`引用记录：${record.summary || record.chiefComplaint || '历史记录'}`);
   if (!state.sessionId) {
-    alert('先开始一次咨询，再引用历史记录。');
+    showThinkingBubble();
+    const data = await api(`/archive/${encodeURIComponent(state.auth.userId)}/${record.id}/context-session`, {
+      method: 'POST',
+    });
+    state.sessionId = data.sessionId;
+    state.currentQuestion = null;
+    state.currentPrompt = null;
+    state.profile = {
+      ...state.profile,
+      province: data.profile?.province || state.profile.province,
+      city: data.profile?.city || state.profile.city,
+      district: data.profile?.district || state.profile.district,
+      insuranceType: data.profile?.insuranceType || state.profile.insuranceType,
+    };
+    state.conversationStage = data.conversationStage || 'structured';
+    state.followUpProgress = data.progress || null;
+    if (data.currentFocus) {
+      setCurrentFocus(data.currentFocus);
+    }
+    $('quickRow').classList.add('hidden');
+    saveRuntimeState();
+    if (data.assistantReply) {
+      await addBotText(data.assistantReply);
+    }
+    if (data.nextPrompt?.type === 'text') {
+      state.currentPrompt = data.nextPrompt;
+      setComposerState('symptom');
+      await addBotText(data.nextPrompt.text);
+      return;
+    }
+    if (data.nextQuestion) {
+      await addBotText('为了更准确地帮你分析，需要你回答几个问题。');
+      await askQuestion(data.nextQuestion);
+      return;
+    }
     return;
   }
 
   const data = await api(`/archive/${encodeURIComponent(state.auth.userId)}/${record.id}/context`);
   const contextText = data.contextText || buildRecordContextPreview(record);
-  addUserText(`引用记录：${record.summary || '历史记录'}`);
   const supplementResult = await api('/triage/supplement', {
     method: 'POST',
     body: JSON.stringify({
@@ -2249,6 +2342,7 @@ function buildRecordDetailView(record, mode = 'full') {
   const examAdvice = detail.examAdvice || [];
   const firstChecks = (core.firstChecks || record.firstChecks || []).map((item) => item.name || item).filter(Boolean);
   const files = Array.isArray(record.files) ? record.files : [];
+  const conversationItems = Array.isArray(record.conversationItems) ? record.conversationItems.filter((item) => item?.text) : [];
   const sections = [];
 
   if (careAdvice.length) {
@@ -2272,6 +2366,16 @@ function buildRecordDetailView(record, mode = 'full') {
         '已保存材料',
         `<div class="detail-file-list">${files
           .map((file) => `<div class="detail-file-item"><strong>${escapeHtml(file.originalName || '-')}</strong>${file.summary?.title ? `<span>${escapeHtml(file.summary.title)}</span>` : '<span>未生成摘要</span>'}</div>`)
+          .join('')}</div>`
+      )
+    );
+  }
+  if (conversationItems.length) {
+    sections.unshift(
+      buildPlainResultCardHtml(
+        '病情记录',
+        `<div class="detail-file-list">${conversationItems
+          .map((item) => `<div class="detail-file-item"><strong>${escapeHtml(item.kind === 'chiefComplaint' ? '首次描述' : item.kind === 'answer' ? '问答记录' : '补充信息')}</strong><span>${escapeHtml(item.text)}</span></div>`)
           .join('')}</div>`
       )
     );
@@ -2336,11 +2440,6 @@ function bindEvents() {
   $('voiceCaptureBtn')?.addEventListener('pointerdown', startVoiceCapture);
   $('voiceCaptureBtn')?.addEventListener('pointerup', stopVoiceCapture);
   $('voiceCaptureBtn')?.addEventListener('pointercancel', stopVoiceCapture);
-  $('voiceCaptureBtn')?.addEventListener('mousedown', startVoiceCapture);
-  $('voiceCaptureBtn')?.addEventListener('mouseup', stopVoiceCapture);
-  $('voiceCaptureBtn')?.addEventListener('touchstart', startVoiceCapture, { passive: false });
-  $('voiceCaptureBtn')?.addEventListener('touchend', stopVoiceCapture, { passive: false });
-  $('voiceCaptureBtn')?.addEventListener('touchcancel', stopVoiceCapture, { passive: false });
   $('voiceCaptureBtn')?.addEventListener('click', (event) => event.preventDefault());
   $('voiceCaptureBtn')?.addEventListener('contextmenu', (event) => event.preventDefault());
   $('voiceCaptureBtn')?.addEventListener('selectstart', (event) => event.preventDefault());
@@ -2457,6 +2556,7 @@ async function bootstrap() {
   syncAuthUi();
   syncMyUi();
   bindEvents();
+  window.addEventListener('beforeunload', saveRuntimeState);
   const params = new URLSearchParams(window.location.search);
   const sharedSessionId = params.get('session');
   if (sharedSessionId) {
@@ -2466,6 +2566,57 @@ async function bootstrap() {
     } catch (_error) {
       document.querySelector('.composer-wrap').classList.remove('hidden');
       state.sharedView = false;
+    }
+  }
+  const cachedRuntime = loadRuntimeState();
+  if (cachedRuntime?.sessionId) {
+    try {
+      state.sessionId = cachedRuntime.sessionId;
+      state.resultViewMode = cachedRuntime.resultViewMode || 'full';
+      state.showBookingPanel = Boolean(cachedRuntime.showBookingPanel);
+      state.resultAnchor = cachedRuntime.resultAnchor || 'summary';
+      if (cachedRuntime.currentFocus?.key) {
+        setCurrentFocus(cachedRuntime.currentFocus);
+      }
+      if (cachedRuntime.profile) {
+        state.profile = { ...state.profile, ...cachedRuntime.profile };
+      }
+      $('quickRow').classList.add('hidden');
+      const restored = await api(`/triage/session/${encodeURIComponent(cachedRuntime.sessionId)}/state`);
+      state.conversationStage = restored.conversationStage || 'idle';
+      if (restored.profile) {
+        state.profile = { ...state.profile, ...restored.profile };
+      }
+      if (restored.currentFocus?.key) {
+        setCurrentFocus(restored.currentFocus);
+      }
+      if (restored.hasResult) {
+        const result = await api(`/triage/result/${encodeURIComponent(cachedRuntime.sessionId)}`);
+        syncSnapshotMeta(result.snapshot);
+        state.triageResult = result;
+        await renderResultCards();
+        return;
+      }
+      resetConversation();
+      state.sessionId = cachedRuntime.sessionId;
+      $('quickRow').classList.add('hidden');
+      if (restored.currentPrompt?.type === 'text') {
+        state.currentPrompt = restored.currentPrompt;
+        state.conversationStage = restored.conversationStage || 'open';
+        await addBotText(restored.currentPrompt.text);
+        saveRuntimeState();
+        return;
+      }
+      if (restored.currentQuestion) {
+        state.currentQuestion = null;
+        state.followUpProgress = restored.progress || null;
+        state.conversationStage = 'structured';
+        await askQuestion(restored.currentQuestion);
+        saveRuntimeState();
+        return;
+      }
+    } catch (_error) {
+      clearRuntimeState();
     }
   }
   resetConversation();

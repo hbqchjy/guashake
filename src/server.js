@@ -456,6 +456,39 @@ function buildArchiveContextText(record, session) {
   return parts.join('\n');
 }
 
+function buildConversationSnapshot(session) {
+  const items = [];
+  if (!session) return items;
+  if (session.chiefComplaint) {
+    items.push({ role: 'user', kind: 'chiefComplaint', text: session.chiefComplaint });
+  }
+  const answers = session.answers || {};
+  for (const [questionId, answer] of Object.entries(answers)) {
+    const question = session.scenario?.questions?.find((item) => item.id === questionId);
+    items.push({
+      role: 'user',
+      kind: 'answer',
+      text: question ? `${question.text}：${answer}` : String(answer),
+      questionId,
+    });
+  }
+  for (const supplement of session.supplements || []) {
+    if (!supplement) continue;
+    items.push({ role: 'user', kind: 'supplement', text: supplement });
+  }
+  return items;
+}
+
+function buildSlotHintsFromSession(session) {
+  return Object.values(session?.followUp?.slotState || {})
+    .filter((item) => item?.slot && item?.answer)
+    .map((item) => ({
+      slot: item.slot,
+      slotLabel: item.slotLabel || item.slot,
+      answer: item.answer,
+    }));
+}
+
 function mergeSlotHintsIntoState(existingState = {}, hints = [], sourcePrefix = 'derived') {
   const slotState = { ...existingState };
 
@@ -1669,6 +1702,11 @@ app.post('/archive/upload', upload.array('files', 10), (req, res) => {
     costRange: triageResult?.layeredOutput?.core?.firstCostRange || '',
     firstChecks: triageResult?.layeredOutput?.core?.firstChecks || [],
     summarySnapshot: triageResult?.layeredOutput || null,
+    chiefComplaint: session?.chiefComplaint || '',
+    conversationItems: buildConversationSnapshot(session),
+    answers: session?.answers || {},
+    supplements: session?.supplements || [],
+    supplementInsights: session?.supplementInsights || [],
     files: [
       ...((session?.supplementFiles || []).map((f) => ({
         originalName: f.originalName,
@@ -1710,6 +1748,81 @@ app.get('/archive/:userId/:recordId/context', (req, res) => {
     recordId,
     contextText,
     record,
+  });
+});
+
+app.post('/archive/:userId/:recordId/context-session', async (req, res) => {
+  const { userId, recordId } = req.params;
+  const record = getArchive(userId, recordId);
+  if (!record) {
+    return res.status(404).json({ error: 'record not found' });
+  }
+
+  const sourceSession = record.sessionId ? getSession(record.sessionId) : null;
+  const contextText = buildArchiveContextText(record, sourceSession);
+  const result = await createTriageSession({
+    age: sourceSession?.age,
+    gender: sourceSession?.gender,
+    province: sourceSession?.province,
+    city: sourceSession?.city,
+    district: sourceSession?.district,
+    insuranceType: sourceSession?.insuranceType,
+    chiefComplaint: sourceSession?.chiefComplaint || record.summaryText || record.summary || record.likelyType || '我想继续参考之前的病情记录',
+    supplements: contextText ? [contextText] : [],
+    supplementInsights: sourceSession?.supplementInsights || record.supplementInsights || [],
+    supplementFiles: sourceSession?.supplementFiles || [],
+    slotHints: buildSlotHintsFromSession(sourceSession),
+  });
+
+  return res.json({
+    ok: true,
+    sourceRecord: record,
+    contextText,
+    ...result,
+  });
+});
+
+app.get('/triage/session/:id/state', async (req, res) => {
+  const session = getSession(req.params.id);
+  if (!session) {
+    return res.status(404).json({ error: 'session not found' });
+  }
+
+  const currentQuestionId = session.followUp?.currentQuestionId || '';
+  const currentQuestion = currentQuestionId
+    ? (session.scenario?.questions || []).find((item) => item.id === currentQuestionId) || null
+    : null;
+  const progress = session.followUp?.stepCount && session.scenario?.questions?.length
+    ? {
+        current: Math.min(Number(session.followUp.stepCount || 0) + (currentQuestion ? 1 : 0), session.scenario.questions.length),
+        total: session.scenario.questions.length,
+      }
+    : null;
+  const currentFocus = {
+    key: session.currentFocus || 'summary',
+    label: session.currentFocusLabel || '先看总结',
+  };
+
+  return res.json({
+    ok: true,
+    sessionId: session.id,
+    conversationStage: session.conversationStage || 'idle',
+    currentPrompt: session.openPromptText
+      ? {
+          type: 'text',
+          text: session.openPromptText,
+        }
+      : null,
+    currentQuestion,
+    progress,
+    profile: {
+      province: session.province || '',
+      city: session.city || '',
+      district: session.district || '',
+      insuranceType: session.insuranceType || '',
+    },
+    hasResult: Boolean(session.triageResult),
+    currentFocus,
   });
 });
 
