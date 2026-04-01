@@ -752,7 +752,6 @@ function syncComposerActions() {
 }
 
 function setComposerMode(mode) {
-  const previousMode = state.composerMode;
   state.composerMode = mode;
   state.speechSynthesisEnabled = mode === 'voice';
   const isVoice = mode === 'voice';
@@ -764,16 +763,11 @@ function setComposerMode(mode) {
   syncVoiceButton();
   if (isVoice) {
     primeSpeechPlayback();
-    if (previousMode !== 'voice') {
-      speakGesturePrompt('语音模式已开启');
-    }
   }
   if (!isVoice) {
     stopSpeechPlayback();
     state.speechBuffer = '';
-    if (previousMode === 'voice') {
-      $('composerInput').value = '';
-    }
+    $('composerInput').value = '';
   }
   if (!isVoice) setComposerState(state.inputMode);
   syncComposerActions();
@@ -2078,21 +2072,11 @@ function ensureSpeechRecognition() {
   recognition.onresult = (event) => {
     const transcript = event.results?.[0]?.[0]?.transcript?.trim();
     if (!transcript) return;
-    state.speechBuffer = `${state.speechBuffer} ${transcript}`.trim();
+    state.speechBuffer = transcript;
     $('composerInput').value = state.speechBuffer;
   };
   recognition.onend = () => {
-    if (state.speechPressing) {
-      try {
-        recognition.start();
-        return;
-      } catch (_error) {
-      }
-    }
     state.speechListening = false;
-    state.speechPressing = false;
-    document.documentElement.classList.remove('voice-pressing');
-    document.body.classList.remove('voice-pressing');
     syncVoiceButton();
     const transcript = state.speechBuffer.trim();
     state.speechBuffer = '';
@@ -2102,9 +2086,6 @@ function ensureSpeechRecognition() {
   };
   recognition.onerror = () => {
     state.speechListening = false;
-    state.speechPressing = false;
-    document.documentElement.classList.remove('voice-pressing');
-    document.body.classList.remove('voice-pressing');
     syncVoiceButton();
   };
   state.speechRecognition = recognition;
@@ -2113,7 +2094,6 @@ function ensureSpeechRecognition() {
 
 function startVoiceCapture(event) {
   event.preventDefault();
-  event.stopPropagation();
   const recognition = ensureSpeechRecognition();
   if (!recognition) {
     addBotText('当前浏览器不支持语音识别。你可以继续直接打字。');
@@ -2126,12 +2106,6 @@ function startVoiceCapture(event) {
   }
 
   state.speechBuffer = '';
-  stopSpeechPlayback();
-  primeSpeechPlayback();
-  state.speechPressing = true;
-  clearBrowserSelection();
-  document.documentElement.classList.add('voice-pressing');
-  document.body.classList.add('voice-pressing');
   state.speechListening = true;
   syncVoiceButton();
   try {
@@ -2144,23 +2118,15 @@ function startVoiceCapture(event) {
 
 function stopVoiceCapture(event) {
   if (event) event.preventDefault();
-  if (event) event.stopPropagation();
   if (!state.speechListening) {
-    state.speechPressing = false;
-    document.documentElement.classList.remove('voice-pressing');
-    document.body.classList.remove('voice-pressing');
     return;
   }
 
-  state.speechPressing = false;
-  document.documentElement.classList.remove('voice-pressing');
-  document.body.classList.remove('voice-pressing');
   const recognition = ensureSpeechRecognition();
   if (recognition) {
     recognition.stop();
   } else {
     state.speechListening = false;
-    state.speechPressing = false;
     syncVoiceButton();
   }
 }
@@ -2423,19 +2389,10 @@ function bindEvents() {
   $('voiceCaptureBtn')?.addEventListener('pointerdown', startVoiceCapture);
   $('voiceCaptureBtn')?.addEventListener('pointerup', stopVoiceCapture);
   $('voiceCaptureBtn')?.addEventListener('pointercancel', stopVoiceCapture);
-  $('voiceCaptureBtn')?.addEventListener('mousedown', startVoiceCapture);
-  $('voiceCaptureBtn')?.addEventListener('mouseup', stopVoiceCapture);
-  $('voiceCaptureBtn')?.addEventListener('touchstart', startVoiceCapture, { passive: false });
-  $('voiceCaptureBtn')?.addEventListener('touchend', stopVoiceCapture, { passive: false });
-  $('voiceCaptureBtn')?.addEventListener('touchcancel', stopVoiceCapture, { passive: false });
+  $('voiceCaptureBtn')?.addEventListener('pointerleave', stopVoiceCapture);
   $('voiceCaptureBtn')?.addEventListener('click', (event) => event.preventDefault());
   $('voiceCaptureBtn')?.addEventListener('contextmenu', (event) => event.preventDefault());
   $('voiceCaptureBtn')?.addEventListener('selectstart', (event) => event.preventDefault());
-  document.addEventListener('selectionchange', () => {
-    if (state.speechPressing) {
-      clearBrowserSelection();
-    }
-  });
 
   $('plusBtn')?.addEventListener('click', () => {
     $('plusMenu').classList.toggle('hidden');
