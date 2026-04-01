@@ -2076,7 +2076,12 @@ async function startVoiceCapture(event) {
   try {
     stream = await navigator.mediaDevices.getUserMedia({ audio: true });
   } catch (err) {
-    addBotText('无法访问麦克风，请检查权限设置。');
+    const isWechat = /MicroMessenger/i.test(navigator.userAgent || '');
+    if (isWechat) {
+      addBotText('微信内打开网页时麦克风权限受限。请先用手机 Chrome 测试语音输入，或改用打字继续。');
+    } else {
+      addBotText('无法访问麦克风，请检查浏览器麦克风权限设置。');
+    }
     setComposerMode('text');
     return;
   }
@@ -2126,6 +2131,7 @@ async function startVoiceCapture(event) {
       setTimeout(syncVoiceButton, 1500);
     } finally {
       $('voiceCaptureBtn').disabled = false;
+      syncVoiceButton();
     }
   };
 
