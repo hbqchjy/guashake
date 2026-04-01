@@ -2055,9 +2055,7 @@ async function handlePickedFile(file, label) {
 }
 
 function syncVoiceButton() {
-  $('voiceCaptureBtn').textContent = state.speechListening
-    ? (state.speechPressing ? '松开发送' : '识别中...')
-    : '按住说话';
+  $('voiceCaptureBtn').textContent = state.speechListening ? '松开发送' : '按住说话';
   $('voiceCaptureBtn').classList.toggle('active', state.speechListening);
 }
 
@@ -2082,12 +2080,6 @@ function ensureSpeechRecognition() {
     if (!transcript) return;
     state.speechBuffer = `${state.speechBuffer} ${transcript}`.trim();
     $('composerInput').value = state.speechBuffer;
-    if (!state.speechPressing) {
-      try {
-        recognition.stop();
-      } catch (_error) {
-      }
-    }
   };
   recognition.onend = () => {
     if (state.speechPressing) {
@@ -2106,10 +2098,6 @@ function ensureSpeechRecognition() {
     state.speechBuffer = '';
     if (transcript) {
       submitText(transcript).catch((err) => alert(err.message));
-      return;
-    }
-    if (!state.speechPressing && state.composerMode === 'voice') {
-      addBotText('这次没有识别到语音内容。你可以再按住说一次，或者直接打字。');
     }
   };
   recognition.onerror = () => {
@@ -2167,19 +2155,14 @@ function stopVoiceCapture(event) {
   state.speechPressing = false;
   document.documentElement.classList.remove('voice-pressing');
   document.body.classList.remove('voice-pressing');
-  syncVoiceButton();
-  window.setTimeout(() => {
-    const recognition = ensureSpeechRecognition();
-    if (recognition && state.speechListening && !state.speechPressing) {
-      try {
-        recognition.stop();
-      } catch (_error) {
-      }
-    } else if (!recognition) {
-      state.speechListening = false;
-      syncVoiceButton();
-    }
-  }, 420);
+  const recognition = ensureSpeechRecognition();
+  if (recognition) {
+    recognition.stop();
+  } else {
+    state.speechListening = false;
+    state.speechPressing = false;
+    syncVoiceButton();
+  }
 }
 
 function buildRecordContextPreview(record) {
