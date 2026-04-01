@@ -1,5 +1,5 @@
 const QUICK_SYMPTOMS = ['心慌', '胸闷', '头晕', '腰酸', '肚子痛', '咳嗽', '尿频尿急', '皮肤/外伤'];
-const INSURANCE_OPTIONS = ['城镇职工医保', '城乡居民医保', '其他商业医保', '无医保'];
+const INSURANCE_OPTIONS = ['城镇职工医保', '城乡居民医保', '无医保'];
 
 const state = {
   sessionId: null,
@@ -33,6 +33,9 @@ const state = {
     report: 0,
   },
   resultViewMode: 'full',
+  showBookingPanel: false,
+  activeRecordDetail: null,
+  activeRecordDetailMode: 'full',
   sharedView: false,
   resultAnchor: 'summary',
   savedRegion: null,
@@ -79,8 +82,7 @@ const QUICK_SYMPTOM_ICONS = {
 };
 
 const RESULT_CARD_ICONS = {
-  现在怎么处理: 'spark',
-  先自己怎么处理: 'spark',
+  现在怎么办: 'spark',
   用药建议: 'clipboard',
   什么时候去医院: 'bag',
   '第一步检查': 'clipboard',
@@ -626,6 +628,9 @@ function resetConversation() {
     report: 0,
   };
   state.resultViewMode = 'full';
+  state.showBookingPanel = false;
+  state.activeRecordDetail = null;
+  state.activeRecordDetailMode = 'full';
   state.sharedView = false;
   state.conversationStage = 'idle';
   state.currentPrompt = null;
@@ -909,6 +914,7 @@ async function directResult() {
   state.followUpProgress = null;
   state.generationReady = false;
   state.currentPrompt = null;
+  state.showBookingPanel = false;
   clearSummaryDirty();
   await ensureContextAndRenderResult();
 }
@@ -1124,86 +1130,38 @@ async function promptRegionConfirmation(forceRetry = false) {
   }
 
   state.autoLocateTried = true;
-  await addBotText(state.isWeChat ? '微信里定位不太稳定，我先按网络位置估一个地区，你确认一下。' : '我先按你现在的位置补一个地区，你确认一下。');
 
-  try {
-    const ipRegion = await detectRegionByIp().catch(() => null);
-    if (ipRegion) {
+  if (!state.isWeChat) {
+    await addBotText('我先试着按你现在的位置补一个地区，你确认一下。');
+    const preciseRegion = await detectCurrentRegion().catch(() => null);
+    if (preciseRegion) {
       await revealChoiceBlock(
-        '我先按网络位置估了一个地区，你确认一下',
+        '我拿到了一个当前位置，你确认一下',
         [
-          { label: `确认 ${formatRegion(ipRegion)}`, type: 'confirm', region: ipRegion },
-          { label: '更改地址', type: 'change' },
+          { label: `确认 ${formatRegion(preciseRegion)}`, type: 'confirm', region: preciseRegion },
+          { label: '更改地址', type: 'manual' },
         ],
         async (option) => {
           if (option.type === 'confirm') {
             await selectRegion(option.region);
             return;
           }
-          const preciseRegion = await detectCurrentRegion().catch(() => null);
-          if (preciseRegion) {
-            await selectRegion(preciseRegion);
-            return;
-          }
           await promptManualRegionEntry();
         },
-        '如果网络位置不准，你再改。'
+        '如果定位不准，你再手动改。'
       );
       return;
     }
+  }
 
-    if (state.isWeChat) {
-      if (cachedRegion) {
-        await revealChoiceBlock(
-          '微信里定位没拿准，先用哪个地区',
-          [
-            { label: `用上次地区 ${formatRegion(cachedRegion)}`, type: 'cached', region: cachedRegion },
-            { label: '手动输入地区', type: 'manual' },
-          ],
-          async (option) => {
-            if (option.type === 'cached') {
-              await selectRegion(option.region);
-              return;
-            }
-            await promptManualRegionEntry();
-          },
-          '如果你后面接了公众号定位能力，再补自动定位会更稳。'
-        );
-        return;
-      }
-      await promptManualRegionEntry('微信里这次没拿到准确地区。你可以直接输入县、区或市名。');
-      return;
-    }
-
-    const region = await detectCurrentRegion();
-    if (!region) {
-      if (cachedRegion) {
-        await revealChoiceBlock(
-          '这次定位没拿准，先用哪个地区',
-          [
-            { label: `用上次地区 ${formatRegion(cachedRegion)}`, type: 'cached', region: cachedRegion },
-            { label: '手动输入地区', type: 'manual' },
-          ],
-          async (option) => {
-            if (option.type === 'cached') {
-              await selectRegion(option.region);
-              return;
-            }
-            await promptManualRegionEntry();
-          },
-          '自动定位在微信里有时不稳定，我先把上次地区给你。'
-        );
-        return;
-      }
-      await promptManualRegionEntry('我这次没拿到准确地区。你可以直接改成县、区或市名。');
-      return;
-    }
-
+  await addBotText(state.isWeChat ? '微信里精确定位不太稳定，我先按网络位置估一个地区，你确认一下。' : '精确定位没拿到，我先按网络位置估一个地区，你确认一下。');
+  const ipRegion = await detectRegionByIp().catch(() => null);
+  if (ipRegion) {
     await revealChoiceBlock(
-      '这是你现在的地区吗',
+      '我先按网络位置估了一个地区，你确认一下',
       [
-        { label: `确认 ${formatRegion(region)}`, type: 'confirm', region },
-        { label: '更改地址', type: 'change' },
+        { label: `确认 ${formatRegion(ipRegion)}`, type: 'confirm', region: ipRegion },
+        { label: '更改地址', type: 'manual' },
       ],
       async (option) => {
         if (option.type === 'confirm') {
@@ -1212,53 +1170,36 @@ async function promptRegionConfirmation(forceRetry = false) {
         }
         await promptManualRegionEntry();
       },
-      '如果定位不准，你再改。'
+      '网络位置只做大致参考，不准的话你直接改。'
     );
-  } catch (_error) {
-    const ipRegion = await detectRegionByIp().catch(() => null);
-    if (ipRegion) {
-      await revealChoiceBlock(
-        '自动定位没有成功，先用这个地区吗',
-        [
-          { label: `确认 ${formatRegion(ipRegion)}`, type: 'confirm', region: ipRegion },
-          { label: '手动输入地区', type: 'manual' },
-        ],
-        async (option) => {
-          if (option.type === 'confirm') {
-            await selectRegion(option.region);
-            return;
-          }
-          await promptManualRegionEntry();
-        },
-        '这是按网络位置估的，不准时你再改。'
-      );
-      return;
-    }
-    if (cachedRegion) {
-      await revealChoiceBlock(
-        '定位没有成功，先用哪个地区',
-        [
-          { label: `用上次地区 ${formatRegion(cachedRegion)}`, type: 'cached', region: cachedRegion },
-          { label: '手动输入地区', type: 'manual' },
-        ],
-        async (option) => {
-          if (option.type === 'cached') {
-            await selectRegion(option.region);
-            return;
-          }
-          await promptManualRegionEntry();
-        },
-        '你也可以直接改成新的县、区或市名。'
-      );
-      return;
-    }
-    await promptManualRegionEntry('定位没有成功。你可以直接输入县、区或市名。');
+    return;
   }
+
+  if (cachedRegion) {
+    await revealChoiceBlock(
+      '自动获取没拿准，先用哪个地区',
+      [
+        { label: `继续用上次地区 ${formatRegion(cachedRegion)}`, type: 'cached', region: cachedRegion },
+        { label: '手动输入地区', type: 'manual' },
+      ],
+      async (option) => {
+        if (option.type === 'cached') {
+          await selectRegion(option.region);
+          return;
+        }
+        await promptManualRegionEntry();
+      }
+    );
+    return;
+  }
+
+  await promptManualRegionEntry('自动获取地区这次没拿准，你直接输入县、区或市名就行。');
 }
 
 async function selectRegion(region) {
   state.resultViewMode = 'full';
   state.resultAnchor = 'booking';
+  state.showBookingPanel = true;
   persistRegion(region);
   await updateSessionProfile({
     province: region.province,
@@ -1271,14 +1212,15 @@ async function selectRegion(region) {
   await ensureContextAndRenderResult();
 }
 
-function buildResultCard(title, contentHtml, extraClass = '') {
+function buildPlainResultCardHtml(title, contentHtml, extraClass = '') {
   const iconName = RESULT_CARD_ICONS[title] || 'spark';
-  return markResultRow(addRow(
-    'bot',
-    `<div class="result-card ${extraClass}"><div class="result-card-head"><span class="result-card-icon">${getInlineIcon(
-      iconName
-    )}</span><h3>${escapeHtml(title)}</h3></div>${contentHtml}</div>`
-  ));
+  return `<div class="result-card ${extraClass}"><div class="result-card-head"><span class="result-card-icon">${getInlineIcon(
+    iconName
+  )}</span><h3>${escapeHtml(title)}</h3></div>${contentHtml}</div>`;
+}
+
+function buildResultCard(title, contentHtml, extraClass = '') {
+  return markResultRow(addRow('bot', buildPlainResultCardHtml(title, contentHtml, extraClass)));
 }
 
 function buildCollapsibleResultCard(title, preview, contentHtml, extraClass = '') {
@@ -1372,13 +1314,15 @@ function buildTopicChipsHtml(chips = []) {
   ].join('');
 }
 
+function buildSummarySectionHeading(title) {
+  return `<div class="summary-section-heading"><span class="result-card-icon">${getInlineIcon('spark')}</span><span>${escapeHtml(title)}</span></div>`;
+}
+
 function focusResultTopic(topicKey) {
   if (!topicKey) return;
   if (topicKey === 'summary') {
-    state.resultViewMode = 'simple';
     state.resultAnchor = 'summary';
     setCurrentFocus({ key: 'summary', label: '先看总结' });
-    setResultViewMode('simple');
     requestAnimationFrame(() => {
       document.querySelector('.summary-shell')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
@@ -1390,6 +1334,17 @@ function focusResultTopic(topicKey) {
     setResultViewMode('full');
     $('composerInput').focus();
     return;
+  }
+  if (topicKey === 'booking' && state.triageResult) {
+    const recommendationLevel = state.triageResult.layeredOutput?.core?.recommendationLevel || '';
+    const needsInPerson = ['routine_clinic', 'specialist_clinic', 'hospital_priority_high'].includes(recommendationLevel);
+    if (needsInPerson && !state.showBookingPanel) {
+      state.showBookingPanel = true;
+      state.resultAnchor = 'booking';
+      setCurrentFocus({ key: 'booking', label: '去哪个医院' }, { switchToFull: true });
+      renderResultCards().catch((err) => alert(err.message));
+      return;
+    }
   }
   state.resultViewMode = 'full';
   setCurrentFocus(
@@ -1407,30 +1362,27 @@ function buildBookingCard(booking, prepItems) {
   const primaryHospitals = hospitals.slice(0, 2);
   const extraHospitals = hospitals.slice(2);
   const cachedRegion = isRegionValid(state.savedRegion) ? state.savedRegion : null;
-  const hospitalCardHtml = (hospital) =>
-    [
+  const hospitalCardHtml = (hospital) => {
+    const entryButton = hospital.officialProfileUrl
+      ? `<a class="record-action" target="_blank" rel="noreferrer" href="${escapeHtml(hospital.officialProfileUrl)}">打开公众号</a>`
+      : '<span class="record-action disabled">未录入官方挂号入口</span>';
+    const channelHint = hospital.officialProfileUrl
+      ? `公众号：${escapeHtml(hospital.officialWechatName || '未录入')}${hospital.miniProgramName ? ` / 小程序：${escapeHtml(hospital.miniProgramName)}` : ''}`
+      : '暂未录入官方公众号或小程序，建议在微信里直接搜索医院全名。';
+    return [
       '<div class="booking-hospital-item">',
-      `<div class="booking-hospital-top"><div><p class="booking-hospital-name">${escapeHtml(hospital.name)}</p><p class="booking-hospital-meta">${escapeHtml(
-        `${hospital.level} · 建议挂 ${hospital.department}`
-      )}</p></div><div class="booking-hospital-actions">${
-        hospital.officialEntryFound
-          ? `<a class="record-action" target="_blank" rel="noreferrer" href="${escapeHtml(hospital.entryUrl || '#')}">去挂号</a>`
-          : '<span class="record-action disabled">未找挂号入口</span>'
-      }</div></div>`,
+      `<div class="booking-hospital-top"><div><p class="booking-hospital-name">${escapeHtml(hospital.name)}</p><p class="booking-hospital-meta">${escapeHtml(`${hospital.level} · 建议挂 ${hospital.department}`)}</p></div><div class="booking-hospital-actions">${entryButton}</div></div>`,
       `<p class="booking-hospital-note">${escapeHtml(hospital.recommendation)}</p>`,
-      hospital.officialEntryFound
-        ? `<p class="booking-hospital-search">公众号：${escapeHtml(hospital.officialWechatName || '未找到')} / 小程序：${escapeHtml(
-            hospital.miniProgramName || '未找到'
-          )}</p>`
-        : `<p class="booking-hospital-search">未找挂号入口，建议直接去医院挂号。</p>`,
+      `<p class="booking-hospital-search">${channelHint}</p>`,
       `<p class="booking-hospital-channel">挂号方式：${escapeHtml(hospital.channel)}</p>`,
       '</div>',
     ].join('');
+  };
   const html = booking.requiresRegion
     ? [
         '<div class="result-card booking-card">',
         `<div class="result-card-head"><span class="result-card-icon">${getInlineIcon('bag')}</span><h3>挂号建议</h3></div>`,
-        '<p>先看完上面的总结。如果你想看更贴近你所在地区的医院，再确认一下地区。</p>',
+        '<p>先确认一下地区，我再给你看更贴近本地的医院和挂号入口。</p>',
         cachedRegion ? `<p class="booking-cache-tip">上次用过的地区：${escapeHtml(formatRegion(cachedRegion))}</p>` : '',
         '<div class="booking-actions">',
         cachedRegion ? '<button class="result-action" data-booking-action="recent">用上次地区</button>' : '',
@@ -1459,7 +1411,7 @@ function buildBookingCard(booking, prepItems) {
         '<div class="booking-foot">',
         '<button class="result-action" data-booking-action="manual">更换地区</button>',
         '</div>',
-        `<div class="detail-section"><h4>去医院前带什么</h4><ul>${prepItems}</ul></div>`,
+        prepItems ? `<div class="detail-section"><h4>去医院前带什么</h4><ul>${prepItems}</ul></div>` : '',
         '</div>',
       ].join('');
 
@@ -1604,14 +1556,16 @@ async function renderResultCards() {
   const needsInPerson = ['routine_clinic', 'specialist_clinic', 'hospital_priority_high'].includes(recommendationLevel);
   const needsBooking = Boolean(triage.core.needsBooking || needsInPerson);
   const needsCost = Boolean(triage.core.needsCost);
+  if (!needsInPerson) {
+    state.showBookingPanel = false;
+  }
+
   const requests = [];
   if (needsCost) {
     requests.push(
       api('/cost/estimate', {
         method: 'POST',
-        body: JSON.stringify({
-          sessionId: state.sessionId,
-        }),
+        body: JSON.stringify({ sessionId: state.sessionId }),
       })
     );
   }
@@ -1619,90 +1573,77 @@ async function renderResultCards() {
     requests.push(api(`/booking/options?sessionId=${encodeURIComponent(state.sessionId)}`));
   }
   const resolved = await Promise.all(requests);
-  const cost = needsCost ? resolved.shift() : {
-    simple: {
-      costRange: triage.core.firstCostRange || '',
-      insuranceCoverage: '当前这轮不一定要马上用到费用估算',
-      costEffectivePlan: '先看症状变化，再决定是否去门诊',
-    },
-    expanded: {
-      insuranceGuide: '如果后面需要线下就医，再补充医保类型会更准确。',
-    },
-  };
+  const cost = needsCost
+    ? resolved.shift()
+    : {
+        simple: {
+          costRange: triage.core.firstCostRange || '',
+          insuranceCoverage: '当前这轮不一定要马上用到费用估算',
+          costEffectivePlan: '先看症状变化，再决定是否去门诊',
+        },
+        expanded: {
+          insuranceGuide: '如果后面需要线下就医，再补充医保类型会更准确。',
+        },
+      };
   const booking = needsBooking ? resolved.shift() : { preparation: [], hospitals: [] };
 
   state.cost = cost || null;
   state.booking = booking || null;
   setComposerState('symptom');
 
-  const firstChecks = buildCheckListHtml(triage.core.firstChecks || []);
-  const costItems = buildCostHtml(cost, state.profile.insuranceType);
-  const prepItems = (booking.preparation || []).map((item) => `<li>${escapeHtml(item)}</li>`).join('');
-  const riskItems = (triage.riskReminder || []).map((item) => `<li>${escapeHtml(item)}</li>`).join('');
-  const detailItems = (triage.detail.stepByStep || []).map((item) => `<li>${escapeHtml(item)}</li>`).join('');
   const possibleTypes = triage.core.possibleTypes || [];
   const selfCareAdvice = triage.detail.selfCareAdvice || [];
   const medicationAdvice = triage.detail.medicationAdvice || [];
   const visitAdvice = triage.detail.visitAdvice || [];
   const examAdvice = triage.detail.examAdvice || [];
   const topicChips = state.topicChips || [];
+  const careAdvice = Array.from(new Set([...visitAdvice, ...selfCareAdvice].filter(Boolean)));
+  const firstChecks = buildCheckListHtml(triage.core.firstChecks || []);
+  const costItems = buildCostHtml(cost, state.profile.insuranceType);
+  const prepItems = (booking.preparation || []).map((item) => `<li>${escapeHtml(item)}</li>`).join('');
+  const riskItems = (triage.riskReminder || []).map((item) => `<li>${escapeHtml(item)}</li>`).join('');
+  const summaryTitle = possibleTypes[0] || triage.core.suggestDepartment || '还需要结合症状继续判断';
+  const summaryLines = [possibleTypes[1], triage.core.severityText].filter(Boolean);
+
   const summaryHtml = [
     '<div class="summary-card">',
     '<div class="summary-top">',
-    '<p class="summary-section-title">小科总结</p>',
-    possibleTypes[0] ? `<p class="summary-section-title">更像哪类问题</p>` : '',
-    possibleTypes[0] ? `<p class="summary-title">${escapeHtml(possibleTypes[0])}</p>` : `<p class="summary-title">${escapeHtml(triage.core.suggestDepartment)}</p>`,
-    possibleTypes[1] ? `<p class="summary-text">${escapeHtml(possibleTypes[1])}</p>` : '',
-    triage.core.severityText ? `<p class="summary-text">${escapeHtml(triage.core.severityText)}</p>` : '',
+    buildSummarySectionHeading('小科总结'),
+    `<p class="summary-title compact">${escapeHtml(summaryTitle)}</p>`,
+    ...summaryLines.map((line) => `<p class="summary-text">${escapeHtml(line)}</p>`),
     state.summaryDirty ? `<p class="summary-dirty ${state.summaryImpactLevel === 'major' ? 'major' : ''}">根据你后面补充的新信息，这份总结可以再更新一次。</p>` : '',
-    '<p class="summary-section-title">现在更建议</p>',
+    buildSummarySectionHeading('小科建议'),
     `<div class="summary-next"><strong>${escapeHtml(triage.core.text || '')}</strong></div>`,
     '</div>',
     '<div class="result-mode-toggle">',
+    '<button class="result-mode-btn active" data-mode-toggle="full">完整版建议</button>',
     '<button class="result-mode-btn" data-mode-toggle="simple">只看重点</button>',
-    '<button class="result-mode-btn active" data-mode-toggle="full">查看完整版</button>',
     '</div>',
     buildTopicChipsHtml(topicChips),
-    '<div class="summary-metrics" data-result-view="full">',
-    `<div class="summary-metric"><span class="summary-label">当前程度</span><strong>${escapeHtml(triage.core.severityText || '继续结合症状判断')}</strong></div>`,
-    `<div class="summary-metric"><span class="summary-label">建议科室</span><strong>${escapeHtml(triage.core.suggestDepartment)}</strong></div>`,
-    `<div class="summary-metric"><span class="summary-label">建议级别</span><strong>${escapeHtml(formatRecommendationLevel(recommendationLevel))}</strong></div>`,
-    needsCost ? `<div class="summary-metric"><span class="summary-label">首轮费用</span><strong>${escapeHtml(triage.core.firstCostRange)}</strong></div>` : '',
-    needsCost ? `<div class="summary-metric"><span class="summary-label">医保参考</span><strong>${escapeHtml(cost.simple.insuranceCoverage)}</strong></div>` : '',
-    '</div>',
     '</div>',
   ].join('');
   const summaryRow = markResultRow(addRow('bot', summaryHtml, 'summary-shell'));
   summaryRow.querySelectorAll('[data-mode-toggle]').forEach((button) => {
     button.onclick = () => {
-      const mode = button.dataset.modeToggle;
-      setResultViewMode(mode);
+      setResultViewMode(button.dataset.modeToggle);
     };
   });
 
   const actionCard = buildResultCard(
-    '现在怎么处理',
-    buildAdviceListHtml(visitAdvice.length ? visitAdvice : [triage.core.text || '先继续观察变化']),
+    '现在怎么办',
+    buildAdviceListHtml(careAdvice.length ? careAdvice : [triage.core.text || '先继续观察变化']),
     'strong'
   );
   actionCard.dataset.resultView = 'full';
   actionCard.dataset.topicCard = 'care';
 
-  let selfCareCard = null;
-  if (selfCareAdvice.length) {
-    selfCareCard = buildResultCard('先自己怎么处理', buildAdviceListHtml(selfCareAdvice));
-    selfCareCard.dataset.resultView = 'full';
-    selfCareCard.dataset.topicCard = 'care';
-  }
-
   let medicationCard = null;
   if (medicationAdvice.length) {
     medicationCard = buildResultCard(
       '用药建议',
-      buildAdviceListHtml(medicationAdvice, '测试期建议仅供参考，最好结合既往病史和说明书一起看。')
+      buildAdviceListHtml(medicationAdvice, '测试期建议仅供参考，最好结合既往病史、说明书和药师意见一起看。')
     );
     medicationCard.dataset.resultView = 'full';
-    medicationCard.dataset.medicationCard = 'true';
     medicationCard.dataset.topicCard = 'medication';
   }
 
@@ -1722,35 +1663,32 @@ async function renderResultCards() {
   }
 
   let bookingCard = null;
-  if (needsBooking) {
+  let prepCard = null;
+  if (needsBooking && state.showBookingPanel) {
     bookingCard = buildBookingCard(booking, prepItems);
     bookingCard.dataset.resultView = 'full';
     bookingCard.dataset.bookingCard = 'true';
     bookingCard.dataset.topicCard = 'booking';
+    if (needsInPerson && prepItems) {
+      prepCard = buildCollapsibleResultCard('去医院前带什么', '身份证、医保卡、近期检查结果', `<ul>${prepItems}</ul>`);
+      prepCard.dataset.resultView = 'full';
+      prepCard.dataset.topicCard = 'booking';
+    }
   }
-  let prepCard = null;
-  if (needsBooking) {
-    prepCard = buildCollapsibleResultCard('去医院前带什么', '身份证、医保卡、近期检查结果', `<ul>${prepItems}</ul>`);
-    prepCard.dataset.resultView = 'full';
-    prepCard.dataset.topicCard = 'booking';
-  }
+
   const riskCard = buildCollapsibleResultCard('风险提醒', '有胸痛加重或呼吸困难要尽快急诊', `<ul>${riskItems}</ul>`, 'risk');
   riskCard.dataset.resultView = 'full';
   riskCard.dataset.topicCard = 'care';
 
   const actionButtons = state.sharedView
     ? [
-        needsInPerson
-          ? '<button class="result-action primary is-default" data-action="booking">去挂号</button>'
-          : '<button class="result-action primary is-default" data-action="deep">继续咨询</button>',
+        needsInPerson ? '<button class="result-action primary is-default" data-action="booking">去挂号</button>' : '<button class="result-action primary is-default" data-action="deep">继续咨询</button>',
         needsInPerson ? '<button class="result-action" data-action="deep">继续咨询</button>' : '',
         '<button class="result-action" data-action="restart">新的咨询</button>',
         '<button class="result-action" data-action="share">分享结果</button>',
       ].filter(Boolean)
     : [
-        needsInPerson
-          ? '<button class="result-action primary is-default" data-action="booking">去挂号</button>'
-          : '<button class="result-action primary is-default" data-action="deep">继续咨询</button>',
+        needsInPerson ? '<button class="result-action primary is-default" data-action="booking">去挂号</button>' : '<button class="result-action primary is-default" data-action="deep">继续咨询</button>',
         needsInPerson ? '<button class="result-action" data-action="deep">继续咨询</button>' : '',
         '<button class="result-action" data-action="restart">新的咨询</button>',
         '<button class="result-action" data-action="save">保存记录</button>',
@@ -1762,7 +1700,7 @@ async function renderResultCards() {
       '<div class="result-card action-card">',
       '<div class="action-head">',
       `<h3>${state.sharedView ? '后续建议' : '下一步'}</h3>`,
-      `<p>${state.sharedView ? '家属可以根据这份总结，继续陪你处理这次问题。' : needsInPerson ? '先继续看挂号建议，还是先把这次结果存下来。' : '先按建议处理，后面也可以继续补充再更新。'}</p>`,
+      `<p>${state.sharedView ? '家属可以根据这份总结，继续陪你处理这次问题。' : needsInPerson ? '需要线下就医时，再展开挂号建议。' : '先按建议处理，也可以继续补充后再更新分析。'}</p>`,
       '</div>',
       '<div class="result-actions">',
       ...actionButtons,
@@ -1773,13 +1711,12 @@ async function renderResultCards() {
   actionRow.dataset.resultView = 'full';
   actionRow.dataset.topicCard = 'continue';
   if (actionRow.querySelector('[data-action="booking"]')) {
-    actionRow.querySelector('[data-action="booking"]').onclick = () => {
+    actionRow.querySelector('[data-action="booking"]').onclick = async () => {
+      state.showBookingPanel = true;
       state.resultViewMode = 'full';
       state.resultAnchor = 'booking';
-      setResultViewMode('full');
-      requestAnimationFrame(() => {
-        document.querySelector('[data-booking-card="true"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      });
+      setCurrentFocus({ key: 'booking', label: '去哪个医院' }, { switchToFull: true });
+      await renderResultCards();
     };
   }
   if (actionRow.querySelector('[data-action="deep"]')) {
@@ -1802,6 +1739,7 @@ async function renderResultCards() {
       resetConversation();
     };
   }
+
   setResultViewMode(state.resultViewMode || 'full');
   summaryRow.querySelectorAll('[data-topic-chip]').forEach((button) => {
     button.onclick = () => {
@@ -1809,7 +1747,7 @@ async function renderResultCards() {
     };
   });
   requestAnimationFrame(() => {
-    if (state.resultAnchor === 'booking') {
+    if (state.resultAnchor === 'booking' && state.showBookingPanel) {
       document.querySelector('[data-booking-card="true"]')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
     } else {
       summaryRow.scrollIntoView({ block: 'start', behavior: 'smooth' });
@@ -2122,13 +2060,10 @@ async function listRecords() {
   data.records.forEach((record) => {
     const item = document.createElement('div');
     item.className = 'record-item';
-    const leadText = record.likelyType || record.department || '历史咨询';
-    const summaryText = record.summaryText || record.summary || '-';
+    const leadText = record.likelyType || record.summarySnapshot?.core?.possibleTypes?.[0] || '历史咨询';
     item.innerHTML = [
       '<div class="record-top">',
-      `<div><div class="record-tags"><span class="record-tag">历史记录</span>${record.department ? `<span class="record-tag subtle">${escapeHtml(record.department)}</span>` : ''}</div><p class="record-title">${escapeHtml(
-        leadText
-      )}</p><p class="record-snippet">${escapeHtml(summaryText)}</p></div>`,
+      `<p class="record-title">${escapeHtml(leadText)}</p>`,
       `<span class="record-time">${escapeHtml((record.createdAt || '-').slice(0, 16).replace('T', ' '))}</span>`,
       '</div>',
       '<div class="record-actions">',
@@ -2155,36 +2090,82 @@ async function listRecords() {
   });
 }
 
-function openRecordDetail(record) {
+function buildRecordDetailView(record, mode = 'full') {
+  const snapshot = record.summarySnapshot || {};
+  const core = snapshot.core || {};
+  const detail = snapshot.detail || {};
+  const recommendationLevel = core.recommendationLevel || (record.department ? 'routine_clinic' : 'self_care');
+  const needsInPerson = ['routine_clinic', 'specialist_clinic', 'hospital_priority_high'].includes(recommendationLevel);
+  const summaryTitle = core.possibleTypes?.[0] || record.likelyType || record.department || '本次咨询';
+  const summaryLines = [core.possibleTypes?.[1], core.severityText || record.severityText].filter(Boolean);
+  const careAdvice = Array.from(new Set([...(detail.visitAdvice || []), ...(detail.selfCareAdvice || [])].filter(Boolean)));
+  const medicationAdvice = detail.medicationAdvice || [];
+  const examAdvice = detail.examAdvice || [];
+  const firstChecks = (core.firstChecks || record.firstChecks || []).map((item) => item.name || item).filter(Boolean);
   const files = Array.isArray(record.files) ? record.files : [];
-  $('recordDetailBody').innerHTML = [
-    '<div class="record-detail-card">',
-    `<div class="record-tags"><span class="record-tag">记录详情</span>${record.department ? `<span class="record-tag subtle">${escapeHtml(
-      record.department
-    )}</span>` : ''}</div>`,
-    `<p class="record-title">${escapeHtml(record.likelyType || record.department || '本次咨询')}</p>`,
-    (record.summaryText || record.summary) ? `<div class="detail-section"><h4>小科总结</h4><p>${escapeHtml(record.summaryText || record.summary)}</p></div>` : '',
-    '<div class="record-metrics">',
-    `<div class="record-metric"><span>首轮费用</span><strong>${escapeHtml(record.costRange || '-')}</strong></div>`,
-    `<div class="record-metric"><span>保存时间</span><strong>${escapeHtml((record.createdAt || '-').slice(0, 16).replace('T', ' '))}</strong></div>`,
-    `<div class="record-metric"><span>材料数量</span><strong>${files.length} 份</strong></div>`,
+  const sections = [];
+
+  if (careAdvice.length) {
+    sections.push(buildPlainResultCardHtml('现在怎么办', buildAdviceListHtml(careAdvice), 'strong'));
+  }
+  if (medicationAdvice.length) {
+    sections.push(buildPlainResultCardHtml('用药建议', buildAdviceListHtml(medicationAdvice)));
+  }
+  if (needsInPerson && (examAdvice.length || firstChecks.length)) {
+    sections.push(
+      buildPlainResultCardHtml(
+        '第一步检查',
+        `${buildAdviceListHtml(examAdvice)}${firstChecks.length ? `<div class="record-checks">${firstChecks.map((item) => `<span class="record-chip">${escapeHtml(item)}</span>`).join('')}</div>` : ''}`,
+        'strong'
+      )
+    );
+  }
+  if (files.length) {
+    sections.push(
+      buildPlainResultCardHtml(
+        '已保存材料',
+        `<div class="detail-file-list">${files
+          .map((file) => `<div class="detail-file-item"><strong>${escapeHtml(file.originalName || '-')}</strong>${file.summary?.title ? `<span>${escapeHtml(file.summary.title)}</span>` : '<span>未生成摘要</span>'}</div>`)
+          .join('')}</div>`
+      )
+    );
+  }
+
+  return [
+    '<div class="record-detail-stack">',
+    '<div class="summary-card">',
+    '<div class="summary-top">',
+    buildSummarySectionHeading('小科总结'),
+    `<p class="summary-title compact">${escapeHtml(summaryTitle)}</p>`,
+    ...summaryLines.map((line) => `<p class="summary-text">${escapeHtml(line)}</p>`),
+    buildSummarySectionHeading('小科建议'),
+    `<div class="summary-next"><strong>${escapeHtml(core.text || record.summaryText || record.summary || '这次咨询已经保存。')}</strong></div>`,
     '</div>',
-    record.firstChecks?.length
-      ? `<div class="detail-section"><h4>第一步检查</h4><div class="record-checks">${record.firstChecks
-          .map((item) => `<span class="record-chip">${escapeHtml(item.name)}</span>`)
-          .join('')}</div></div>`
-      : '',
-    files.length
-      ? `<div class="detail-section"><h4>已保存材料</h4><div class="detail-file-list">${files
-          .map(
-            (file) => `<div class="detail-file-item"><strong>${escapeHtml(file.originalName || '-')}</strong>${
-              file.summary?.title ? `<span>${escapeHtml(file.summary.title)}</span>` : '<span>未生成摘要</span>'
-            }</div>`
-          )
-          .join('')}</div></div>`
-      : '',
+    '<div class="result-mode-toggle">',
+    `<button class="result-mode-btn ${mode === 'full' ? 'active' : ''}" data-record-detail-mode="full">完整版建议</button>`,
+    `<button class="result-mode-btn ${mode === 'simple' ? 'active' : ''}" data-record-detail-mode="simple">只看重点</button>`,
+    '</div>',
+    '</div>',
+    mode === 'full' ? `<div class="record-detail-sections">${sections.join('')}</div>` : '',
+    `<div class="record-detail-meta"><span class="record-time">${escapeHtml((record.createdAt || '-').slice(0, 16).replace('T', ' '))}</span></div>`,
     '</div>',
   ].join('');
+}
+
+function renderRecordDetail(record) {
+  $('recordDetailBody').innerHTML = buildRecordDetailView(record, state.activeRecordDetailMode);
+  $('recordDetailBody').querySelectorAll('[data-record-detail-mode]').forEach((button) => {
+    button.onclick = () => {
+      state.activeRecordDetailMode = button.dataset.recordDetailMode;
+      renderRecordDetail(record);
+    };
+  });
+}
+
+function openRecordDetail(record) {
+  state.activeRecordDetail = record;
+  state.activeRecordDetailMode = 'full';
+  renderRecordDetail(record);
   $('recordDetailDialog').showModal();
 }
 

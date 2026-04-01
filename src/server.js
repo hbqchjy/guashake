@@ -32,6 +32,8 @@ const {
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+app.set('trust proxy', true);
+
 app.use(cors());
 app.use(express.json({ limit: '3mb' }));
 app.use(express.urlencoded({ extended: true }));
@@ -611,43 +613,105 @@ app.get('/api/region/reverse', async (req, res) => {
   }
 });
 
+function isPublicIp(ip = '') {
+  if (!ip) return false;
+  const normalized = ip.replace('::ffff:', '').trim();
+  if (!normalized) return false;
+  if (normalized === '::1' || normalized === '127.0.0.1') return false;
+  if (
+    normalized.startsWith('10.') ||
+    normalized.startsWith('192.168.') ||
+    normalized.startsWith('172.16.') ||
+    normalized.startsWith('172.17.') ||
+    normalized.startsWith('172.18.') ||
+    normalized.startsWith('172.19.') ||
+    normalized.startsWith('172.2') ||
+    normalized.startsWith('169.254.')
+  ) {
+    return false;
+  }
+  return true;
+}
+
+function mapIpPayloadToRegion(payload = {}) {
+  const candidates = [payload.district, payload.city, payload.region, payload.regionName, payload.province, payload.country].filter(Boolean);
+  for (const candidate of candidates) {
+    const match = searchRegions(candidate, 1)[0];
+    if (match) {
+      return match;
+    }
+  }
+  return null;
+}
+
+async function locateByIp(clientIp) {
+  const providers = [
+    {
+      name: 'ipwhois',
+      url: `https://ipwho.is/${encodeURIComponent(clientIp)}?lang=zh`,
+      map: (payload) => ({
+        displayName: [payload.country, payload.region, payload.city].filter(Boolean).join(' '),
+        region: mapIpPayloadToRegion(payload),
+      }),
+    },
+    {
+      name: 'ipapi',
+      url: `https://ipapi.co/${encodeURIComponent(clientIp)}/json/`,
+      map: (payload) => ({
+        displayName: [payload.country_name, payload.region, payload.city].filter(Boolean).join(' '),
+        region: mapIpPayloadToRegion({ country: payload.country_name, region: payload.region, city: payload.city }),
+      }),
+    },
+    {
+      name: 'ipinfo',
+      url: `https://ipinfo.io/${encodeURIComponent(clientIp)}/json`,
+      map: (payload) => ({
+        displayName: [payload.country, payload.region, payload.city].filter(Boolean).join(' '),
+        region: mapIpPayloadToRegion(payload),
+      }),
+    },
+  ];
+
+  for (const provider of providers) {
+    try {
+      const response = await fetch(provider.url, {
+        headers: { 'User-Agent': 'guashake-mvp/1.0 (ip locate)' },
+      });
+      if (!response.ok) continue;
+      const payload = await response.json();
+      const mapped = provider.map(payload);
+      if (mapped.region) {
+        return { provider: provider.name, displayName: mapped.displayName, region: mapped.region };
+      }
+    } catch (_error) {
+    }
+  }
+
+  return null;
+}
+
 app.get('/api/region/ip-locate', async (req, res) => {
   const forwarded = String(req.headers['cf-connecting-ip'] || req.headers['x-forwarded-for'] || req.ip || '')
     .split(',')[0]
     .trim();
   const clientIp = forwarded.replace('::ffff:', '');
 
-  if (!clientIp) {
-    return res.status(400).json({ error: 'client ip not found' });
+  if (!isPublicIp(clientIp)) {
+    return res.status(400).json({ error: 'client ip not usable', ip: clientIp || '' });
   }
 
   try {
-    const response = await fetch(`https://ipwho.is/${encodeURIComponent(clientIp)}?lang=zh`, {
-      headers: {
-        'User-Agent': 'guashake-mvp/1.0 (ip locate)',
-      },
-    });
-
-    if (!response.ok) {
-      return res.status(502).json({ error: 'ip locate failed' });
-    }
-
-    const payload = await response.json();
-    const candidates = [payload.city, payload.region, payload.country].filter(Boolean);
-    let region = null;
-    for (const candidate of candidates) {
-      const match = searchRegions(candidate, 1)[0];
-      if (match) {
-        region = match;
-        break;
-      }
+    const located = await locateByIp(clientIp);
+    if (!located) {
+      return res.status(502).json({ error: 'ip locate failed', ip: clientIp });
     }
 
     return res.json({
       ok: true,
       ip: clientIp,
-      displayName: [payload.country, payload.region, payload.city].filter(Boolean).join(' '),
-      region,
+      provider: located.provider,
+      displayName: located.displayName || '',
+      region: located.region,
     });
   } catch (error) {
     return res.status(502).json({ error: 'ip locate failed', detail: error.message });
@@ -1335,6 +1399,7 @@ app.post('/archive/upload', upload.array('files', 10), (req, res) => {
     department: triageResult?.layeredOutput?.core?.suggestDepartment || '',
     costRange: triageResult?.layeredOutput?.core?.firstCostRange || '',
     firstChecks: triageResult?.layeredOutput?.core?.firstChecks || [],
+    summarySnapshot: triageResult?.layeredOutput || null,
     files: [
       ...((session?.supplementFiles || []).map((f) => ({
         originalName: f.originalName,
@@ -1358,7 +1423,7 @@ app.post('/archive/upload', upload.array('files', 10), (req, res) => {
 
 app.get('/archive/list', (req, res) => {
   const userId = req.query.userId || 'guest';
-  const records = getArchives(userId);
+  const records = getArchives(userId).slice().sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
   return res.json({ userId, total: records.length, records });
 });
 

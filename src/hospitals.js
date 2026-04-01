@@ -12,25 +12,25 @@ function buildMiniProgramName(name) {
   return `${name}挂号`;
 }
 
-function buildSearchEntryUrl(name) {
-  if (!name) return '';
-  return `https://weixin.sogou.com/weixin?type=1&query=${encodeURIComponent(name)}`;
+function buildOfficialProfileUrl(__biz = '') {
+  if (!__biz) return '';
+  return `https://mp.weixin.qq.com/mp/profile_ext?action=home&__biz=${encodeURIComponent(__biz)}#wechat_redirect`;
 }
 
 function getHospitalTemplates(scenarioId) {
   const shared = [
-    { type: 'people', suffix: '人民医院', level: '县级综合医院', channel: '医院公众号 / 小程序' },
-    { type: 'first', suffix: '第一人民医院', level: '市级综合医院', channel: '医院公众号 / 小程序' },
-    { type: 'center', suffix: '中心医院', level: '市级综合医院', channel: '医院公众号 / 小程序' },
-    { type: 'tcm', suffix: '中医院', level: '县市中医院', channel: '医院公众号 / 小程序' },
+    { type: 'people', suffix: '人民医院', level: '县级综合医院', channel: '医院公众号 / 小程序', officialBiz: '', miniProgramPath: '' },
+    { type: 'first', suffix: '第一人民医院', level: '市级综合医院', channel: '医院公众号 / 小程序', officialBiz: '', miniProgramPath: '' },
+    { type: 'center', suffix: '中心医院', level: '市级综合医院', channel: '医院公众号 / 小程序', officialBiz: '', miniProgramPath: '' },
+    { type: 'tcm', suffix: '中医院', level: '县市中医院', channel: '医院公众号 / 小程序', officialBiz: '', miniProgramPath: '' },
   ];
 
   if (scenarioId === 'skinTrauma') {
     return [
-      { type: 'people', suffix: '人民医院', level: '县级综合医院', channel: '医院公众号 / 小程序' },
-      { type: 'surgery', suffix: '人民医院急诊外科', level: '市级综合医院', channel: '医院公众号 / 急诊窗口' },
-      { type: 'skin', suffix: '皮肤病防治院', level: '专科医院', channel: '医院公众号 / 电话咨询' },
-      { type: 'tcm', suffix: '中医院', level: '县市中医院', channel: '医院公众号 / 小程序' },
+      { type: 'people', suffix: '人民医院', level: '县级综合医院', channel: '医院公众号 / 小程序', officialBiz: '', miniProgramPath: '' },
+      { type: 'surgery', suffix: '人民医院急诊外科', level: '市级综合医院', channel: '医院公众号 / 急诊窗口', officialBiz: '', miniProgramPath: '' },
+      { type: 'skin', suffix: '皮肤病防治院', level: '专科医院', channel: '医院公众号 / 电话咨询', officialBiz: '', miniProgramPath: '' },
+      { type: 'tcm', suffix: '中医院', level: '县市中医院', channel: '医院公众号 / 小程序', officialBiz: '', miniProgramPath: '' },
     ];
   }
 
@@ -45,6 +45,8 @@ function buildHospitalRecommendations(region = {}, scenario = {}) {
   return getHospitalTemplates(scenario.id).map((template, index) => {
     const baseName = index === 0 ? districtBase : cityBase;
     const name = `${baseName}${template.suffix}`;
+    const officialProfileUrl = buildOfficialProfileUrl(template.officialBiz);
+    const officialEntryFound = Boolean(officialProfileUrl || template.miniProgramPath);
     return {
       id: `${template.type}-${index}`,
       name,
@@ -53,9 +55,10 @@ function buildHospitalRecommendations(region = {}, scenario = {}) {
       channel: template.channel,
       officialWechatName: buildWechatKeyword(name),
       miniProgramName: index < 3 ? buildMiniProgramName(name) : '',
-      officialEntryFound: index < 3,
-      entryUrl: index < 3 ? buildSearchEntryUrl(name) : '',
-      wechatKeyword: `微信搜索“${name}”`,
+      officialProfileUrl,
+      miniProgramPath: template.miniProgramPath || '',
+      officialEntryFound,
+      entryUrl: officialProfileUrl,
       recommendation:
         index === 0
           ? '首诊优先这一家，通常离得近，先做基础检查更省时间。'
