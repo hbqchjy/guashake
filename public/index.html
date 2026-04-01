@@ -9,6 +9,10 @@
 <body>
   <main class="app-shell">
     <section class="chat-shell glass">
+      <div class="utility-bar">
+        <div class="utility-brand">挂啥科</div>
+        <button id="myBtn" class="text-btn utility-link">我的</button>
+      </div>
       <div id="chatViewport" class="chat-viewport">
         <div id="chatFeed" class="chat-feed"></div>
       </div>
@@ -57,6 +61,48 @@
         <p id="composerHint" class="composer-hint"></p>
       </div>
     </section>
+
+    <dialog id="myDialog" class="records-dialog my-dialog">
+      <div class="dialog-head">
+        <div>
+          <h3>我的</h3>
+          <p class="dialog-subcopy">账号、记录和常用信息都放在这里管理。</p>
+        </div>
+        <button id="closeMyBtn" class="text-btn">关闭</button>
+      </div>
+      <div class="my-panel">
+        <div class="login-state-card">
+          <div>
+            <p class="login-state-label">当前账号</p>
+            <p id="myLoginState" class="login-state-value">未登录</p>
+          </div>
+          <button id="myLoginBtn" class="record-action">微信登录</button>
+        </div>
+        <div class="my-section">
+          <h4>我的记录</h4>
+          <div class="my-actions">
+            <button id="myRecordsBtn" class="record-action">查看历史记录</button>
+          </div>
+        </div>
+        <div class="my-section">
+          <h4>常用信息</h4>
+          <div class="my-info-list">
+            <div class="my-info-item"><span>常用地区</span><strong id="myRegionValue">未设置</strong></div>
+            <div class="my-info-item"><span>医保类型</span><strong id="myInsuranceValue">未设置</strong></div>
+          </div>
+        </div>
+        <div class="my-section">
+          <h4>服务</h4>
+          <div class="my-info-list">
+            <div class="my-info-item"><span>收费能力</span><strong>后续接入</strong></div>
+            <div class="my-info-item"><span>当前阶段</span><strong>测试版</strong></div>
+          </div>
+        </div>
+        <div class="my-actions">
+          <button id="myLogoutBtn" class="record-action subtle-btn">退出登录</button>
+        </div>
+      </div>
+    </dialog>
 
     <dialog id="recordsDialog" class="records-dialog">
       <div class="dialog-head">

@@ -64,6 +64,28 @@ body {
   overflow: hidden;
 }
 
+
+.utility-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 52px;
+  padding: 0 16px;
+  border-bottom: 1px solid rgba(20, 36, 31, 0.08);
+  background: rgba(255, 255, 255, 0.42);
+}
+
+.utility-brand {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.utility-link {
+  color: var(--brand-dark);
+  font-weight: 700;
+}
+
 .chat-viewport {
   flex: 1;
   min-height: 0;
@@ -1296,6 +1318,63 @@ body.voice-pressing * {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+
+.my-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.my-section {
+  padding: 14px;
+  border-radius: 18px;
+  background: rgba(20, 36, 31, 0.04);
+}
+
+.my-section h4 {
+  margin: 0 0 10px;
+  font-size: 15px;
+  color: var(--text);
+}
+
+.my-info-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.my-info-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(20, 36, 31, 0.08);
+}
+
+.my-info-item span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.my-info-item strong {
+  color: var(--text);
+  font-size: 14px;
+}
+
+.my-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.subtle-btn {
+  opacity: 0.82;
 }
 
 .record-detail-body,

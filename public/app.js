@@ -222,6 +222,7 @@ function persistRegion(region) {
     district: region.district,
   };
   localStorage.setItem(REGION_STORAGE_KEY, JSON.stringify(state.savedRegion));
+  syncMyUi();
 }
 
 function createDemoWechatAuth() {
@@ -273,11 +274,49 @@ function syncAuthUi() {
   }
 }
 
+
+function syncMyUi() {
+  if ($('myLoginState')) {
+    $('myLoginState').textContent = getAuthDisplayName();
+  }
+  if ($('myLoginBtn')) {
+    $('myLoginBtn').textContent = state.auth.loggedIn ? '已登录' : '微信登录';
+    $('myLoginBtn').disabled = state.auth.loggedIn;
+  }
+  if ($('myRegionValue')) {
+    $('myRegionValue').textContent = isRegionValid(state.savedRegion) ? formatRegion(state.savedRegion) : '未设置';
+  }
+  if ($('myInsuranceValue')) {
+    $('myInsuranceValue').textContent = state.profile.insuranceType || '未设置';
+  }
+  if ($('myLogoutBtn')) {
+    $('myLogoutBtn').disabled = !state.auth.loggedIn;
+  }
+}
+
+function openMyDialog() {
+  syncMyUi();
+  $('myDialog')?.showModal();
+}
+
+function logoutAuth() {
+  state.auth = {
+    loggedIn: false,
+    provider: '',
+    userId: '',
+    nickname: '',
+  };
+  localStorage.removeItem(AUTH_STORAGE_KEY);
+  syncAuthUi();
+  syncMyUi();
+}
+
 async function performWechatLogin() {
   await wait(180);
   state.auth = createDemoWechatAuth();
   saveAuthState();
   syncAuthUi();
+  syncMyUi();
   $('loginDialog').close();
   await addBotText('微信登录已完成。后面保存记录和调用历史记录都会用这个账号。');
   if (typeof pendingAfterLogin === 'function') {
@@ -293,6 +332,7 @@ async function requireLogin(nextAction) {
   }
   pendingAfterLogin = nextAction || null;
   syncAuthUi();
+  syncMyUi();
   $('loginDialog').showModal();
   return false;
 }
@@ -1363,11 +1403,11 @@ function buildBookingCard(booking, prepItems) {
   const extraHospitals = hospitals.slice(2);
   const cachedRegion = isRegionValid(state.savedRegion) ? state.savedRegion : null;
   const hospitalCardHtml = (hospital) => {
-    const entryButton = hospital.officialProfileUrl
-      ? `<a class="record-action" target="_blank" rel="noreferrer" href="${escapeHtml(hospital.officialProfileUrl)}">打开公众号</a>`
+    const entryButton = hospital.entryUrl
+      ? `<a class="record-action" target="_blank" rel="noreferrer" href="${escapeHtml(hospital.entryUrl)}">${escapeHtml(hospital.entryLabel || '去挂号')}</a>`
       : '<span class="record-action disabled">未录入官方挂号入口</span>';
-    const channelHint = hospital.officialProfileUrl
-      ? `公众号：${escapeHtml(hospital.officialWechatName || '未录入')}${hospital.miniProgramName ? ` / 小程序：${escapeHtml(hospital.miniProgramName)}` : ''}`
+    const channelHint = hospital.entryUrl
+      ? `公众号：${escapeHtml(hospital.officialWechatName || '未录入')}${hospital.wechatAccount ? `（微信号：${escapeHtml(hospital.wechatAccount)}）` : ''}${hospital.miniProgramName ? ` / 小程序：${escapeHtml(hospital.miniProgramName)}` : ''}`
       : '暂未录入官方公众号或小程序，建议在微信里直接搜索医院全名。';
     return [
       '<div class="booking-hospital-item">',
@@ -2238,6 +2278,8 @@ function bindEvents() {
     }
   });
 
+  $('myBtn')?.addEventListener('click', () => openMyDialog());
+  $('closeMyBtn')?.addEventListener('click', () => $('myDialog').close());
   $('closeRecordsBtn')?.addEventListener('click', () => $('recordsDialog').close());
   $('closeRecordDetailBtn')?.addEventListener('click', () => $('recordDetailDialog').close());
   $('closeLoginBtn')?.addEventListener('click', () => {
@@ -2248,8 +2290,22 @@ function bindEvents() {
   $('recordsLoginBtn')?.addEventListener('click', () => {
     requireLogin(async () => {
       syncAuthUi();
+      syncMyUi();
       await listRecords();
     }).catch((err) => alert(err.message));
+  });
+  $('myLoginBtn')?.addEventListener('click', () => {
+    requireLogin(async () => {
+      syncAuthUi();
+      syncMyUi();
+    }).catch((err) => alert(err.message));
+  });
+  $('myRecordsBtn')?.addEventListener('click', () => {
+    $('myDialog')?.close();
+    openRecordsDialog('browse').catch((err) => alert(err.message));
+  });
+  $('myLogoutBtn')?.addEventListener('click', () => {
+    logoutAuth();
   });
   $('wechatLoginBtn')?.addEventListener('click', () => {
     performWechatLogin().catch((err) => alert(err.message));
@@ -2283,6 +2339,7 @@ async function bootstrap() {
   }
   renderQuickSymptoms();
   syncAuthUi();
+  syncMyUi();
   bindEvents();
   const params = new URLSearchParams(window.location.search);
   const sharedSessionId = params.get('session');
