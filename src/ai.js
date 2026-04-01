@@ -4,6 +4,7 @@ const path = require('path');
 const DEFAULT_BASE_URL = 'https://dashscope.aliyuncs.com/compatible-mode/v1';
 const DEFAULT_TEXT_MODEL = 'qwen3.5-plus-2026-02-15';
 const DEFAULT_OCR_MODEL = 'qwen-vl-ocr-latest';
+const DEFAULT_ASR_MODEL = 'qwen3-asr-flash';
 const DEFAULT_TIMEOUT_MS = 15000;
 
 function getConfig() {
@@ -12,6 +13,7 @@ function getConfig() {
     baseUrl: (process.env.DASHSCOPE_BASE_URL || DEFAULT_BASE_URL).replace(/\/$/, ''),
     textModel: process.env.DASHSCOPE_TEXT_MODEL || DEFAULT_TEXT_MODEL,
     ocrModel: process.env.DASHSCOPE_OCR_MODEL || DEFAULT_OCR_MODEL,
+    asrModel: process.env.DASHSCOPE_ASR_MODEL || DEFAULT_ASR_MODEL,
   };
 }
 
@@ -26,6 +28,7 @@ function getStatus() {
     provider: config.apiKey ? 'dashscope' : 'fallback',
     textModel: config.textModel,
     ocrModel: config.ocrModel,
+    asrModel: config.asrModel,
     baseUrl: config.baseUrl,
   };
 }
@@ -76,6 +79,74 @@ async function chatCompletions({ model, messages, temperature = 0.2, maxTokens =
   if (typeof content === 'string') return content.trim();
   if (Array.isArray(content)) {
     return content.map((item) => item?.text || item?.content || '').join('\n').trim();
+  }
+  return '';
+}
+
+async function speechToText(audioBuffer, mimeType = 'audio/webm') {
+  const config = getConfig();
+  if (!config.apiKey) {
+    throw new Error('DASHSCOPE_API_KEY is not configured');
+  }
+
+  const normalizedMime = String(mimeType || 'audio/webm').split(';')[0].trim() || 'audio/webm';
+  const audioDataUri = `data:${normalizedMime};base64,${audioBuffer.toString('base64')}`;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30000);
+
+  let response;
+  try {
+    response = await fetch(`${config.baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${config.apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: config.asrModel,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'input_audio',
+                input_audio: {
+                  data: audioDataUri,
+                  format: normalizedMime,
+                },
+              },
+            ],
+          },
+        ],
+        temperature: 0,
+        max_tokens: 512,
+        stream: false,
+      }),
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      throw new Error('speech-to-text timeout after 30s');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+
+  if (!response.ok) {
+    const detail = await response.text().catch(() => '');
+    throw new Error(`speech-to-text failed: ${response.status} ${detail}`.trim());
+  }
+
+  const payload = await response.json();
+  const content = payload?.choices?.[0]?.message?.content;
+  if (typeof content === 'string') return content.trim();
+  if (Array.isArray(content)) {
+    return content
+      .map((item) => item?.text || item?.transcript || item?.output_text || item?.content || '')
+      .join('\n')
+      .trim();
   }
   return '';
 }
@@ -716,6 +787,7 @@ async function ocrFile(file, label = '补充材料') {
 module.exports = {
   getStatus,
   isConfigured,
+  speechToText,
   classifyComplaint,
   analyzeInitialTurn,
   classifyConversationTurn,

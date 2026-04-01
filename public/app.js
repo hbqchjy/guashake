@@ -2067,80 +2067,75 @@ function clearBrowserSelection() {
   }
 }
 
-function ensureSpeechRecognition() {
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SpeechRecognition) return null;
-  if (state.speechRecognition) return state.speechRecognition;
-
-  const recognition = new SpeechRecognition();
-  recognition.lang = 'zh-CN';
-  recognition.interimResults = false;
-  recognition.maxAlternatives = 1;
-  recognition.onresult = (event) => {
-    const transcript = event.results?.[0]?.[0]?.transcript?.trim();
-    if (!transcript) return;
-    state.speechBuffer = `${state.speechBuffer} ${transcript}`.trim();
-    $('composerInput').value = state.speechBuffer;
-  };
-  recognition.onend = () => {
-    if (state.speechPressing) {
-      try {
-        recognition.start();
-        return;
-      } catch (_error) {
-      }
-    }
-    state.speechListening = false;
-    state.speechPressing = false;
-    document.documentElement.classList.remove('voice-pressing');
-    document.body.classList.remove('voice-pressing');
-    syncVoiceButton();
-    const transcript = state.speechBuffer.trim();
-    state.speechBuffer = '';
-    if (transcript) {
-      submitText(transcript).catch((err) => alert(err.message));
-    }
-  };
-  recognition.onerror = () => {
-    state.speechListening = false;
-    state.speechPressing = false;
-    document.documentElement.classList.remove('voice-pressing');
-    document.body.classList.remove('voice-pressing');
-    syncVoiceButton();
-  };
-  state.speechRecognition = recognition;
-  return recognition;
-}
-
-function startVoiceCapture(event) {
+async function startVoiceCapture(event) {
   event.preventDefault();
   event.stopPropagation();
-  const recognition = ensureSpeechRecognition();
-  if (!recognition) {
-    addBotText('当前浏览器不支持语音识别。你可以继续直接打字。');
+  if (state.speechListening) return;
+
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (err) {
+    addBotText('无法访问麦克风，请检查权限设置。');
     setComposerMode('text');
     return;
   }
 
-  if (state.speechListening) {
-    return;
-  }
-
-  state.speechBuffer = '';
   stopSpeechPlayback();
-  primeSpeechPlayback();
-  state.speechPressing = true;
   clearBrowserSelection();
+
+  const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+    ? 'audio/webm;codecs=opus'
+    : MediaRecorder.isTypeSupported('audio/mp4')
+      ? 'audio/mp4'
+      : '';
+  const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+  const chunks = [];
+  recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+  recorder.onstop = async () => {
+    stream.getTracks().forEach((t) => t.stop());
+    state.speechListening = false;
+    state.speechPressing = false;
+    document.documentElement.classList.remove('voice-pressing');
+    document.body.classList.remove('voice-pressing');
+    syncVoiceButton();
+
+    if (!chunks.length) return;
+    const blob = new Blob(chunks, { type: recorder.mimeType || 'audio/webm' });
+    if (blob.size < 1000) return;
+
+    $('voiceCaptureBtn').textContent = '识别中…';
+    $('voiceCaptureBtn').disabled = true;
+    try {
+      const form = new FormData();
+      const rawType = String(blob.type || '').split(';')[0];
+      const ext = rawType.includes('mp4') ? 'mp4' : rawType.includes('wav') ? 'wav' : 'webm';
+      form.append('audio', blob, `voice.${ext}`);
+      const res = await fetch('/api/asr', { method: 'POST', body: form });
+      const data = await res.json();
+      const transcript = (data.text || '').trim();
+      if (transcript) {
+        $('composerInput').value = transcript;
+        submitText(transcript).catch((err) => alert(err.message));
+      } else {
+        $('voiceCaptureBtn').textContent = '未识别到内容';
+        setTimeout(syncVoiceButton, 1500);
+      }
+    } catch (err) {
+      $('voiceCaptureBtn').textContent = '识别失败';
+      setTimeout(syncVoiceButton, 1500);
+    } finally {
+      $('voiceCaptureBtn').disabled = false;
+    }
+  };
+
+  state.speechRecognition = recorder;
+  state.speechPressing = true;
+  state.speechListening = true;
   document.documentElement.classList.add('voice-pressing');
   document.body.classList.add('voice-pressing');
-  state.speechListening = true;
   syncVoiceButton();
-  try {
-    recognition.start();
-  } catch (_error) {
-    state.speechListening = false;
-    syncVoiceButton();
-  }
+  recorder.start();
 }
 
 function stopVoiceCapture(event) {
@@ -2156,12 +2151,11 @@ function stopVoiceCapture(event) {
   state.speechPressing = false;
   document.documentElement.classList.remove('voice-pressing');
   document.body.classList.remove('voice-pressing');
-  const recognition = ensureSpeechRecognition();
-  if (recognition) {
-    recognition.stop();
+  const recorder = state.speechRecognition;
+  if (recorder && recorder.state === 'recording') {
+    recorder.stop();
   } else {
     state.speechListening = false;
-    state.speechPressing = false;
     syncVoiceButton();
   }
 }
@@ -2421,14 +2415,14 @@ function bindEvents() {
     setComposerMode(state.composerMode === 'text' ? 'voice' : 'text');
   });
 
-  $('voiceCaptureBtn')?.addEventListener('pointerdown', startVoiceCapture);
-  $('voiceCaptureBtn')?.addEventListener('pointerup', stopVoiceCapture);
-  $('voiceCaptureBtn')?.addEventListener('pointercancel', stopVoiceCapture);
-  $('voiceCaptureBtn')?.addEventListener('mousedown', startVoiceCapture);
-  $('voiceCaptureBtn')?.addEventListener('mouseup', stopVoiceCapture);
-  $('voiceCaptureBtn')?.addEventListener('touchstart', startVoiceCapture, { passive: false });
-  $('voiceCaptureBtn')?.addEventListener('touchend', stopVoiceCapture, { passive: false });
-  $('voiceCaptureBtn')?.addEventListener('touchcancel', stopVoiceCapture, { passive: false });
+  if (state.isTouchDevice) {
+    $('voiceCaptureBtn')?.addEventListener('touchstart', startVoiceCapture, { passive: false });
+    $('voiceCaptureBtn')?.addEventListener('touchend', stopVoiceCapture, { passive: false });
+    $('voiceCaptureBtn')?.addEventListener('touchcancel', stopVoiceCapture, { passive: false });
+  } else {
+    $('voiceCaptureBtn')?.addEventListener('mousedown', startVoiceCapture);
+    $('voiceCaptureBtn')?.addEventListener('mouseup', stopVoiceCapture);
+  }
   $('voiceCaptureBtn')?.addEventListener('click', (event) => event.preventDefault());
   $('voiceCaptureBtn')?.addEventListener('contextmenu', (event) => event.preventDefault());
   $('voiceCaptureBtn')?.addEventListener('selectstart', (event) => event.preventDefault());

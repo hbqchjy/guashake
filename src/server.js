@@ -43,6 +43,7 @@ const {
   answerFollowUpTurn,
   rewriteTriageResult,
   getStatus: getAiStatus,
+  speechToText,
 } = require('./ai');
 
 const app = express();
@@ -61,6 +62,7 @@ const storage = multer.diskStorage({
   filename: (_req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`),
 });
 const upload = multer({ storage });
+const memUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
 function getOrigin(req) {
   const proto = req.headers['x-forwarded-proto'] || req.protocol || 'https';
@@ -1830,6 +1832,19 @@ app.delete('/archive/:userId/:recordId', (req, res) => {
   const { userId, recordId } = req.params;
   const records = deleteArchive(userId, recordId);
   return res.json({ ok: true, total: records.length, records });
+});
+
+app.post('/api/asr', memUpload.single('audio'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ ok: false, error: 'no audio file' });
+    }
+    const transcript = await speechToText(req.file.buffer, req.file.mimetype || 'audio/webm');
+    return res.json({ ok: true, text: transcript });
+  } catch (error) {
+    console.error('[asr]', error.message);
+    return res.status(500).json({ ok: false, error: error.message });
+  }
 });
 
 app.get('*', (_req, res) => {
