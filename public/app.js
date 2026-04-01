@@ -59,7 +59,6 @@ const state = {
   summaryDirty: false,
   summaryImpactLevel: 'none',
   isWeChat: false,
-  hasTouchInput: false,
 };
 
 let botTextQueue = Promise.resolve();
@@ -2113,8 +2112,6 @@ function ensureSpeechRecognition() {
 }
 
 function startVoiceCapture(event) {
-  if (event?.type === 'mousedown' && state.hasTouchInput) return;
-  if (event?.type === 'pointerdown' && state.hasTouchInput) return;
   event.preventDefault();
   event.stopPropagation();
   const recognition = ensureSpeechRecognition();
@@ -2146,9 +2143,6 @@ function startVoiceCapture(event) {
 }
 
 function stopVoiceCapture(event) {
-  if (event?.type === 'mouseup' && state.hasTouchInput) return;
-  if (event?.type === 'pointerup' && state.hasTouchInput) return;
-  if (event?.type === 'pointercancel' && state.hasTouchInput) return;
   if (event) event.preventDefault();
   if (event) event.stopPropagation();
   if (!state.speechListening) {
@@ -2426,17 +2420,14 @@ function bindEvents() {
     setComposerMode(state.composerMode === 'text' ? 'voice' : 'text');
   });
 
-  if (state.hasTouchInput) {
-    $('voiceCaptureBtn')?.addEventListener('touchstart', startVoiceCapture, { passive: false });
-    $('voiceCaptureBtn')?.addEventListener('touchend', stopVoiceCapture, { passive: false });
-    $('voiceCaptureBtn')?.addEventListener('touchcancel', stopVoiceCapture, { passive: false });
-  } else {
-    $('voiceCaptureBtn')?.addEventListener('pointerdown', startVoiceCapture);
-    $('voiceCaptureBtn')?.addEventListener('pointerup', stopVoiceCapture);
-    $('voiceCaptureBtn')?.addEventListener('pointercancel', stopVoiceCapture);
-    $('voiceCaptureBtn')?.addEventListener('mousedown', startVoiceCapture);
-    $('voiceCaptureBtn')?.addEventListener('mouseup', stopVoiceCapture);
-  }
+  $('voiceCaptureBtn')?.addEventListener('pointerdown', startVoiceCapture);
+  $('voiceCaptureBtn')?.addEventListener('pointerup', stopVoiceCapture);
+  $('voiceCaptureBtn')?.addEventListener('pointercancel', stopVoiceCapture);
+  $('voiceCaptureBtn')?.addEventListener('mousedown', startVoiceCapture);
+  $('voiceCaptureBtn')?.addEventListener('mouseup', stopVoiceCapture);
+  $('voiceCaptureBtn')?.addEventListener('touchstart', startVoiceCapture, { passive: false });
+  $('voiceCaptureBtn')?.addEventListener('touchend', stopVoiceCapture, { passive: false });
+  $('voiceCaptureBtn')?.addEventListener('touchcancel', stopVoiceCapture, { passive: false });
   $('voiceCaptureBtn')?.addEventListener('click', (event) => event.preventDefault());
   $('voiceCaptureBtn')?.addEventListener('contextmenu', (event) => event.preventDefault());
   $('voiceCaptureBtn')?.addEventListener('selectstart', (event) => event.preventDefault());
@@ -2542,7 +2533,6 @@ async function loadSharedSession(sessionId) {
 
 async function bootstrap() {
   state.isWeChat = /MicroMessenger/i.test(navigator.userAgent || '');
-  state.hasTouchInput = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
   loadAuthState();
   loadSavedRegion();
   if ('speechSynthesis' in window && typeof window.speechSynthesis.onvoiceschanged !== 'undefined') {
