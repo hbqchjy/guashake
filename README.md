@@ -202,6 +202,7 @@ export DASHSCOPE_TEXT_MODEL_PRIMARY="qwen3.5-plus-2026-02-15"
 export DASHSCOPE_TEXT_MODEL_CHEAP="qwen-plus"
 export DASHSCOPE_TEXT_MODEL_FALLBACKS="qwen3.6-plus,qwen-turbo"
 export DASHSCOPE_OCR_MODEL="qwen-vl-ocr-latest"
+export DASHSCOPE_VISION_MODEL="qwen-vl-max-latest"
 
 # 可选：外部 OpenAI 兼容兜底
 export FALLBACK_OPENAI_BASE_URL=""
@@ -218,6 +219,7 @@ export AI_RESULT_REWRITE="0"
 - `DASHSCOPE_TEXT_MODEL_FALLBACKS`：同平台兜底模型链（可选，逗号分隔，按顺序尝试）
 - `FALLBACK_OPENAI_*`：跨平台兜底（可选，三项都配置才生效）
 - `DASHSCOPE_OCR_MODEL`：默认就是 `qwen-vl-ocr-latest`
+- `DASHSCOPE_VISION_MODEL`：图片视觉分析模型（默认 `qwen-vl-max-latest`）
 - `AI_RESULT_REWRITE`：默认建议保持 `0`
   - `0`：结果总结继续走当前规则模板，不拖慢首屏
   - `1`：结果生成阶段再让模型润色，但当前实测会明显增加等待时间
@@ -235,6 +237,7 @@ DASHSCOPE_TEXT_MODEL_PRIMARY="qwen3.5-plus-2026-02-15" \
 DASHSCOPE_TEXT_MODEL_CHEAP="qwen-plus" \
 DASHSCOPE_TEXT_MODEL_FALLBACKS="qwen3.6-plus,qwen-turbo" \
 DASHSCOPE_OCR_MODEL="qwen-vl-ocr-latest" \
+DASHSCOPE_VISION_MODEL="qwen-vl-max-latest" \
 FALLBACK_OPENAI_BASE_URL="" \
 FALLBACK_OPENAI_API_KEY="" \
 FALLBACK_OPENAI_MODEL="" \

@@ -5,6 +5,7 @@ const DEFAULT_BASE_URL = 'https://dashscope.aliyuncs.com/compatible-mode/v1';
 const DEFAULT_TEXT_MODEL = 'qwen3.5-plus-2026-02-15';
 const DEFAULT_CHEAP_TEXT_MODEL = 'qwen-plus';
 const DEFAULT_OCR_MODEL = 'qwen-vl-ocr-latest';
+const DEFAULT_VISION_MODEL = 'qwen-vl-max-latest';
 const DEFAULT_ASR_MODEL = 'qwen3-asr-flash';
 const DEFAULT_TTS_MODEL = 'cosyvoice-v2';
 const DEFAULT_TTS_VOICE = 'longxiaochun_v2';
@@ -27,6 +28,7 @@ function getConfig() {
     textModelCheap: process.env.DASHSCOPE_TEXT_MODEL_CHEAP || DEFAULT_CHEAP_TEXT_MODEL,
     textModelFallbacks,
     ocrModel: process.env.DASHSCOPE_OCR_MODEL || DEFAULT_OCR_MODEL,
+    visionModel: process.env.DASHSCOPE_VISION_MODEL || DEFAULT_VISION_MODEL,
     asrModel: process.env.DASHSCOPE_ASR_MODEL || DEFAULT_ASR_MODEL,
     ttsModel: process.env.DASHSCOPE_TTS_MODEL || DEFAULT_TTS_MODEL,
     ttsVoice: process.env.DASHSCOPE_TTS_VOICE || DEFAULT_TTS_VOICE,
@@ -53,6 +55,7 @@ function getStatus() {
     textModelCheap: config.textModelCheap,
     textModelFallbacks: config.textModelFallbacks,
     ocrModel: config.ocrModel,
+    visionModel: config.visionModel,
     asrModel: config.asrModel,
     ttsModel: config.ttsModel,
     ttsVoice: config.ttsVoice,
@@ -1000,6 +1003,56 @@ async function ocrFile(file, label = '补充材料') {
   return String(raw || '').trim();
 }
 
+async function interpretMedicalImage(file, label = '补充材料') {
+  if (!isConfigured() || !file?.path || !fs.existsSync(file.path) || !isImageFile(file)) {
+    return null;
+  }
+
+  const mimeType = file.mimetype || detectMimeFromName(file.originalname || 'upload.png');
+  const base64 = fs.readFileSync(file.path).toString('base64');
+  const dataUrl = `data:${mimeType};base64,${base64}`;
+  const prompt = [
+    '你是医疗图片分级助手，不做确诊。',
+    '请根据图片做通俗分析，重点判断风险等级和下一步建议。',
+    '要求：',
+    '1. 不能给确定性诊断，只能使用“可能/倾向/不能排除”。',
+    '2. riskLevel 只能是 low、medium、high。',
+    '3. riskText 用一句人话描述风险。',
+    '4. possibleDirections 最多 3 条。',
+    '5. advice 最多 4 条，优先给可执行建议。',
+    '6. suggestDepartment 最多 2 个科室名。',
+    '7. 输出 JSON：title、riskLevel、riskText、possibleDirections、advice、suggestDepartment。',
+    `8. 图片类型：${label}`,
+    '只返回 JSON。',
+  ].join('\n');
+
+  const raw = await chatCompletions({
+    model: getConfig().visionModel,
+    messages: [
+      {
+        role: 'user',
+        content: [
+          { type: 'image_url', image_url: { url: dataUrl } },
+          { type: 'text', text: prompt },
+        ],
+      },
+    ],
+    temperature: 0.1,
+    maxTokens: 800,
+  });
+
+  const parsed = extractJsonObject(raw);
+  if (!parsed?.title) return null;
+  return {
+    title: String(parsed.title || '').trim(),
+    riskLevel: String(parsed.riskLevel || '').trim(),
+    riskText: String(parsed.riskText || '').trim(),
+    possibleDirections: Array.isArray(parsed.possibleDirections) ? parsed.possibleDirections.filter(Boolean).slice(0, 3) : [],
+    advice: Array.isArray(parsed.advice) ? parsed.advice.filter(Boolean).slice(0, 4) : [],
+    suggestDepartment: Array.isArray(parsed.suggestDepartment) ? parsed.suggestDepartment.filter(Boolean).slice(0, 2) : [],
+  };
+}
+
 module.exports = {
   getStatus,
   isConfigured,
@@ -1016,4 +1069,5 @@ module.exports = {
   answerFollowUpTurn,
   rewriteTriageResult,
   ocrFile,
+  interpretMedicalImage,
 };

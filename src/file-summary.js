@@ -1,5 +1,5 @@
 const fs = require('fs');
-const { ocrFile, getStatus } = require('./ai');
+const { ocrFile, interpretMedicalImage, getStatus } = require('./ai');
 
 const REPORT_KEYWORDS = [
   { pattern: /(血常规|血常)/i, title: '血常规报告', focus: ['白细胞', '血红蛋白', '血小板'], next: '先看是否提示感染、贫血或出血风险。' },
@@ -140,6 +140,8 @@ function uniq(items = []) {
 function buildSummarySlotHints(summary = {}) {
   const metrics = Array.isArray(summary.keyMetrics) ? summary.keyMetrics : [];
   const highlights = Array.isArray(summary.highlights) ? summary.highlights : [];
+  const riskText = String(summary.riskText || '').trim();
+  const suggestDepartment = Array.isArray(summary.suggestDepartment) ? summary.suggestDepartment : [];
   const hints = [];
 
   const bloodPressureMetrics = metrics.filter((item) => /收缩压|舒张压/.test(item));
@@ -189,6 +191,22 @@ function buildSummarySlotHints(summary = {}) {
     });
   }
 
+  if (riskText) {
+    hints.push({
+      slot: 'riskSignal',
+      slotLabel: '风险提示',
+      answer: riskText,
+    });
+  }
+
+  if (suggestDepartment.length) {
+    hints.push({
+      slot: 'suggestDepartment',
+      slotLabel: '建议科室',
+      answer: uniq(suggestDepartment).join('、'),
+    });
+  }
+
   return hints.filter((item) => item.answer);
 }
 
@@ -221,6 +239,16 @@ async function summarizeFile(file, label = '补充材料') {
   let ocrText = '';
   let ocrEnabled = false;
   let ocrMode = 'fallback';
+  let vision = null;
+  let visionMode = 'fallback';
+
+  try {
+    vision = await interpretMedicalImage(file, label);
+    if (vision) visionMode = 'dashscope';
+  } catch (_error) {
+    vision = null;
+    visionMode = 'fallback';
+  }
 
   try {
     ocrText = await ocrFile(file, label);
@@ -240,8 +268,19 @@ async function summarizeFile(file, label = '补充材料') {
     ocrMode = 'fallback';
   }
 
-  const inferred = inferSummaryFromText(ocrText, base.title) || base;
+  const inferred = inferSummaryFromText(ocrText, vision?.title || base.title) || {
+    ...base,
+    title: vision?.title || base.title,
+  };
   const keyMetrics = ocrText ? extractKeyMetrics(ocrText) : [];
+  const mergedHighlights = uniq([
+    ...(Array.isArray(inferred.highlights) ? inferred.highlights : []),
+    ...(vision?.possibleDirections || []),
+  ]).slice(0, 4);
+  const mergedNextStep = vision?.advice?.length
+    ? vision.advice.join('；')
+    : inferred.nextStep;
+  const riskText = vision?.riskText || '';
 
   return {
     kind: label,
@@ -249,14 +288,20 @@ async function summarizeFile(file, label = '补充材料') {
     fileType: file.mimetype || 'unknown',
     sizeText: formatSize(file.size),
     title: inferred.title,
-    highlights: inferred.highlights,
+    highlights: mergedHighlights,
     keyMetrics,
-    nextStep: inferred.nextStep,
+    nextStep: mergedNextStep,
+    riskLevel: vision?.riskLevel || '',
+    riskText,
+    suggestDepartment: vision?.suggestDepartment || [],
     ocrText: ocrText ? ocrText.slice(0, 220) : '',
+    visionMode,
     ocrMode,
     disclaimer: ocrText
       ? '当前摘要已参考 OCR 提取结果，仍建议结合医生正式报告解读。'
-      : ocrEnabled
+      : vision
+        ? '当前摘要已参考图片视觉分析，结果仅作就医前参考，不能替代医生面诊。'
+        : ocrEnabled
         ? 'OCR 服务当前没有返回有效文字，先按文件名和材料类型做基础摘要。'
         : '当前未配置 OCR 服务，先按文件名和材料类型做基础摘要。',
   };
