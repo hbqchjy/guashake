@@ -219,35 +219,30 @@ function syncWechatTtsEnableUi() {
 function armWechatTtsFromGesture() {
   if (!state.isWeChat) return Promise.resolve(true);
   if (!('speechSynthesis' in window)) return Promise.resolve(false);
-  return new Promise((resolve) => {
-    let settled = false;
-    const finish = (ok) => {
-      if (settled) return;
-      settled = true;
-      if (ok) {
-        state.wechatTtsArmed = true;
-        state.speechSynthesisPrimed = true;
-      }
+  try {
+    // In WeChat WebView, onstart/onend callbacks are unreliable even when speech is allowed.
+    // Treat explicit user gesture as unlock signal and keep this session armed.
+    state.wechatTtsArmed = true;
+    state.speechSynthesisPrimed = true;
+    syncWechatTtsEnableUi();
+    stopSpeechPlayback();
+    window.speechSynthesis.resume?.();
+    const utterance = new SpeechSynthesisUtterance('语音播报已开启');
+    utterance.lang = 'zh-CN';
+    utterance.rate = 1;
+    const preferred = getPreferredSpeechVoice();
+    if (preferred) utterance.voice = preferred;
+    utterance.onerror = () => {
+      state.wechatTtsArmed = false;
       syncWechatTtsEnableUi();
-      resolve(ok);
     };
-    try {
-      stopSpeechPlayback();
-      window.speechSynthesis.resume?.();
-      const utterance = new SpeechSynthesisUtterance('语音播报已开启');
-      utterance.lang = 'zh-CN';
-      utterance.rate = 1;
-      const preferred = getPreferredSpeechVoice();
-      if (preferred) utterance.voice = preferred;
-      utterance.onstart = () => finish(true);
-      utterance.onend = () => finish(true);
-      utterance.onerror = () => finish(false);
-      window.speechSynthesis.speak(utterance);
-      setTimeout(() => finish(false), 1800);
-    } catch (_error) {
-      finish(false);
-    }
-  });
+    window.speechSynthesis.speak(utterance);
+    return Promise.resolve(true);
+  } catch (_error) {
+    state.wechatTtsArmed = false;
+    syncWechatTtsEnableUi();
+    return Promise.resolve(false);
+  }
 }
 
 function isRegionValid(region) {
