@@ -257,32 +257,34 @@ const QUESTION_SLOT_META = {
 
 const SECOND_ROUND_CHECKS = {
   cardio: [
-    { name: '心电图', min: 30, max: 80, trigger: '基础化验异常、心慌发作频繁或胸闷加重时' },
-    { name: '心脏彩超', min: 180, max: 320, trigger: '心电图异常或持续胸闷气促时' },
+    { name: '心电图', trigger: '基础化验异常、心慌发作频繁或胸闷加重时' },
+    { name: '心脏彩超', trigger: '心电图异常或持续胸闷气促时' },
   ],
   lumbar: [
-    { name: '腰椎MRI', min: 380, max: 680, trigger: '腿麻加重、下肢无力或保守治疗无效时' },
-    { name: '神经传导检查', min: 220, max: 420, trigger: '怀疑神经受压或症状持续进展时' },
+    { name: '腰椎MRI', trigger: '腿麻加重、下肢无力或保守治疗无效时' },
+    { name: '神经传导检查', trigger: '怀疑神经受压或症状持续进展时' },
   ],
   digestive: [
-    { name: '腹部B超', min: 120, max: 240, trigger: '持续腹痛、体检异常或肝胆胰问题疑似时' },
-    { name: '胃镜', min: 260, max: 520, trigger: '反复上腹不适、黑便或长期反酸时' },
+    { name: '腹部B超', trigger: '持续腹痛、体检异常或肝胆胰问题疑似时' },
+    { name: '胃镜', trigger: '反复上腹不适、黑便或长期反酸时' },
+    { name: '肠镜', trigger: '长期腹泻、便血或医生建议进一步筛查时' },
   ],
   urinary: [
-    { name: '尿培养', min: 80, max: 180, trigger: '尿路感染反复、用药后仍反复发作时' },
-    { name: '泌尿系CT', min: 260, max: 520, trigger: '怀疑结石、梗阻或血尿持续时' },
+    { name: '尿培养', trigger: '尿路感染反复、用药后仍反复发作时' },
+    { name: '腹部CT', trigger: '怀疑结石、梗阻或血尿持续时' },
   ],
   respiratory: [
-    { name: '胸片', min: 80, max: 180, trigger: '发热不退或咳嗽超过1周时' },
-    { name: '胸部CT', min: 260, max: 520, trigger: '胸片异常、气促明显或症状持续加重时' },
+    { name: '胸片', trigger: '发热不退或咳嗽超过1周时' },
+    { name: '胸部CT', trigger: '胸片异常、气促明显或症状持续加重时' },
+    { name: '电子喉镜', trigger: '咽喉不适持续、声音嘶哑或咳嗽迁延时' },
   ],
   skinTrauma: [
-    { name: '伤口细菌培养', min: 90, max: 220, trigger: '伤口化脓、反复感染时' },
-    { name: '深部软组织超声', min: 120, max: 260, trigger: '怀疑深部组织损伤或脓肿时' },
+    { name: '伤口细菌培养', trigger: '伤口化脓、反复感染时' },
+    { name: '深部软组织超声', trigger: '怀疑深部组织损伤或脓肿时' },
   ],
   maleHealth: [
-    { name: '激素六项', min: 180, max: 420, trigger: '持续存在性功能问题且伴慢病/睡眠压力异常时' },
-    { name: '前列腺彩超', min: 120, max: 260, trigger: '合并排尿异常或医生建议进一步评估时' },
+    { name: '激素六项', trigger: '持续存在性功能问题且伴慢病/睡眠压力异常时' },
+    { name: '前列腺彩超', trigger: '合并排尿异常或医生建议进一步评估时' },
   ],
 };
 
@@ -400,6 +402,25 @@ function normalizeBaseChecks(baseChecks = []) {
   return baseChecks.map((item) => {
     const ref = map[item.name];
     if (!ref) return item;
+    return {
+      ...item,
+      min: Number(ref.min),
+      max: Number(ref.max),
+    };
+  });
+}
+
+function normalizeNamedItems(items = []) {
+  const map = costReference?.items || {};
+  return items.map((item) => {
+    const ref = map[item.name];
+    if (!ref) {
+      return {
+        ...item,
+        min: Number(item.min || 0),
+        max: Number(item.max || 0),
+      };
+    }
     return {
       ...item,
       min: Number(ref.min),
@@ -724,7 +745,8 @@ function buildCostEstimate(session) {
   const costFactor = getHospitalCostFactor(primaryHospital?.level || scenario.hospitalLevel);
   const range = buildNarrowCostRange(normalizedBaseChecks, costFactor);
   const feeItems = estimateFeeItems(normalizedBaseChecks, costFactor);
-  const secondRound = estimateSecondRoundItems(SECOND_ROUND_CHECKS[scenario.id] || [], costFactor);
+  const secondRoundBase = normalizeNamedItems(SECOND_ROUND_CHECKS[scenario.id] || []);
+  const secondRound = estimateSecondRoundItems(secondRoundBase, costFactor);
   const medicationRefs = MEDICATION_PRICE_RANGES[scenario.id] || [];
 
   return {
