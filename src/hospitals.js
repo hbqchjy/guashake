@@ -19,6 +19,12 @@ function buildOfficialProfileUrl(__biz = '') {
   return `https://mp.weixin.qq.com/mp/profile_ext?action=home&__biz=${encodeURIComponent(__biz)}#wechat_redirect`;
 }
 
+function buildWechatProfileScheme(wechatAccount = '') {
+  const account = String(wechatAccount || '').trim();
+  if (!account) return '';
+  return `weixin://contacts/profile/${encodeURIComponent(account)}`;
+}
+
 const KNOWN_HOSPITALS = Object.fromEntries(
   hubeiHospitalDirectory.map((item) => [
     item.hospitalName,
@@ -60,9 +66,10 @@ function getHospitalTemplates(scenarioId) {
 function buildKnownHospitalCard(name, department, index) {
   const known = KNOWN_HOSPITALS[name] || {};
   const officialProfileUrl = known.officialProfileUrl || buildOfficialProfileUrl(known.officialBiz || '');
+  const wechatProfileScheme = buildWechatProfileScheme(known.wechatAccount || '');
   const bookingUrl = known.bookingUrl || '';
   const miniProgramPath = known.miniProgramPath || '';
-  const entryUrl = bookingUrl || officialProfileUrl || '';
+  const entryUrl = officialProfileUrl || wechatProfileScheme || '';
   const officialEntryFound = Boolean(entryUrl || miniProgramPath);
 
   return {
@@ -75,11 +82,12 @@ function buildKnownHospitalCard(name, department, index) {
     wechatAccount: known.wechatAccount || '',
     miniProgramName: known.miniProgramName || '',
     officialProfileUrl,
+    wechatProfileScheme,
     bookingUrl,
     miniProgramPath,
     officialEntryFound,
     entryUrl,
-    entryLabel: getEntryLabel(known.verificationStatus || '', bookingUrl, officialProfileUrl, miniProgramPath),
+    entryLabel: getEntryLabel(known.verificationStatus || '', bookingUrl, officialProfileUrl, miniProgramPath, wechatProfileScheme),
     verificationStatus: known.verificationStatus || 'unknown',
     sourceUrl: known.sourceUrl || '',
     notes: known.notes || '',
@@ -92,11 +100,11 @@ function buildKnownHospitalCard(name, department, index) {
   };
 }
 
-function getEntryLabel(verificationStatus = '', bookingUrl = '', officialProfileUrl = '', miniProgramPath = '') {
-  if (bookingUrl && verificationStatus === 'confirmed_booking_url') return '去挂号';
-  if (bookingUrl) return '查看挂号方式';
-  if (officialProfileUrl) return '打开公众号';
+function getEntryLabel(verificationStatus = '', bookingUrl = '', officialProfileUrl = '', miniProgramPath = '', wechatProfileScheme = '') {
+  if (officialProfileUrl || wechatProfileScheme) return '打开公众号';
   if (miniProgramPath) return '打开小程序';
+  if (bookingUrl && verificationStatus === 'confirmed_booking_url') return '查看挂号网页';
+  if (bookingUrl) return '查看挂号方式';
   return '未录入官方挂号入口';
 }
 
@@ -121,9 +129,10 @@ function buildTemplateRecommendations(region = {}, scenario = {}) {
     const name = `${baseName}${template.suffix}`;
     const known = KNOWN_HOSPITALS[name] || {};
     const officialProfileUrl = known.officialProfileUrl || buildOfficialProfileUrl(template.officialBiz || known.officialBiz || '');
+    const wechatProfileScheme = buildWechatProfileScheme(known.wechatAccount || '');
     const bookingUrl = known.bookingUrl || template.bookingUrl || '';
     const miniProgramPath = known.miniProgramPath || template.miniProgramPath || '';
-    const entryUrl = bookingUrl || officialProfileUrl || '';
+    const entryUrl = officialProfileUrl || wechatProfileScheme || '';
     const officialEntryFound = Boolean(entryUrl || miniProgramPath);
     return {
       id: `${template.type}-${index}`,
@@ -135,11 +144,12 @@ function buildTemplateRecommendations(region = {}, scenario = {}) {
       wechatAccount: known.wechatAccount || '',
       miniProgramName: known.miniProgramName || (index < 3 ? buildMiniProgramName(name) : ''),
       officialProfileUrl,
+      wechatProfileScheme,
       bookingUrl,
       miniProgramPath,
       officialEntryFound,
       entryUrl,
-      entryLabel: getEntryLabel(known.verificationStatus || '', bookingUrl, officialProfileUrl, miniProgramPath),
+      entryLabel: getEntryLabel(known.verificationStatus || '', bookingUrl, officialProfileUrl, miniProgramPath, wechatProfileScheme),
       verificationStatus: known.verificationStatus || 'unknown',
       sourceUrl: known.sourceUrl || '',
       notes: known.notes || '',

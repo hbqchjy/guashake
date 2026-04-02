@@ -1655,7 +1655,7 @@ function buildBookingCard(booking, prepItems) {
       : '<span class="record-action disabled">未录入官方挂号入口</span>';
     const channelHint = hospital.entryUrl
       ? `公众号：${escapeHtml(hospital.officialWechatName || '未录入')}${hospital.wechatAccount ? `（微信号：${escapeHtml(hospital.wechatAccount)}）` : ''}${hospital.miniProgramName ? ` / 小程序：${escapeHtml(hospital.miniProgramName)}` : ''}`
-      : '暂未录入官方公众号或小程序，建议在微信里直接搜索医院全名。';
+      : `暂未录入公众号直达入口，建议在微信里搜索：${escapeHtml(hospital.officialWechatName || hospital.name || '医院全名')}${hospital.bookingUrl ? '（已收录挂号网页，可作备用）' : ''}`;
     return [
       '<div class="booking-hospital-item">',
       `<div class="booking-hospital-top"><div><p class="booking-hospital-name">${escapeHtml(hospital.name)}</p><p class="booking-hospital-meta">${escapeHtml(`${hospital.level} · 建议挂 ${hospital.department}`)}</p></div><div class="booking-hospital-actions">${entryButton}</div></div>`,
@@ -1732,7 +1732,13 @@ function buildBookingCard(booking, prepItems) {
   row.querySelectorAll('[data-booking-entry]').forEach((button) => {
     button.onclick = () => {
       saveRuntimeState();
-      window.location.href = button.dataset.bookingEntry;
+      const target = String(button.dataset.bookingEntry || '');
+      if (!target) return;
+      if (target.startsWith('weixin://') && !state.isWeChat) {
+        addBotText('这个入口需要在微信里打开。你现在在浏览器里，建议复制医院名到微信搜索公众号。');
+        return;
+      }
+      window.location.href = target;
     };
   });
   return row;
