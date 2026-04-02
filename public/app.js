@@ -1929,12 +1929,18 @@ function formatRecommendationLevel(level) {
 async function renderResultCards() {
   clearResultRows();
   const triage = state.triageResult.layeredOutput;
+  const imageRiskLevel = String(triage.core.imageRiskLevel || '').toLowerCase();
+  const imageHighRisk = imageRiskLevel === 'high';
   const recommendationLevel = triage.core.recommendationLevel || 'routine_clinic';
   const needsInPerson = ['routine_clinic', 'specialist_clinic', 'hospital_priority_high'].includes(recommendationLevel);
   const needsBooking = Boolean(triage.core.needsBooking || needsInPerson);
   const needsCost = Boolean(triage.core.needsCost || needsInPerson);
   if (!needsInPerson) {
     state.showBookingPanel = false;
+  }
+  if (imageHighRisk && needsBooking) {
+    state.showBookingPanel = true;
+    state.resultAnchor = 'booking';
   }
 
   const requests = [];
@@ -2052,15 +2058,21 @@ async function renderResultCards() {
   riskCard.dataset.resultView = 'full';
   riskCard.dataset.topicCard = 'care';
 
+  const primaryBookingLabel = imageHighRisk ? '尽快就医' : '去挂号';
+  const primaryBookingClass = imageHighRisk ? 'result-action primary is-default urgent' : 'result-action primary is-default';
+  const primaryButtonHtml = needsInPerson
+    ? `<button class="${primaryBookingClass}" data-action="booking">${primaryBookingLabel}</button>`
+    : '<button class="result-action primary is-default" data-action="deep">继续咨询</button>';
+
   const actionButtons = state.sharedView
     ? [
-        needsInPerson ? '<button class="result-action primary is-default" data-action="booking">去挂号</button>' : '<button class="result-action primary is-default" data-action="deep">继续咨询</button>',
+        primaryButtonHtml,
         needsInPerson ? '<button class="result-action" data-action="deep">继续咨询</button>' : '',
         '<button class="result-action" data-action="restart">新的咨询</button>',
         '<button class="result-action" data-action="share">分享结果</button>',
       ].filter(Boolean)
     : [
-        needsInPerson ? '<button class="result-action primary is-default" data-action="booking">去挂号</button>' : '<button class="result-action primary is-default" data-action="deep">继续咨询</button>',
+        primaryButtonHtml,
         needsInPerson ? '<button class="result-action" data-action="deep">继续咨询</button>' : '',
         '<button class="result-action" data-action="restart">新的咨询</button>',
         '<button class="result-action" data-action="save">保存记录</button>',
@@ -2072,7 +2084,7 @@ async function renderResultCards() {
       '<div class="result-card action-card">',
       '<div class="action-head">',
       `<h3>${state.sharedView ? '后续建议' : '下一步'}</h3>`,
-      `<p>${state.sharedView ? '家属可以根据这份总结，继续陪你处理这次问题。' : needsInPerson ? '需要线下就医时，再展开挂号建议。' : '先按建议处理，也可以继续补充后再更新分析。'}</p>`,
+      `<p>${state.sharedView ? '家属可以根据这份总结，继续陪你处理这次问题。' : imageHighRisk ? '图片提示风险偏高，优先尽快线下就医。' : needsInPerson ? '需要线下就医时，再展开挂号建议。' : '先按建议处理，也可以继续补充后再更新分析。'}</p>`,
       '</div>',
       '<div class="result-actions">',
       ...actionButtons,

@@ -201,6 +201,80 @@ function mergeTriageWithAi(fallbackResult, aiRewrite) {
   };
 }
 
+function getImageRiskSignal(session) {
+  const files = Array.isArray(session?.supplementFiles) ? session.supplementFiles : [];
+  if (!files.length) return null;
+  for (let i = files.length - 1; i >= 0; i -= 1) {
+    const summary = files[i]?.summary || {};
+    const level = String(summary.riskLevel || '').toLowerCase();
+    if (['high', 'medium', 'low'].includes(level)) {
+      return {
+        level,
+        riskText: String(summary.riskText || '').trim(),
+        suggestDepartment: Array.isArray(summary.suggestDepartment) ? summary.suggestDepartment.filter(Boolean) : [],
+      };
+    }
+  }
+  return null;
+}
+
+function applyImageRiskGuidance(triageResult, session) {
+  const signal = getImageRiskSignal(session);
+  if (!triageResult || !signal) return triageResult;
+
+  const layeredOutput = triageResult.layeredOutput || {};
+  const core = layeredOutput.core || {};
+  const detail = layeredOutput.detail || {};
+  const riskReminder = Array.isArray(layeredOutput.riskReminder) ? layeredOutput.riskReminder : [];
+  const riskLine = signal.riskText || '图片提示当前风险偏高，建议尽快去医院面诊。';
+  const suggestedDepartment = signal.suggestDepartment[0] || core.suggestDepartment;
+
+  if (signal.level !== 'high') {
+    return {
+      ...triageResult,
+      layeredOutput: {
+        ...layeredOutput,
+        core: {
+          ...core,
+          imageRiskLevel: signal.level,
+          imageRiskText: signal.riskText || '',
+          imageSuggestedDepartments: signal.suggestDepartment,
+        },
+      },
+    };
+  }
+
+  return {
+    ...triageResult,
+    layeredOutput: {
+      ...layeredOutput,
+      core: {
+        ...core,
+        text: '图片里有较高风险信号，建议今天尽快去医院面诊。',
+        recommendationLevel: 'hospital_priority_high',
+        severityLevel: 'high',
+        severityText: riskLine,
+        needsBooking: true,
+        needsCost: true,
+        suggestDepartment: suggestedDepartment,
+        imageRiskLevel: signal.level,
+        imageRiskText: signal.riskText || '',
+        imageSuggestedDepartments: signal.suggestDepartment,
+      },
+      detail: {
+        ...detail,
+        visitAdvice: Array.from(
+          new Set([
+            '建议尽快线下就医，必要时急诊评估。',
+            ...(Array.isArray(detail.visitAdvice) ? detail.visitAdvice : []),
+          ])
+        ),
+      },
+      riskReminder: Array.from(new Set([riskLine, ...riskReminder])).slice(0, 4),
+    },
+  };
+}
+
 function getFollowUpConfig(session) {
   const totalQuestions = session?.scenario?.questions?.length || 0;
   return {
@@ -1645,6 +1719,7 @@ app.get('/triage/result/:id', async (req, res) => {
     } catch (_error) {
     }
   }
+  triageResult = applyImageRiskGuidance(triageResult, session);
   upsertSession(req.params.id, { triageResult });
   const topicChips = buildTopicChips(session, triageResult);
   const currentFocus = topicChips.find((chip) => chip.key === session.currentFocus)
