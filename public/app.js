@@ -696,7 +696,11 @@ async function api(url, options = {}) {
   const res = await fetch(url, config);
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || '请求失败');
+    const message = String(err.error || '请求失败');
+    if (message.includes('智能分析') || message.includes('暂时不可用')) {
+      throw new Error('网络有点波动，请再试一次。');
+    }
+    throw new Error(message);
   }
   return res.json();
 }
@@ -1725,9 +1729,10 @@ function buildBookingCard(booking, prepItems) {
     ? [
         '<div class="result-card booking-card">',
         `<div class="result-card-head"><span class="result-card-icon">${getInlineIcon('bag')}</span><h3>推荐医院科室</h3></div>`,
-        '<p>正在尝试自动定位你的地区；如果失败，请手动输入地区。</p>',
+        '<p>先确认地区，我再给你推荐附近医院。</p>',
         '<div class="booking-actions">',
-        '<button class="result-action primary" data-booking-action="manual">手动输入地区</button>',
+        '<button class="result-action primary" data-booking-action="locate">自动定位</button>',
+        '<button class="result-action" data-booking-action="manual">手动输入地区</button>',
         '</div>',
         '</div>',
       ].join('')
@@ -1756,6 +1761,14 @@ function buildBookingCard(booking, prepItems) {
       ].join('');
 
   const row = markResultRow(addRow('bot', html));
+  row.querySelectorAll('[data-booking-action="locate"]').forEach((button) => {
+    button.onclick = async () => {
+      state.resultViewMode = 'full';
+      state.resultAnchor = 'summary';
+      state.awaitingContext = null;
+      await promptRegionConfirmation(true);
+    };
+  });
   row.querySelectorAll('[data-booking-action="manual"]').forEach((button) => {
     button.onclick = async () => {
       state.resultViewMode = 'full';
@@ -1987,10 +2000,6 @@ async function renderResultCards() {
         },
       };
   const booking = needsBooking ? resolved.shift() : { preparation: [], hospitals: [] };
-  if (needsBooking && booking?.requiresRegion && !state.autoLocateTried) {
-    await promptRegionConfirmation(true);
-    return;
-  }
 
   state.cost = cost || null;
   state.booking = booking || null;
