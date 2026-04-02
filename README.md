@@ -222,6 +222,7 @@ pm2 restart guashake --update-env
 ## 13. 费用数据月更（湖北样板）
 - 基础费用库：`data/cost-reference.common.json`
 - 城市覆盖库：`data/cost-reference.hubei.city-overrides.json`
+- 城市系数库（17地市）：`data/cost-reference.hubei.city-factors.json`
 - 更新脚本：`scripts/update-hubei-cost-overrides.js`
 
 示例：

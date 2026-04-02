@@ -1,6 +1,7 @@
 const { buildHospitalRecommendations, formatRegionName } = require('./hospitals');
 const costReference = require('../data/cost-reference.common.json');
 const hubeiCityOverrides = require('../data/cost-reference.hubei.city-overrides.json');
+const hubeiCityFactors = require('../data/cost-reference.hubei.city-factors.json');
 
 const RED_FLAG_KEYWORDS = [
   '胸痛加重',
@@ -414,14 +415,32 @@ function normalizeBaseChecks(baseChecks = []) {
 function normalizeCityKey(city = '') {
   const raw = String(city || '').trim();
   if (!raw) return '';
-  return raw.replace(/市$/, '');
+  return raw
+    .replace(/土家族苗族自治州$/, '')
+    .replace(/自治州$/, '')
+    .replace(/林区$/, '')
+    .replace(/市$/, '');
+}
+
+function getCityFactor(session = {}) {
+  const cityKey = normalizeCityKey(session.city || '');
+  if (!cityKey) return 1;
+  const cityConfig = hubeiCityFactors?.cities?.[cityKey];
+  const factor = Number(cityConfig?.factor || 1);
+  return Number.isFinite(factor) && factor > 0 ? factor : 1;
 }
 
 function getPriceByRegion(name = '', session = {}) {
   const cityKey = normalizeCityKey(session.city || '');
   const cityMap = hubeiCityOverrides?.cities?.[cityKey] || {};
   if (cityMap[name]) return cityMap[name];
-  return (costReference?.items || {})[name] || null;
+  const common = (costReference?.items || {})[name] || null;
+  if (!common) return null;
+  const factor = getCityFactor(session);
+  return {
+    min: roundToTen(Number(common.min) * factor, 'floor'),
+    max: roundToTen(Number(common.max) * factor, 'ceil'),
+  };
 }
 
 function normalizeBaseChecksByRegion(baseChecks = [], session = {}) {
