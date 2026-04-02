@@ -44,6 +44,7 @@ const {
   rewriteTriageResult,
   getStatus: getAiStatus,
   speechToText,
+  synthesizeSpeech,
 } = require('./ai');
 
 const app = express();
@@ -1843,6 +1844,26 @@ app.post('/api/asr', memUpload.single('audio'), async (req, res) => {
     return res.json({ ok: true, text: transcript });
   } catch (error) {
     console.error('[asr]', error.message);
+    return res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+app.post('/api/tts', async (req, res) => {
+  try {
+    const text = String(req.body?.text || '').trim();
+    if (!text) {
+      return res.status(400).json({ ok: false, error: 'text is required' });
+    }
+    const result = await synthesizeSpeech(text, {
+      model: req.body?.model,
+      voice: req.body?.voice,
+      format: req.body?.format || 'mp3',
+    });
+    res.setHeader('Content-Type', result.mimeType || 'audio/mpeg');
+    res.setHeader('Cache-Control', 'no-store');
+    return res.send(result.buffer);
+  } catch (error) {
+    console.error('[tts]', error.message);
     return res.status(500).json({ ok: false, error: error.message });
   }
 });

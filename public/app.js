@@ -61,6 +61,11 @@ const state = {
   isWeChat: false,
   isTouchDevice: false,
   ttsToggleOn: true,
+  wechatTtsSeq: 0,
+  wechatTtsEnabled: false,
+  wechatTtsAudio: null,
+  wechatTtsBlobUrl: '',
+  wechatBridgeReady: false,
 };
 
 let botTextQueue = Promise.resolve();
@@ -119,9 +124,64 @@ function wait(ms) {
 }
 
 function stopSpeechPlayback() {
+  if (state.wechatTtsAudio) {
+    try {
+      state.wechatTtsAudio.pause();
+      state.wechatTtsAudio.currentTime = 0;
+    } catch (_error) {
+    }
+  }
+  if (state.wechatTtsBlobUrl) {
+    URL.revokeObjectURL(state.wechatTtsBlobUrl);
+    state.wechatTtsBlobUrl = '';
+  }
   if ('speechSynthesis' in window) {
     window.speechSynthesis.cancel();
   }
+}
+
+function ensureWeChatTtsAudio() {
+  if (!state.wechatTtsAudio) {
+    const audio = new Audio();
+    audio.preload = 'auto';
+    audio.crossOrigin = 'anonymous';
+    audio.setAttribute('playsinline', 'true');
+    audio.setAttribute('webkit-playsinline', 'true');
+    state.wechatTtsAudio = audio;
+  }
+  return state.wechatTtsAudio;
+}
+
+function playAudioForWeChat(audio) {
+  if (!audio) return Promise.resolve();
+  const directPlay = () => audio.play().catch(() => {});
+
+  if (!state.isWeChat) {
+    return directPlay();
+  }
+
+  if (typeof window.WeixinJSBridge !== 'undefined' && typeof window.WeixinJSBridge.invoke === 'function') {
+    return new Promise((resolve) => {
+      window.WeixinJSBridge.invoke('getNetworkType', {}, () => {
+        directPlay().finally(resolve);
+      });
+    });
+  }
+
+  return directPlay();
+}
+
+async function fetchWeChatTtsBlob(text) {
+  const response = await fetch('/api/tts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text }),
+  });
+  if (!response.ok) {
+    const detail = await response.json().catch(() => ({}));
+    throw new Error(detail.error || '语音播报失败');
+  }
+  return response.blob();
 }
 
 function getPreferredSpeechVoice() {
@@ -159,6 +219,7 @@ function primeSpeechPlayback() {
 }
 
 function speakGesturePrompt(text) {
+  if (state.isWeChat) return;
   if (!('speechSynthesis' in window)) return;
   const content = String(text || '').trim();
   if (!content) return;
@@ -185,10 +246,27 @@ function speakGesturePrompt(text) {
 }
 
 function speakBotText(text) {
-  if (!state.speechSynthesisEnabled || !('speechSynthesis' in window)) return;
+  if (!state.speechSynthesisEnabled) return;
   if (!state.ttsToggleOn) return;
   const content = String(text || '').trim();
   if (!content) return;
+  if (state.isWeChat) {
+    if (!state.wechatTtsEnabled) return;
+    const seq = ++state.wechatTtsSeq;
+    fetchWeChatTtsBlob(content)
+      .then((blob) => {
+        if (seq !== state.wechatTtsSeq || !state.speechSynthesisEnabled || !state.ttsToggleOn || !state.isWeChat) return;
+        const audio = ensureWeChatTtsAudio();
+        stopSpeechPlayback();
+        const blobUrl = URL.createObjectURL(blob);
+        state.wechatTtsBlobUrl = blobUrl;
+        audio.src = blobUrl;
+        return playAudioForWeChat(audio);
+      })
+      .catch(() => {});
+    return;
+  }
+  if (!('speechSynthesis' in window)) return;
   if (!state.speechSynthesisPrimed) {
     primeSpeechPlayback();
     setTimeout(() => {
@@ -784,6 +862,7 @@ function setComposerMode(mode) {
   const previousMode = state.composerMode;
   state.composerMode = mode;
   state.speechSynthesisEnabled = mode === 'voice';
+  state.wechatTtsEnabled = mode === 'voice';
   const isVoice = mode === 'voice';
 
   $('composerInput').classList.toggle('hidden', isVoice);
@@ -792,8 +871,10 @@ function setComposerMode(mode) {
   $('plusBtn').innerHTML = ICONS.plus;
   syncVoiceButton();
   if (isVoice) {
-    primeSpeechPlayback();
-    if (previousMode !== 'voice') {
+    if (!state.isWeChat) {
+      primeSpeechPlayback();
+    }
+    if (previousMode !== 'voice' && !state.isWeChat) {
       speakGesturePrompt('语音模式已开启');
     }
   }
@@ -2563,6 +2644,15 @@ async function loadSharedSession(sessionId) {
 async function bootstrap() {
   state.isWeChat = /MicroMessenger/i.test(navigator.userAgent || '');
   state.isTouchDevice = ('ontouchstart' in window) || navigator.maxTouchPoints > 0 || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
+  if (state.isWeChat) {
+    const markBridgeReady = () => {
+      state.wechatBridgeReady = true;
+    };
+    document.addEventListener('WeixinJSBridgeReady', markBridgeReady, false);
+    if (typeof window.WeixinJSBridge !== 'undefined') {
+      markBridgeReady();
+    }
+  }
   loadAuthState();
   loadSavedRegion();
   if ('speechSynthesis' in window && typeof window.speechSynthesis.onvoiceschanged !== 'undefined') {

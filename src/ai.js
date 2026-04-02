@@ -5,6 +5,8 @@ const DEFAULT_BASE_URL = 'https://dashscope.aliyuncs.com/compatible-mode/v1';
 const DEFAULT_TEXT_MODEL = 'qwen3.5-plus-2026-02-15';
 const DEFAULT_OCR_MODEL = 'qwen-vl-ocr-latest';
 const DEFAULT_ASR_MODEL = 'qwen3-asr-flash';
+const DEFAULT_TTS_MODEL = 'cosyvoice-v2';
+const DEFAULT_TTS_VOICE = 'longxiaochun_v2';
 const DEFAULT_TIMEOUT_MS = 15000;
 
 function getConfig() {
@@ -14,6 +16,8 @@ function getConfig() {
     textModel: process.env.DASHSCOPE_TEXT_MODEL || DEFAULT_TEXT_MODEL,
     ocrModel: process.env.DASHSCOPE_OCR_MODEL || DEFAULT_OCR_MODEL,
     asrModel: process.env.DASHSCOPE_ASR_MODEL || DEFAULT_ASR_MODEL,
+    ttsModel: process.env.DASHSCOPE_TTS_MODEL || DEFAULT_TTS_MODEL,
+    ttsVoice: process.env.DASHSCOPE_TTS_VOICE || DEFAULT_TTS_VOICE,
   };
 }
 
@@ -29,6 +33,8 @@ function getStatus() {
     textModel: config.textModel,
     ocrModel: config.ocrModel,
     asrModel: config.asrModel,
+    ttsModel: config.ttsModel,
+    ttsVoice: config.ttsVoice,
     baseUrl: config.baseUrl,
   };
 }
@@ -149,6 +155,92 @@ async function speechToText(audioBuffer, mimeType = 'audio/webm') {
       .trim();
   }
   return '';
+}
+
+function normalizeDashscopeAudioMime(format = 'mp3') {
+  const key = String(format || '').toLowerCase();
+  if (key === 'wav') return 'audio/wav';
+  if (key === 'pcm') return 'audio/pcm';
+  if (key === 'opus') return 'audio/opus';
+  return 'audio/mpeg';
+}
+
+async function synthesizeSpeech(text, options = {}) {
+  const config = getConfig();
+  if (!config.apiKey) {
+    throw new Error('DASHSCOPE_API_KEY is not configured');
+  }
+
+  const inputText = String(text || '').trim();
+  if (!inputText) {
+    throw new Error('text is required');
+  }
+
+  const model = options.model || config.ttsModel;
+  const voice = options.voice || config.ttsVoice;
+  const format = String(options.format || 'mp3').toLowerCase();
+  const sampleRate = Number(options.sampleRate || 24000);
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30000);
+
+  let response;
+  try {
+    response = await fetch('https://dashscope.aliyuncs.com/api/v1/services/audio/tts/SpeechSynthesizer', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${config.apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model,
+        input: {
+          text: inputText,
+          voice,
+          format,
+          sample_rate: sampleRate,
+        },
+      }),
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      throw new Error('text-to-speech timeout after 30s');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+
+  if (!response.ok) {
+    const detail = await response.text().catch(() => '');
+    throw new Error(`text-to-speech failed: ${response.status} ${detail}`.trim());
+  }
+
+  const payload = await response.json();
+  const audio = payload?.output?.audio || {};
+  const mimeType = normalizeDashscopeAudioMime(format);
+  if (audio?.data) {
+    return {
+      buffer: Buffer.from(String(audio.data), 'base64'),
+      mimeType,
+    };
+  }
+
+  if (!audio?.url) {
+    throw new Error('text-to-speech returned empty audio');
+  }
+
+  const audioResponse = await fetch(audio.url);
+  if (!audioResponse.ok) {
+    const detail = await audioResponse.text().catch(() => '');
+    throw new Error(`text-to-speech audio fetch failed: ${audioResponse.status} ${detail}`.trim());
+  }
+  const bytes = Buffer.from(await audioResponse.arrayBuffer());
+  return {
+    buffer: bytes,
+    mimeType: audioResponse.headers.get('content-type') || mimeType,
+  };
 }
 
 function extractJsonObject(text = '') {
@@ -788,6 +880,7 @@ module.exports = {
   getStatus,
   isConfigured,
   speechToText,
+  synthesizeSpeech,
   classifyComplaint,
   analyzeInitialTurn,
   classifyConversationTurn,
