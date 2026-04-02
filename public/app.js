@@ -1756,7 +1756,7 @@ function buildBookingCard(booking, prepItems) {
   const cachedRegion = isRegionValid(state.savedRegion) ? state.savedRegion : null;
   const hospitalCardHtml = (hospital) => {
     const entryButton = hospital.entryUrl
-      ? `<button type="button" class="record-action" data-booking-entry="${escapeHtml(hospital.entryUrl)}">${escapeHtml(hospital.entryLabel || '去挂号')}</button>`
+      ? `<a class="record-action" data-booking-entry="${escapeHtml(hospital.entryUrl)}" href="${escapeHtml(hospital.entryUrl)}">${escapeHtml(hospital.entryLabel || '去挂号')}</a>`
       : '<span class="record-action disabled">未录入官方挂号入口</span>';
     const channelHint = hospital.entryUrl
       ? `公众号：${escapeHtml(hospital.officialWechatName || '未录入')}${hospital.wechatAccount ? `（微信号：${escapeHtml(hospital.wechatAccount)}）` : ''}${hospital.miniProgramName ? ` / 小程序：${escapeHtml(hospital.miniProgramName)}` : ''}`
@@ -1834,16 +1834,30 @@ function buildBookingCard(booking, prepItems) {
       $('composerInput').focus();
     };
   });
-  row.querySelectorAll('[data-booking-entry]').forEach((button) => {
-    button.onclick = () => {
+  row.querySelectorAll('[data-booking-entry]').forEach((entry) => {
+    entry.onclick = (event) => {
+      event.preventDefault();
       saveRuntimeState();
-      const target = String(button.dataset.bookingEntry || '');
+      const target = String(entry.dataset.bookingEntry || '');
       if (!target) return;
       if (target.startsWith('weixin://') && !state.isWeChat) {
         addBotText('这个入口需要在微信里打开。你现在在浏览器里，建议复制医院名到微信搜索公众号。');
         return;
       }
-      window.location.href = target;
+      if (target.startsWith('weixin://') && state.isWeChat) {
+        const tip = entry.closest('.booking-hospital-item')?.querySelector('.booking-hospital-search')?.textContent || '';
+        let leftPage = false;
+        const handleVisibility = () => {
+          if (document.hidden) leftPage = true;
+        };
+        document.addEventListener('visibilitychange', handleVisibility, { once: true });
+        setTimeout(() => {
+          if (!leftPage) {
+            addBotText(`${tip || '如果没有自动打开公众号'}，你可以在微信里直接搜索医院公众号名称。`);
+          }
+        }, 900);
+      }
+      window.location.assign(target);
     };
   });
   return row;

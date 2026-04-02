@@ -615,9 +615,10 @@ function buildBookingSuggestion(session) {
     district: session.district || '',
   };
   const regionText = formatRegionName(region);
-  const recommendations = session.district ? buildHospitalRecommendations(region, scenario) : [];
+  const hasRegion = Boolean(session.district || session.city || session.province);
+  const recommendations = hasRegion ? buildHospitalRecommendations(region, scenario) : [];
   return {
-    requiresRegion: !session.district,
+    requiresRegion: !hasRegion,
     confirmedRegion: regionText,
     hospitalSuggestion: `${regionText || '本地'}县人民医院/市医院（按症状轻重选择）`,
     department: scenario.department,
