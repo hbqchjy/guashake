@@ -158,6 +158,50 @@ function buildWeChatTtsUrl(text) {
   return url.toString();
 }
 
+function splitTextForWeChatTts(text) {
+  const source = String(text || '').replace(/\s+/g, ' ').trim();
+  if (!source) return [];
+  const sentenceParts = source
+    .split(/(?<=[。！？!?；;])/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+  const maxLen = 28;
+  const segments = [];
+  const pushChunk = (chunk) => {
+    const trimmed = String(chunk || '').trim();
+    if (!trimmed) return;
+    if (trimmed.length <= maxLen) {
+      segments.push(trimmed);
+      return;
+    }
+    const commaParts = trimmed
+      .split(/(?<=[，,、])/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+    let cursor = '';
+    commaParts.forEach((part) => {
+      const merged = `${cursor}${part}`.trim();
+      if (!cursor || merged.length <= maxLen) {
+        cursor = merged;
+      } else {
+        segments.push(cursor);
+        cursor = part;
+      }
+    });
+    if (cursor) {
+      if (cursor.length <= maxLen) {
+        segments.push(cursor);
+      } else {
+        for (let i = 0; i < cursor.length; i += maxLen) {
+          segments.push(cursor.slice(i, i + maxLen));
+        }
+      }
+    }
+  };
+  sentenceParts.forEach(pushChunk);
+  return segments.length ? segments : [source.slice(0, maxLen)];
+}
+
 function playAudioForWeChat(audio) {
   if (!audio) return Promise.resolve();
   const directPlay = () => audio.play();
@@ -175,6 +219,69 @@ function playAudioForWeChat(audio) {
   }
 
   return directPlay();
+}
+
+function playWeChatTtsSegment(audio, segment, seq) {
+  return new Promise((resolve, reject) => {
+    if (
+      seq !== state.wechatTtsSeq ||
+      !state.speechSynthesisEnabled ||
+      !state.ttsToggleOn ||
+      !state.isWeChat ||
+      !state.wechatTtsEnabled
+    ) {
+      resolve();
+      return;
+    }
+    const cleanup = () => {
+      audio.onended = null;
+      audio.onerror = null;
+      audio.onabort = null;
+    };
+    const timer = setTimeout(() => {
+      cleanup();
+      resolve();
+    }, 12000);
+    audio.onended = () => {
+      clearTimeout(timer);
+      cleanup();
+      resolve();
+    };
+    audio.onerror = () => {
+      clearTimeout(timer);
+      cleanup();
+      reject(new Error('audio play error'));
+    };
+    audio.onabort = () => {
+      clearTimeout(timer);
+      cleanup();
+      resolve();
+    };
+    audio.src = buildWeChatTtsUrl(segment);
+    playAudioForWeChat(audio).catch((err) => {
+      clearTimeout(timer);
+      cleanup();
+      reject(err);
+    });
+  });
+}
+
+async function playWeChatTtsBySegments(content, seq) {
+  const segments = splitTextForWeChatTts(content);
+  if (!segments.length) return;
+  const audio = ensureWeChatTtsAudio();
+  for (const segment of segments) {
+    if (
+      seq !== state.wechatTtsSeq ||
+      !state.speechSynthesisEnabled ||
+      !state.ttsToggleOn ||
+      !state.isWeChat ||
+      !state.wechatTtsEnabled
+    ) {
+      return;
+    }
+    await playWeChatTtsSegment(audio, segment, seq);
+  }
 }
 
 function getPreferredSpeechVoice() {
@@ -246,10 +353,8 @@ function speakBotText(text) {
   if (state.isWeChat) {
     if (!state.wechatTtsEnabled) return;
     const seq = ++state.wechatTtsSeq;
-    const audio = ensureWeChatTtsAudio();
     stopSpeechPlayback();
-    audio.src = buildWeChatTtsUrl(content);
-    playAudioForWeChat(audio).catch(() => {
+    playWeChatTtsBySegments(content, seq).catch(() => {
       if (seq !== state.wechatTtsSeq) return;
       if (!state.wechatTtsWarned) {
         state.wechatTtsWarned = true;
