@@ -60,6 +60,7 @@ const state = {
   summaryImpactLevel: 'none',
   isWeChat: false,
   isTouchDevice: false,
+  wechatTtsArmed: false,
 };
 
 let botTextQueue = Promise.resolve();
@@ -185,6 +186,7 @@ function speakGesturePrompt(text) {
 
 function speakBotText(text) {
   if (!state.speechSynthesisEnabled || !('speechSynthesis' in window)) return;
+  if (state.isWeChat && !state.wechatTtsArmed) return;
   const content = String(text || '').trim();
   if (!content) return;
   if (!state.speechSynthesisPrimed) {
@@ -207,6 +209,45 @@ function speakBotText(text) {
     utterance.voice = preferred;
   }
   window.speechSynthesis.speak(utterance);
+}
+
+function syncWechatTtsEnableUi() {
+  const shouldShow = state.isWeChat && state.composerMode === 'voice' && !state.wechatTtsArmed;
+  $('wechatTtsEnableBtn')?.classList.toggle('hidden', !shouldShow);
+}
+
+function armWechatTtsFromGesture() {
+  if (!state.isWeChat) return Promise.resolve(true);
+  if (!('speechSynthesis' in window)) return Promise.resolve(false);
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (ok) => {
+      if (settled) return;
+      settled = true;
+      if (ok) {
+        state.wechatTtsArmed = true;
+        state.speechSynthesisPrimed = true;
+      }
+      syncWechatTtsEnableUi();
+      resolve(ok);
+    };
+    try {
+      stopSpeechPlayback();
+      window.speechSynthesis.resume?.();
+      const utterance = new SpeechSynthesisUtterance('语音播报已开启');
+      utterance.lang = 'zh-CN';
+      utterance.rate = 1;
+      const preferred = getPreferredSpeechVoice();
+      if (preferred) utterance.voice = preferred;
+      utterance.onstart = () => finish(true);
+      utterance.onend = () => finish(true);
+      utterance.onerror = () => finish(false);
+      window.speechSynthesis.speak(utterance);
+      setTimeout(() => finish(false), 1800);
+    } catch (_error) {
+      finish(false);
+    }
+  });
 }
 
 function isRegionValid(region) {
@@ -765,7 +806,7 @@ function setComposerMode(mode) {
   syncVoiceButton();
   if (isVoice) {
     primeSpeechPlayback();
-    if (previousMode !== 'voice') {
+    if (previousMode !== 'voice' && (!state.isWeChat || state.wechatTtsArmed)) {
       speakGesturePrompt('语音模式已开启');
     }
   }
@@ -778,6 +819,7 @@ function setComposerMode(mode) {
   }
   if (!isVoice) setComposerState(state.inputMode);
   syncComposerActions();
+  syncWechatTtsEnableUi();
 }
 
 function resetConversation() {
@@ -828,6 +870,7 @@ function resetConversation() {
   renderQuickSymptoms();
   setComposerState('symptom');
   syncComposerActions();
+  syncWechatTtsEnableUi();
   clearRuntimeState();
 }
 
@@ -2421,6 +2464,15 @@ function bindEvents() {
     setComposerMode(state.composerMode === 'text' ? 'voice' : 'text');
   });
 
+  $('wechatTtsEnableBtn')?.addEventListener('click', async () => {
+    const ok = await armWechatTtsFromGesture();
+    if (ok) {
+      addStatusPill('微信语音播报已开启');
+    } else {
+      addStatusPill('当前无法开启语音播报，可继续看文字回复');
+    }
+  });
+
   if (state.isTouchDevice) {
     $('voiceCaptureBtn')?.addEventListener('touchstart', startVoiceCapture, { passive: false });
     $('voiceCaptureBtn')?.addEventListener('touchend', stopVoiceCapture, { passive: false });
@@ -2535,6 +2587,7 @@ async function loadSharedSession(sessionId) {
 async function bootstrap() {
   state.isWeChat = /MicroMessenger/i.test(navigator.userAgent || '');
   state.isTouchDevice = ('ontouchstart' in window) || navigator.maxTouchPoints > 0 || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
+  state.wechatTtsArmed = !state.isWeChat;
   loadAuthState();
   loadSavedRegion();
   if ('speechSynthesis' in window && typeof window.speechSynthesis.onvoiceschanged !== 'undefined') {
@@ -2546,6 +2599,7 @@ async function bootstrap() {
   syncAuthUi();
   syncMyUi();
   bindEvents();
+  syncWechatTtsEnableUi();
   window.addEventListener('beforeunload', saveRuntimeState);
   const params = new URLSearchParams(window.location.search);
   const sharedSessionId = params.get('session');
