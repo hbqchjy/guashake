@@ -218,6 +218,68 @@ function getImageRiskSignal(session) {
   return null;
 }
 
+function getTextRiskSignal(session) {
+  const text = [
+    session?.chiefComplaint || '',
+    ...((session?.supplements || []).slice(-10)),
+  ]
+    .join(' ')
+    .trim();
+  if (!text) return null;
+
+  const urgentKeywords = [
+    '柏油样便',
+    '柏油便',
+    '黑便',
+    '呕血',
+    '便血',
+    '上消化道出血',
+    '呼吸困难',
+    '胸痛加重',
+    '意识模糊',
+    '肢体无力',
+  ];
+  const hasUrgent = urgentKeywords.some((k) => text.includes(k));
+  if (!hasUrgent) return null;
+
+  return {
+    level: 'high',
+    riskText: '补充信息提示高风险信号，建议尽快线下就医，必要时急诊。',
+  };
+}
+
+function applyTextRiskGuidance(triageResult, session) {
+  const signal = getTextRiskSignal(session);
+  if (!triageResult || !signal) return triageResult;
+
+  const layeredOutput = triageResult.layeredOutput || {};
+  const core = layeredOutput.core || {};
+  const detail = layeredOutput.detail || {};
+  const riskReminder = Array.isArray(layeredOutput.riskReminder) ? layeredOutput.riskReminder : [];
+
+  return {
+    ...triageResult,
+    riskLevel: 'urgent',
+    layeredOutput: {
+      ...layeredOutput,
+      core: {
+        ...core,
+        text: '你这次补充的信息提示风险偏高，建议尽快线下就医。',
+        recommendationLevel: 'hospital_priority_high',
+        severityLevel: 'high',
+        severityText: signal.riskText,
+        needsBooking: true,
+        needsCost: true,
+      },
+      detail: {
+        ...detail,
+        visitAdvice: Array.from(new Set(['请尽快去医院面诊，必要时急诊。', ...(Array.isArray(detail.visitAdvice) ? detail.visitAdvice : [])])),
+      },
+      riskReminder: Array.from(new Set([signal.riskText, ...riskReminder])).slice(0, 4),
+    },
+  };
+}
+
 function applyImageRiskGuidance(triageResult, session) {
   const signal = getImageRiskSignal(session);
   if (!triageResult || !signal) return triageResult;
@@ -1750,6 +1812,7 @@ app.get('/triage/result/:id', async (req, res) => {
     } catch (_error) {
     }
   }
+  triageResult = applyTextRiskGuidance(triageResult, session);
   triageResult = applyImageRiskGuidance(triageResult, session);
   upsertSession(req.params.id, { triageResult });
   const topicChips = buildTopicChips(session, triageResult);

@@ -13,6 +13,12 @@ const RED_FLAG_KEYWORDS = [
   '抽搐',
   '便血大量',
   '黑便伴头晕',
+  '黑便',
+  '柏油样便',
+  '柏油便',
+  '呕血',
+  '血便',
+  '上消化道出血',
 ];
 
 const SCENARIOS = {
@@ -725,10 +731,23 @@ function buildTriageResult(session) {
     ? `已参考你补充的 ${session.supplements.length} 条信息。`
     : '';
   const fallbackGuidance = buildFallbackGuidance(session);
+  const guidance = redFlag
+    ? {
+        recommendationLevel: 'hospital_priority_high',
+        severityLevel: 'high',
+        severityText: '当前有高风险信号，建议立即线下就医，必要时急诊。',
+        userGoal: '先快速排查高风险原因，避免延误',
+        actionSummary: '你现在有紧急风险信号，建议尽快去急诊，不要继续等待。',
+        selfCareAdvice: [],
+        medicationAdvice: [],
+        visitAdvice: ['请尽快到急诊或消化内科线下评估，不建议继续观察。'],
+        examAdvice: ['到院后优先做血常规、粪便潜血及医生建议的止血相关检查。'],
+        needsBooking: true,
+        needsCost: true,
+      }
+    : fallbackGuidance;
 
-  const coreConclusion = redFlag
-    ? '你现在有紧急风险信号，建议尽快去急诊，不要继续等待。'
-    : fallbackGuidance.actionSummary;
+  const coreConclusion = guidance.actionSummary;
 
   return {
     riskLevel: redFlag ? 'urgent' : 'normal',
@@ -743,12 +762,12 @@ function buildTriageResult(session) {
         suggestDepartment: scenario.department,
         firstChecks: normalizedBaseChecks,
         firstCostRange: `${baseCost.min}~${baseCost.max}元`,
-        recommendationLevel: fallbackGuidance.recommendationLevel,
-        severityLevel: fallbackGuidance.severityLevel,
-        severityText: fallbackGuidance.severityText,
-        userGoal: fallbackGuidance.userGoal,
-        needsBooking: fallbackGuidance.needsBooking,
-        needsCost: fallbackGuidance.needsCost,
+        recommendationLevel: guidance.recommendationLevel,
+        severityLevel: guidance.severityLevel,
+        severityText: guidance.severityText,
+        userGoal: guidance.userGoal,
+        needsBooking: guidance.needsBooking,
+        needsCost: guidance.needsCost,
       },
       detail: {
         whyDepartment: `根据你的主诉、追问答案和补充材料，当前更匹配 ${scenario.department} 的初筛路径。`,
@@ -763,10 +782,10 @@ function buildTriageResult(session) {
           ...supplementInsightSummaries.map((item) => `补充信息提示：${item}`),
           ...scenario.nextStepRules,
         ],
-        selfCareAdvice: fallbackGuidance.selfCareAdvice,
-        medicationAdvice: fallbackGuidance.medicationAdvice,
-        visitAdvice: fallbackGuidance.visitAdvice,
-        examAdvice: fallbackGuidance.examAdvice,
+        selfCareAdvice: guidance.selfCareAdvice,
+        medicationAdvice: guidance.medicationAdvice,
+        visitAdvice: guidance.visitAdvice,
+        examAdvice: guidance.examAdvice,
       },
       riskReminder: [
         '如果出现胸痛加重、呼吸困难、意识模糊、剧烈头痛、肢体无力等情况，请尽快去急诊。',
