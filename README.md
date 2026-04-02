@@ -227,6 +227,7 @@ pm2 restart guashake --update-env
 - 官方来源台账：`data/cost-source.hubei.official.json`
 - 导入校验脚本：`scripts/validate-hubei-cost-import.js`
 - 月更一键脚本：`scripts/monthly-update-hubei-cost.sh`
+- 来源缺口报告：`scripts/report-hubei-source-gaps.js`
 - 导入模板：`data/imports/hubei/city-fees.template.json`
 
 示例：
@@ -249,6 +250,11 @@ bash scripts/monthly-update-hubei-cost.sh 武汉 data/imports/hubei/wuhan-2026-0
 说明：
 - 目前已具备“17地市统一框架 + 城市系数 + 城市覆盖价”的完整链路。
 - 官方来源台账已建好结构，链接状态区分为 `pending_review`，可按月补齐并固化。
+
+可用以下命令查看当前来源缺口：
+```bash
+node scripts/report-hubei-source-gaps.js
+```
 - 数据准确性：前台显示更新时间与覆盖等级
 - 审核策略：敏感词、疾病断言、夸大疗效必须拦截
 - 隐私安全：上线前补齐鉴权、加密存储、访问审计

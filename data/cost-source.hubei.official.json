@@ -5,122 +5,454 @@
   "sourcePolicy": "优先医保局/卫健委公开口径，其次医院官方价格公示；仅收录可复核来源。",
   "cities": {
     "武汉": {
-      "status": "pending_review",
+      "status": "verified_homepage",
       "preferredSources": [
-        { "type": "医保局", "name": "武汉市医疗保障局", "url": "", "note": "待补具体医疗服务价格公示页" },
-        { "type": "卫健委", "name": "武汉市卫生健康委员会", "url": "", "note": "待补价格公开栏目页" }
+        {
+          "type": "医保局",
+          "name": "武汉市医疗保障局",
+          "url": "https://ybj.wuhan.gov.cn/",
+          "note": "已验证可访问，待补医疗服务价格具体栏目页"
+        },
+        {
+          "type": "卫健委",
+          "name": "武汉市卫生健康委员会",
+          "url": "https://wjw.wuhan.gov.cn/",
+          "note": "已验证可访问，待补价格公示栏目页"
+        },
+        {
+          "type": "市政府门户",
+          "name": "武汉市人民政府",
+          "url": "https://www.wuhan.gov.cn/",
+          "note": "可用于站内检索医疗服务价格公示"
+        }
       ]
     },
     "黄石": {
-      "status": "pending_review",
+      "status": "verified_homepage",
       "preferredSources": [
-        { "type": "医保局", "name": "黄石市医疗保障局", "url": "", "note": "待补具体公示页" },
-        { "type": "卫健委", "name": "黄石市卫生健康委员会", "url": "", "note": "待补具体公示页" }
+        {
+          "type": "医保局",
+          "name": "黄石市医疗保障局",
+          "url": "https://ybj.huangshi.gov.cn/",
+          "note": "已验证可访问，待补医疗服务价格栏目页"
+        },
+        {
+          "type": "卫健委",
+          "name": "黄石市卫生健康委员会",
+          "url": "https://wjw.huangshi.gov.cn/",
+          "note": "已验证可访问，待补价格公示栏目页"
+        },
+        {
+          "type": "市政府门户",
+          "name": "黄石市人民政府",
+          "url": "https://www.huangshi.gov.cn/",
+          "note": "可用于站内检索价格信息"
+        }
       ]
     },
     "十堰": {
       "status": "pending_review",
       "preferredSources": [
-        { "type": "医保局", "name": "十堰市医疗保障局", "url": "", "note": "待补具体公示页" },
-        { "type": "卫健委", "name": "十堰市卫生健康委员会", "url": "", "note": "待补具体公示页" }
+        {
+          "type": "医保局",
+          "name": "十堰市医疗保障局",
+          "url": "",
+          "note": "待补具体公示页"
+        },
+        {
+          "type": "卫健委",
+          "name": "十堰市卫生健康委员会",
+          "url": "",
+          "note": "待补具体公示页"
+        },
+        {
+          "type": "省级医保局",
+          "name": "湖北省医疗保障局",
+          "url": "https://ybj.hubei.gov.cn/",
+          "note": "地市直链待补，先用省级政策与当地医院公示交叉校验"
+        },
+        {
+          "type": "省级卫健委",
+          "name": "湖北省卫生健康委员会",
+          "url": "https://wjw.hubei.gov.cn/",
+          "note": "地市直链待补，可检索医疗服务价格相关文件"
+        }
       ]
     },
     "宜昌": {
       "status": "pending_review",
       "preferredSources": [
-        { "type": "医保局", "name": "宜昌市医疗保障局", "url": "", "note": "待补具体公示页" },
-        { "type": "卫健委", "name": "宜昌市卫生健康委员会", "url": "", "note": "待补具体公示页" }
+        {
+          "type": "医保局",
+          "name": "宜昌市医疗保障局",
+          "url": "",
+          "note": "待补具体公示页"
+        },
+        {
+          "type": "卫健委",
+          "name": "宜昌市卫生健康委员会",
+          "url": "",
+          "note": "待补具体公示页"
+        },
+        {
+          "type": "省级医保局",
+          "name": "湖北省医疗保障局",
+          "url": "https://ybj.hubei.gov.cn/",
+          "note": "地市直链待补，先用省级政策与当地医院公示交叉校验"
+        },
+        {
+          "type": "省级卫健委",
+          "name": "湖北省卫生健康委员会",
+          "url": "https://wjw.hubei.gov.cn/",
+          "note": "地市直链待补，可检索医疗服务价格相关文件"
+        }
       ]
     },
     "襄阳": {
       "status": "pending_review",
       "preferredSources": [
-        { "type": "医保局", "name": "襄阳市医疗保障局", "url": "", "note": "待补具体公示页" },
-        { "type": "卫健委", "name": "襄阳市卫生健康委员会", "url": "", "note": "待补具体公示页" }
+        {
+          "type": "医保局",
+          "name": "襄阳市医疗保障局",
+          "url": "",
+          "note": "待补具体公示页"
+        },
+        {
+          "type": "卫健委",
+          "name": "襄阳市卫生健康委员会",
+          "url": "",
+          "note": "待补具体公示页"
+        },
+        {
+          "type": "省级医保局",
+          "name": "湖北省医疗保障局",
+          "url": "https://ybj.hubei.gov.cn/",
+          "note": "地市直链待补，先用省级政策与当地医院公示交叉校验"
+        },
+        {
+          "type": "省级卫健委",
+          "name": "湖北省卫生健康委员会",
+          "url": "https://wjw.hubei.gov.cn/",
+          "note": "地市直链待补，可检索医疗服务价格相关文件"
+        }
       ]
     },
     "鄂州": {
-      "status": "pending_review",
+      "status": "verified_homepage",
       "preferredSources": [
-        { "type": "医保局", "name": "鄂州市医疗保障局", "url": "", "note": "待补具体公示页" },
-        { "type": "卫健委", "name": "鄂州市卫生健康委员会", "url": "", "note": "待补具体公示页" }
+        {
+          "type": "医保局",
+          "name": "鄂州市医疗保障局",
+          "url": "https://ybj.ezhou.gov.cn/",
+          "note": "已验证可访问，待补具体公示页"
+        },
+        {
+          "type": "卫健委",
+          "name": "鄂州市卫生健康委员会",
+          "url": "https://wjw.ezhou.gov.cn/",
+          "note": "已验证可访问，待补具体公示页"
+        },
+        {
+          "type": "市政府门户",
+          "name": "鄂州市人民政府",
+          "url": "https://www.ezhou.gov.cn/",
+          "note": "可用于站内检索价格信息"
+        }
       ]
     },
     "荆门": {
       "status": "pending_review",
       "preferredSources": [
-        { "type": "医保局", "name": "荆门市医疗保障局", "url": "", "note": "待补具体公示页" },
-        { "type": "卫健委", "name": "荆门市卫生健康委员会", "url": "", "note": "待补具体公示页" }
+        {
+          "type": "医保局",
+          "name": "荆门市医疗保障局",
+          "url": "",
+          "note": "待补具体公示页"
+        },
+        {
+          "type": "卫健委",
+          "name": "荆门市卫生健康委员会",
+          "url": "",
+          "note": "待补具体公示页"
+        },
+        {
+          "type": "省级医保局",
+          "name": "湖北省医疗保障局",
+          "url": "https://ybj.hubei.gov.cn/",
+          "note": "地市直链待补，先用省级政策与当地医院公示交叉校验"
+        },
+        {
+          "type": "省级卫健委",
+          "name": "湖北省卫生健康委员会",
+          "url": "https://wjw.hubei.gov.cn/",
+          "note": "地市直链待补，可检索医疗服务价格相关文件"
+        }
       ]
     },
     "孝感": {
       "status": "pending_review",
       "preferredSources": [
-        { "type": "医保局", "name": "孝感市医疗保障局", "url": "", "note": "待补具体公示页" },
-        { "type": "卫健委", "name": "孝感市卫生健康委员会", "url": "", "note": "待补具体公示页" }
+        {
+          "type": "医保局",
+          "name": "孝感市医疗保障局",
+          "url": "",
+          "note": "待补具体公示页"
+        },
+        {
+          "type": "卫健委",
+          "name": "孝感市卫生健康委员会",
+          "url": "",
+          "note": "待补具体公示页"
+        },
+        {
+          "type": "省级医保局",
+          "name": "湖北省医疗保障局",
+          "url": "https://ybj.hubei.gov.cn/",
+          "note": "地市直链待补，先用省级政策与当地医院公示交叉校验"
+        },
+        {
+          "type": "省级卫健委",
+          "name": "湖北省卫生健康委员会",
+          "url": "https://wjw.hubei.gov.cn/",
+          "note": "地市直链待补，可检索医疗服务价格相关文件"
+        }
       ]
     },
     "荆州": {
       "status": "pending_review",
       "preferredSources": [
-        { "type": "医保局", "name": "荆州市医疗保障局", "url": "", "note": "待补具体公示页" },
-        { "type": "卫健委", "name": "荆州市卫生健康委员会", "url": "", "note": "待补具体公示页" }
+        {
+          "type": "医保局",
+          "name": "荆州市医疗保障局",
+          "url": "",
+          "note": "待补具体公示页"
+        },
+        {
+          "type": "卫健委",
+          "name": "荆州市卫生健康委员会",
+          "url": "",
+          "note": "待补具体公示页"
+        },
+        {
+          "type": "省级医保局",
+          "name": "湖北省医疗保障局",
+          "url": "https://ybj.hubei.gov.cn/",
+          "note": "地市直链待补，先用省级政策与当地医院公示交叉校验"
+        },
+        {
+          "type": "省级卫健委",
+          "name": "湖北省卫生健康委员会",
+          "url": "https://wjw.hubei.gov.cn/",
+          "note": "地市直链待补，可检索医疗服务价格相关文件"
+        }
       ]
     },
     "黄冈": {
       "status": "pending_review",
       "preferredSources": [
-        { "type": "医保局", "name": "黄冈市医疗保障局", "url": "", "note": "待补具体公示页" },
-        { "type": "卫健委", "name": "黄冈市卫生健康委员会", "url": "", "note": "待补具体公示页" }
+        {
+          "type": "医保局",
+          "name": "黄冈市医疗保障局",
+          "url": "",
+          "note": "待补具体公示页"
+        },
+        {
+          "type": "卫健委",
+          "name": "黄冈市卫生健康委员会",
+          "url": "",
+          "note": "待补具体公示页"
+        },
+        {
+          "type": "省级医保局",
+          "name": "湖北省医疗保障局",
+          "url": "https://ybj.hubei.gov.cn/",
+          "note": "地市直链待补，先用省级政策与当地医院公示交叉校验"
+        },
+        {
+          "type": "省级卫健委",
+          "name": "湖北省卫生健康委员会",
+          "url": "https://wjw.hubei.gov.cn/",
+          "note": "地市直链待补，可检索医疗服务价格相关文件"
+        }
       ]
     },
     "咸宁": {
       "status": "pending_review",
       "preferredSources": [
-        { "type": "医保局", "name": "咸宁市医疗保障局", "url": "", "note": "待补具体公示页" },
-        { "type": "卫健委", "name": "咸宁市卫生健康委员会", "url": "", "note": "待补具体公示页" }
+        {
+          "type": "医保局",
+          "name": "咸宁市医疗保障局",
+          "url": "",
+          "note": "待补具体公示页"
+        },
+        {
+          "type": "卫健委",
+          "name": "咸宁市卫生健康委员会",
+          "url": "",
+          "note": "待补具体公示页"
+        },
+        {
+          "type": "省级医保局",
+          "name": "湖北省医疗保障局",
+          "url": "https://ybj.hubei.gov.cn/",
+          "note": "地市直链待补，先用省级政策与当地医院公示交叉校验"
+        },
+        {
+          "type": "省级卫健委",
+          "name": "湖北省卫生健康委员会",
+          "url": "https://wjw.hubei.gov.cn/",
+          "note": "地市直链待补，可检索医疗服务价格相关文件"
+        }
       ]
     },
     "随州": {
       "status": "pending_review",
       "preferredSources": [
-        { "type": "医保局", "name": "随州市医疗保障局", "url": "", "note": "待补具体公示页" },
-        { "type": "卫健委", "name": "随州市卫生健康委员会", "url": "", "note": "待补具体公示页" }
+        {
+          "type": "医保局",
+          "name": "随州市医疗保障局",
+          "url": "",
+          "note": "待补具体公示页"
+        },
+        {
+          "type": "卫健委",
+          "name": "随州市卫生健康委员会",
+          "url": "",
+          "note": "待补具体公示页"
+        },
+        {
+          "type": "省级医保局",
+          "name": "湖北省医疗保障局",
+          "url": "https://ybj.hubei.gov.cn/",
+          "note": "地市直链待补，先用省级政策与当地医院公示交叉校验"
+        },
+        {
+          "type": "省级卫健委",
+          "name": "湖北省卫生健康委员会",
+          "url": "https://wjw.hubei.gov.cn/",
+          "note": "地市直链待补，可检索医疗服务价格相关文件"
+        }
       ]
     },
     "恩施": {
       "status": "pending_review",
       "preferredSources": [
-        { "type": "医保局", "name": "恩施州医疗保障局", "url": "", "note": "待补具体公示页" },
-        { "type": "卫健委", "name": "恩施州卫生健康委员会", "url": "", "note": "待补具体公示页" }
+        {
+          "type": "医保局",
+          "name": "恩施州医疗保障局",
+          "url": "",
+          "note": "待补具体公示页"
+        },
+        {
+          "type": "卫健委",
+          "name": "恩施州卫生健康委员会",
+          "url": "",
+          "note": "待补具体公示页"
+        },
+        {
+          "type": "省级医保局",
+          "name": "湖北省医疗保障局",
+          "url": "https://ybj.hubei.gov.cn/",
+          "note": "地市直链待补，先用省级政策与当地医院公示交叉校验"
+        },
+        {
+          "type": "省级卫健委",
+          "name": "湖北省卫生健康委员会",
+          "url": "https://wjw.hubei.gov.cn/",
+          "note": "地市直链待补，可检索医疗服务价格相关文件"
+        }
       ]
     },
     "仙桃": {
       "status": "pending_review",
       "preferredSources": [
-        { "type": "医保局", "name": "仙桃市医疗保障局", "url": "", "note": "待补具体公示页" },
-        { "type": "卫健委", "name": "仙桃市卫生健康委员会", "url": "", "note": "待补具体公示页" }
+        {
+          "type": "医保局",
+          "name": "仙桃市医疗保障局",
+          "url": "",
+          "note": "待补具体公示页"
+        },
+        {
+          "type": "卫健委",
+          "name": "仙桃市卫生健康委员会",
+          "url": "",
+          "note": "待补具体公示页"
+        },
+        {
+          "type": "省级医保局",
+          "name": "湖北省医疗保障局",
+          "url": "https://ybj.hubei.gov.cn/",
+          "note": "地市直链待补，先用省级政策与当地医院公示交叉校验"
+        },
+        {
+          "type": "省级卫健委",
+          "name": "湖北省卫生健康委员会",
+          "url": "https://wjw.hubei.gov.cn/",
+          "note": "地市直链待补，可检索医疗服务价格相关文件"
+        }
       ]
     },
     "潜江": {
-      "status": "pending_review",
+      "status": "partial_verified",
       "preferredSources": [
-        { "type": "医保局", "name": "潜江市医疗保障局", "url": "", "note": "待补具体公示页" },
-        { "type": "卫健委", "name": "潜江市卫生健康委员会", "url": "", "note": "待补具体公示页" }
+        {
+          "type": "市政府门户",
+          "name": "潜江市人民政府",
+          "url": "https://www.qianjiang.gov.cn/",
+          "note": "已验证可访问，待补医保局/卫健委价格栏目直链"
+        },
+        {
+          "type": "省级医保局",
+          "name": "湖北省医疗保障局",
+          "url": "https://ybj.hubei.gov.cn/",
+          "note": "待补潜江对应价格政策映射"
+        }
       ]
     },
     "天门": {
-      "status": "pending_review",
+      "status": "partial_verified",
       "preferredSources": [
-        { "type": "医保局", "name": "天门市医疗保障局", "url": "", "note": "待补具体公示页" },
-        { "type": "卫健委", "name": "天门市卫生健康委员会", "url": "", "note": "待补具体公示页" }
+        {
+          "type": "市政府门户",
+          "name": "天门市人民政府",
+          "url": "https://www.tianmen.gov.cn/",
+          "note": "已验证可访问，待补医保局/卫健委价格栏目直链"
+        },
+        {
+          "type": "省级医保局",
+          "name": "湖北省医疗保障局",
+          "url": "https://ybj.hubei.gov.cn/",
+          "note": "待补天门对应价格政策映射"
+        }
       ]
     },
     "神农架": {
       "status": "pending_review",
       "preferredSources": [
-        { "type": "医保局", "name": "神农架林区医疗保障局", "url": "", "note": "待补具体公示页" },
-        { "type": "卫健委", "name": "神农架林区卫生健康委员会", "url": "", "note": "待补具体公示页" }
+        {
+          "type": "医保局",
+          "name": "神农架林区医疗保障局",
+          "url": "",
+          "note": "待补具体公示页"
+        },
+        {
+          "type": "卫健委",
+          "name": "神农架林区卫生健康委员会",
+          "url": "",
+          "note": "待补具体公示页"
+        },
+        {
+          "type": "省级医保局",
+          "name": "湖北省医疗保障局",
+          "url": "https://ybj.hubei.gov.cn/",
+          "note": "地市直链待补，先用省级政策与当地医院公示交叉校验"
+        },
+        {
+          "type": "省级卫健委",
+          "name": "湖北省卫生健康委员会",
+          "url": "https://wjw.hubei.gov.cn/",
+          "note": "地市直链待补，可检索医疗服务价格相关文件"
+        }
       ]
     }
   }
