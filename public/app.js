@@ -1755,18 +1755,14 @@ function buildBookingCard(booking, prepItems) {
   const extraHospitals = hospitals.slice(2);
   const cachedRegion = isRegionValid(state.savedRegion) ? state.savedRegion : null;
   const hospitalCardHtml = (hospital) => {
-    const entryButton = hospital.entryUrl
-      ? `<a class="record-action" data-booking-entry="${escapeHtml(hospital.entryUrl)}" href="${escapeHtml(hospital.entryUrl)}">${escapeHtml(hospital.entryLabel || '去挂号')}</a>`
-      : '<span class="record-action disabled">未录入官方挂号入口</span>';
-    const channelHint = hospital.entryUrl
-      ? `公众号：${escapeHtml(hospital.officialWechatName || '未录入')}${hospital.wechatAccount ? `（微信号：${escapeHtml(hospital.wechatAccount)}）` : ''}${hospital.miniProgramName ? ` / 小程序：${escapeHtml(hospital.miniProgramName)}` : ''}`
-      : `暂未录入公众号直达入口，建议在微信里搜索：${escapeHtml(hospital.officialWechatName || hospital.name || '医院全名')}${hospital.bookingUrl ? '（已收录挂号网页，可作备用）' : ''}`;
+    const entryButton = '<span class="record-action disabled">请在微信搜索医院全名挂号</span>';
+    const channelHint = `建议搜索：${escapeHtml(hospital.officialWechatName || hospital.name || '医院全名')}${hospital.wechatAccount ? `（微信号：${escapeHtml(hospital.wechatAccount)}）` : ''}${hospital.miniProgramName ? ` / 小程序：${escapeHtml(hospital.miniProgramName)}` : ''}`;
     return [
       '<div class="booking-hospital-item">',
       `<div class="booking-hospital-top"><div><p class="booking-hospital-name">${escapeHtml(hospital.name)}</p><p class="booking-hospital-meta">${escapeHtml(`${hospital.level} · 建议挂 ${hospital.department}`)}</p></div><div class="booking-hospital-actions">${entryButton}</div></div>`,
       `<p class="booking-hospital-note">${escapeHtml(hospital.recommendation)}</p>`,
       `<p class="booking-hospital-search">${channelHint}</p>`,
-      `<p class="booking-hospital-channel">挂号方式：${escapeHtml(hospital.channel)}</p>`,
+      `<p class="booking-hospital-channel">挂号方式：微信搜索医院后进入挂号入口</p>`,
       '</div>',
     ].join('');
   };
@@ -1832,32 +1828,6 @@ function buildBookingCard(booking, prepItems) {
       await addBotText('你直接输入县、区或市名就行，我会自动补全。');
       setComposerState('region');
       $('composerInput').focus();
-    };
-  });
-  row.querySelectorAll('[data-booking-entry]').forEach((entry) => {
-    entry.onclick = (event) => {
-      event.preventDefault();
-      saveRuntimeState();
-      const target = String(entry.dataset.bookingEntry || '');
-      if (!target) return;
-      if (target.startsWith('weixin://') && !state.isWeChat) {
-        addBotText('这个入口需要在微信里打开。你现在在浏览器里，建议复制医院名到微信搜索公众号。');
-        return;
-      }
-      if (target.startsWith('weixin://') && state.isWeChat) {
-        const tip = entry.closest('.booking-hospital-item')?.querySelector('.booking-hospital-search')?.textContent || '';
-        let leftPage = false;
-        const handleVisibility = () => {
-          if (document.hidden) leftPage = true;
-        };
-        document.addEventListener('visibilitychange', handleVisibility, { once: true });
-        setTimeout(() => {
-          if (!leftPage) {
-            addBotText(`${tip || '如果没有自动打开公众号'}，你可以在微信里直接搜索医院公众号名称。`);
-          }
-        }, 900);
-      }
-      window.location.assign(target);
     };
   });
   return row;
@@ -1973,39 +1943,19 @@ async function renderResultCards() {
   const recommendationLevel = triage.core.recommendationLevel || 'routine_clinic';
   const needsInPerson = ['routine_clinic', 'specialist_clinic', 'hospital_priority_high'].includes(recommendationLevel);
   const needsBooking = Boolean(triage.core.needsBooking || needsInPerson);
-  const needsCost = Boolean(triage.core.needsCost);
+  const needsCost = false;
   if (!needsInPerson) {
     state.showBookingPanel = false;
   }
 
   const requests = [];
-  if (needsCost) {
-    requests.push(
-      api('/cost/estimate', {
-        method: 'POST',
-        body: JSON.stringify({ sessionId: state.sessionId }),
-      })
-    );
-  }
   if (needsBooking) {
     requests.push(api(`/booking/options?sessionId=${encodeURIComponent(state.sessionId)}`));
   }
   const resolved = await Promise.all(requests);
-  const cost = needsCost
-    ? resolved.shift()
-    : {
-        simple: {
-          costRange: triage.core.firstCostRange || '',
-          insuranceCoverage: '当前这轮不一定要马上用到费用估算',
-          costEffectivePlan: '先看症状变化，再决定是否去门诊',
-        },
-        expanded: {
-          insuranceGuide: '如果后面需要线下就医，再补充医保类型会更准确。',
-        },
-      };
   const booking = needsBooking ? resolved.shift() : { preparation: [], hospitals: [] };
 
-  state.cost = cost || null;
+  state.cost = null;
   state.booking = booking || null;
   setComposerState('symptom');
 
@@ -2017,7 +1967,6 @@ async function renderResultCards() {
   const topicChips = state.topicChips || [];
   const careAdvice = Array.from(new Set([...visitAdvice, ...selfCareAdvice].filter(Boolean)));
   const firstChecks = buildCheckListHtml(triage.core.firstChecks || []);
-  const costItems = buildCostHtml(cost, state.profile.insuranceType);
   const prepItems = (booking.preparation || []).map((item) => `<li>${escapeHtml(item)}</li>`).join('');
   const riskItems = (triage.riskReminder || []).map((item) => `<li>${escapeHtml(item)}</li>`).join('');
   const summaryTitle = possibleTypes[0] || triage.core.suggestDepartment || '还需要结合症状继续判断';
@@ -2070,14 +2019,6 @@ async function renderResultCards() {
     essentialChecks = buildResultCard('第一步检查', `${buildAdviceListHtml(examAdvice)}${firstChecks}`, 'strong');
     essentialChecks.dataset.resultView = 'full';
     essentialChecks.dataset.topicCard = 'checks';
-  }
-
-  let essentialCost = null;
-  if (needsCost) {
-    essentialCost = buildResultCard('费用与医保', costItems);
-    essentialCost.dataset.resultView = 'full';
-    essentialCost.dataset.topicCard = 'cost';
-    attachInsuranceActions(essentialCost);
   }
 
   let bookingCard = null;
