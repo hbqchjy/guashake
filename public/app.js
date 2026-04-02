@@ -53,7 +53,7 @@ const state = {
   pendingThinkingRow: null,
   conversationStage: 'idle',
   currentPrompt: null,
-  currentFocus: { key: 'summary', label: '先看总结' },
+  currentFocus: { key: 'summary', label: '小科总结' },
   topicChips: [],
   summaryDirty: false,
   summaryImpactLevel: 'none',
@@ -92,17 +92,56 @@ const QUICK_SYMPTOM_ICONS = {
   '皮肤/外伤': 'bandage',
 };
 
+const SECTION_LABELS = {
+  summary: '小科总结',
+  care: '现在怎么办',
+  medication: '用药建议',
+  booking: '推荐医院科室',
+  checks: '检查项目',
+  cost: '费用参考',
+  report: '检查报告解读',
+};
+
+const LEGACY_SECTION_LABELS = {
+  '先看总结': '小科总结',
+  '现在怎么处理': '现在怎么办',
+  '用什么药': '用药建议',
+  '去哪个医院': '推荐医院科室',
+  '要做哪些检查': '检查项目',
+  '看检查报告': '检查报告解读',
+  '挂号建议': '推荐医院科室',
+};
+
+const NAV_TOPIC_KEYS = new Set(['care', 'medication', 'booking', 'checks', 'cost', 'report']);
+
 const RESULT_CARD_ICONS = {
   现在怎么办: 'spark',
   用药建议: 'clipboard',
   什么时候去医院: 'bag',
-  '第一步检查': 'clipboard',
+  '推荐医院科室': 'bag',
+  '检查项目': 'clipboard',
   '费用参考': 'wallet',
   '去医院前带什么': 'bag',
   '风险提醒': 'alert',
   '为什么这样建议': 'spark',
   '材料基础摘要': 'scan',
 };
+
+function normalizeFocusLabel(key, label = '') {
+  if (SECTION_LABELS[key]) return SECTION_LABELS[key];
+  return LEGACY_SECTION_LABELS[label] || label || key;
+}
+
+function normalizeTopicChipList(chips = []) {
+  const list = Array.isArray(chips) ? chips : [];
+  const mapped = list
+    .map((chip) => ({
+      key: String(chip?.key || '').trim(),
+      label: normalizeFocusLabel(String(chip?.key || '').trim(), String(chip?.label || '').trim()),
+    }))
+    .filter((chip) => chip.key && NAV_TOPIC_KEYS.has(chip.key));
+  return mapped.filter((chip, index, array) => array.findIndex((item) => item.key === chip.key) === index);
+}
 
 function escapeHtml(value) {
   return String(value)
@@ -764,10 +803,14 @@ function setCurrentFocus(focus, options = {}) {
   if (!focus?.key) return;
   state.currentFocus = {
     key: focus.key,
-    label: focus.label || focus.key,
+    label: normalizeFocusLabel(focus.key, focus.label || focus.key),
   };
-  if (!state.topicChips.some((chip) => chip.key === focus.key) && !['other', 'new_issue'].includes(focus.key)) {
-    state.topicChips = [...state.topicChips, { key: focus.key, label: focus.label || focus.key }];
+  if (
+    NAV_TOPIC_KEYS.has(focus.key) &&
+    !state.topicChips.some((chip) => chip.key === focus.key) &&
+    !['other', 'new_issue'].includes(focus.key)
+  ) {
+    state.topicChips = [...state.topicChips, { key: focus.key, label: normalizeFocusLabel(focus.key, focus.label || focus.key) }];
   }
   if (options.switchToFull) {
     state.resultViewMode = 'full';
@@ -777,7 +820,7 @@ function setCurrentFocus(focus, options = {}) {
 function syncSnapshotMeta(snapshot) {
   if (!snapshot) return;
   if (Array.isArray(snapshot.topicChips)) {
-    state.topicChips = snapshot.topicChips;
+    state.topicChips = normalizeTopicChipList(snapshot.topicChips);
   }
   if (snapshot.currentFocus?.key) {
     setCurrentFocus(snapshot.currentFocus);
@@ -1014,7 +1057,7 @@ function resetConversation() {
   state.sharedView = false;
   state.conversationStage = 'idle';
   state.currentPrompt = null;
-  state.currentFocus = { key: 'summary', label: '先看总结' };
+  state.currentFocus = { key: 'summary', label: '小科总结' };
   state.topicChips = [];
   clearSummaryDirty();
   state.resultAnchor = 'summary';
@@ -1710,7 +1753,7 @@ function focusResultTopic(topicKey) {
   if (!topicKey) return;
   if (topicKey === 'summary') {
     state.resultAnchor = 'summary';
-    setCurrentFocus({ key: 'summary', label: '先看总结' });
+    setCurrentFocus({ key: 'summary', label: '小科总结' });
     requestAnimationFrame(() => {
       document.querySelector('.summary-shell')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
@@ -1729,7 +1772,7 @@ function focusResultTopic(topicKey) {
     if (needsInPerson && !state.showBookingPanel) {
       state.showBookingPanel = true;
       state.resultAnchor = 'booking';
-      setCurrentFocus({ key: 'booking', label: '去哪个医院' }, { switchToFull: true });
+      setCurrentFocus({ key: 'booking', label: '推荐医院科室' }, { switchToFull: true });
       renderResultCards().catch((err) => alert(err.message));
       return;
     }
@@ -1754,8 +1797,7 @@ function buildBookingCard(booking, prepItems) {
     const entryButton = '';
     return [
       '<div class="booking-hospital-item">',
-      `<div class="booking-hospital-top"><div><p class="booking-hospital-name">${escapeHtml(hospital.name)}</p><p class="booking-hospital-meta">${escapeHtml(`${hospital.level} · 建议挂 ${hospital.department}`)}</p></div><div class="booking-hospital-actions">${entryButton}</div></div>`,
-      `<p class="booking-hospital-note">${escapeHtml(hospital.recommendation)}</p>`,
+      `<div class="booking-hospital-top"><div><p class="booking-hospital-name">${escapeHtml(hospital.name)}</p><p class="booking-hospital-meta">${escapeHtml(hospital.level)} · 建议挂 <span class="booking-dept">${escapeHtml(hospital.department || '-')}</span></p></div><div class="booking-hospital-actions">${entryButton}</div></div>`,
       `<p class="booking-hospital-channel">挂号方式：请在微信搜索医院全名挂号</p>`,
       '</div>',
     ].join('');
@@ -1763,7 +1805,7 @@ function buildBookingCard(booking, prepItems) {
   const html = booking.requiresRegion
     ? [
         '<div class="result-card booking-card">',
-        `<div class="result-card-head"><span class="result-card-icon">${getInlineIcon('bag')}</span><h3>挂号建议</h3></div>`,
+        `<div class="result-card-head"><span class="result-card-icon">${getInlineIcon('bag')}</span><h3>推荐医院科室</h3></div>`,
         '<p>先确认一下地区，我再给你看更贴近本地的医院和挂号入口。</p>',
         cachedRegion ? `<p class="booking-cache-tip">上次用过的地区：${escapeHtml(formatRegion(cachedRegion))}</p>` : '',
         '<div class="booking-actions">',
@@ -1773,9 +1815,9 @@ function buildBookingCard(booking, prepItems) {
         '</div>',
         '</div>',
       ].join('')
-    : [
+      : [
         '<div class="result-card booking-card">',
-        `<div class="result-card-head"><span class="result-card-icon">${getInlineIcon('bag')}</span><h3>挂号建议</h3></div>`,
+        `<div class="result-card-head"><span class="result-card-icon">${getInlineIcon('bag')}</span><h3>推荐医院科室</h3></div>`,
         `<p class="booking-region">当前地区：${escapeHtml(booking.confirmedRegion || '未确认')}</p>`,
         '<div class="booking-hospital-list">',
         ...primaryHospitals.map(hospitalCardHtml),
@@ -1856,33 +1898,68 @@ async function shareCurrentSummary() {
   }
 }
 
-function buildCheckListHtml(items = []) {
+function normalizePricePair(name = '', min = 0, max = 0) {
+  let low = Number(min || 0);
+  let high = Number(max || 0);
+  if (!Number.isFinite(low)) low = 0;
+  if (!Number.isFinite(high)) high = low;
+  if (high < low) high = low;
+  if (/挂号费/.test(String(name || ''))) {
+    low = Math.max(5, low);
+    high = Math.max(low, high);
+  }
+  return { min: low, max: high };
+}
+
+function dedupeChecksByName(items = []) {
+  const seen = new Set();
+  return (items || []).filter((item) => {
+    const key = String(item?.name || '').trim();
+    if (!key) return false;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function buildCheckListHtml(items = [], subtitle = '') {
+  const list = dedupeChecksByName(items);
+  if (!list.length) return '';
   return [
+    subtitle ? `<p class="result-card-subtitle">${escapeHtml(subtitle)}</p>` : '',
     '<div class="result-list">',
-    ...items.map(
-      (item) =>
-        `<div class="result-list-item"><div><p class="result-item-title">${escapeHtml(item.name)}</p><p class="result-item-sub">先做基础检查，避免一开始做太多贵检查</p></div><strong>${escapeHtml(
-          `${item.min}~${item.max}元`
-        )}</strong></div>`
-    ),
+    ...list.map((item) => {
+      const range = normalizePricePair(item.name, item.min, item.max);
+      return `<div class="result-list-item"><div><p class="result-item-title">${escapeHtml(item.name)}</p>${
+        item.trigger ? `<p class="result-item-sub">触发条件：${escapeHtml(item.trigger)}</p>` : ''
+      }</div><strong>${escapeHtml(`${range.min}~${range.max}元`)}</strong></div>`;
+    }),
     '</div>',
   ].join('');
 }
 
+function sumRange(items = []) {
+  return (items || []).reduce(
+    (acc, item) => {
+      const pair = normalizePricePair(item.name, item.min, item.max);
+      return { min: acc.min + pair.min, max: acc.max + pair.max };
+    },
+    { min: 0, max: 0 }
+  );
+}
+
 function buildCostHtml(cost, options = {}) {
+  const feeItems = Array.isArray(cost?.expanded?.feeItems) ? cost.expanded.feeItems : [];
   const secondRoundChecks = Array.isArray(cost?.expanded?.secondRoundChecks) ? cost.expanded.secondRoundChecks : [];
   const medicationRefs = Array.isArray(cost?.expanded?.medicationPriceRefs) ? cost.expanded.medicationPriceRefs : [];
   const showMedicationPrices = Boolean(options.showMedicationPrices);
-  const secondRoundHtml = secondRoundChecks.length
-    ? [
-        '<div class="detail-section">',
-        '<h4>第二轮必要检查（按触发条件追加）</h4>',
-        '<ul class="result-advice-list">',
-        ...secondRoundChecks.map((item) => `<li>${escapeHtml(item.name)}：约 ${escapeHtml(`${item.min}~${item.max}元`)}；触发条件：${escapeHtml(item.trigger || '按医生判断')}</li>`),
-        '</ul>',
-        '</div>',
-      ].join('')
-    : '';
+  const baseRangeText = String(cost?.simple?.costRange || '').trim();
+  const baseRange = baseRangeText || (() => {
+    const sum = sumRange(feeItems);
+    return sum.min || sum.max ? `${sum.min}~${sum.max}元` : '-';
+  })();
+  const secondSum = sumRange(secondRoundChecks);
+  const secondRange = secondRoundChecks.length ? `${secondSum.min}~${secondSum.max}元` : '按医生判断';
   const medicationHtml = showMedicationPrices && medicationRefs.length
     ? [
         '<div class="detail-section">',
@@ -1895,11 +1972,11 @@ function buildCostHtml(cost, options = {}) {
     : '';
   return [
     '<div class="result-kv-grid">',
-    `<div class="result-kv"><span>大概先花</span><strong>${escapeHtml(cost.simple.costRange)}</strong></div>`,
-    `<div class="result-kv"><span>参考医院</span><strong>${escapeHtml(cost.simple.basedOn || '-')}</strong></div>`,
+    `<div class="result-kv"><span>基础检查费用</span><strong>${escapeHtml(baseRange)}</strong></div>`,
+    `<div class="result-kv"><span>必要检查费用</span><strong>${escapeHtml(secondRange)}</strong></div>`,
     '</div>',
-    `<p class="result-card-subtitle">${escapeHtml(cost.expanded.disclaimer || '')}</p>`,
-    secondRoundHtml,
+    buildCheckListHtml(feeItems, '基础检查（先做）'),
+    buildCheckListHtml(secondRoundChecks, '必要检查（满足条件再做）'),
     medicationHtml,
   ].join('');
 }
@@ -1927,6 +2004,7 @@ function formatRecommendationLevel(level) {
 }
 
 async function renderResultCards() {
+  state.resultViewMode = 'full';
   clearResultRows();
   const triage = state.triageResult.layeredOutput;
   const imageRiskLevel = String(triage.core.imageRiskLevel || '').toLowerCase();
@@ -1980,9 +2058,16 @@ async function renderResultCards() {
   const medicationAdvice = triage.detail.medicationAdvice || [];
   const visitAdvice = triage.detail.visitAdvice || [];
   const examAdvice = triage.detail.examAdvice || [];
-  const topicChips = state.topicChips || [];
+  const topicChips = normalizeTopicChipList(state.topicChips || []);
   const careAdvice = Array.from(new Set([...visitAdvice, ...selfCareAdvice].filter(Boolean)));
-  const firstChecks = buildCheckListHtml(triage.core.firstChecks || []);
+  const baseChecksFromCost = Array.isArray(cost?.expanded?.feeItems) ? cost.expanded.feeItems : [];
+  const baseChecksFallback = (triage.core.firstChecks || []).map((item) => ({
+    name: item?.name || '',
+    min: item?.min || 0,
+    max: item?.max || 0,
+  }));
+  const baseChecks = dedupeChecksByName(baseChecksFromCost.length ? baseChecksFromCost : baseChecksFallback);
+  const secondRoundChecks = Array.isArray(cost?.expanded?.secondRoundChecks) ? dedupeChecksByName(cost.expanded.secondRoundChecks) : [];
   const costItems = buildCostHtml(cost, { showMedicationPrices: medicationAdvice.length > 0 });
   const prepItems = (booking.preparation || []).filter((item) => !String(item).includes('医保')).map((item) => `<li>${escapeHtml(item)}</li>`).join('');
   const riskItems = (triage.riskReminder || []).map((item) => `<li>${escapeHtml(item)}</li>`).join('');
@@ -1999,19 +2084,10 @@ async function renderResultCards() {
     buildSummarySectionHeading('小科建议'),
     `<div class="summary-next"><strong>${escapeHtml(triage.core.text || '')}</strong></div>`,
     '</div>',
-    '<div class="result-mode-toggle">',
-    '<button class="result-mode-btn active" data-mode-toggle="full">完整版建议</button>',
-    '<button class="result-mode-btn" data-mode-toggle="simple">只看重点</button>',
-    '</div>',
     buildTopicChipsHtml(topicChips),
     '</div>',
   ].join('');
   const summaryRow = markResultRow(addRow('bot', summaryHtml, 'summary-shell'));
-  summaryRow.querySelectorAll('[data-mode-toggle]').forEach((button) => {
-    button.onclick = () => {
-      setResultViewMode(button.dataset.modeToggle);
-    };
-  });
 
   const actionCard = buildResultCard(
     '现在怎么办',
@@ -2032,8 +2108,16 @@ async function renderResultCards() {
   }
 
   let essentialChecks = null;
-  if (needsInPerson && (examAdvice.length || (triage.core.firstChecks || []).length)) {
-    essentialChecks = buildResultCard('第一步检查', `${buildAdviceListHtml(examAdvice)}${firstChecks}`, 'strong');
+  if (needsInPerson && (examAdvice.length || baseChecks.length || secondRoundChecks.length)) {
+    essentialChecks = buildResultCard(
+      '检查项目',
+      [
+        examAdvice.length ? buildAdviceListHtml(examAdvice, '先按下面路径做检查，不需要一次做完所有项目。') : '',
+        buildCheckListHtml(baseChecks, '基础检查（先做）'),
+        buildCheckListHtml(secondRoundChecks, '必要检查（满足条件再做）'),
+      ].join(''),
+      'strong'
+    );
     essentialChecks.dataset.resultView = 'full';
     essentialChecks.dataset.topicCard = 'checks';
   }
@@ -2058,22 +2142,14 @@ async function renderResultCards() {
   riskCard.dataset.resultView = 'full';
   riskCard.dataset.topicCard = 'care';
 
-  const primaryBookingLabel = imageHighRisk ? '尽快就医' : '去挂号';
-  const primaryBookingClass = imageHighRisk ? 'result-action primary is-default urgent' : 'result-action primary is-default';
-  const primaryButtonHtml = needsInPerson
-    ? `<button class="${primaryBookingClass}" data-action="booking">${primaryBookingLabel}</button>`
-    : '<button class="result-action primary is-default" data-action="deep">继续咨询</button>';
-
   const actionButtons = state.sharedView
     ? [
-        primaryButtonHtml,
-        needsInPerson ? '<button class="result-action" data-action="deep">继续咨询</button>' : '',
+        '<button class="result-action primary is-default" data-action="deep">继续咨询</button>',
         '<button class="result-action" data-action="restart">新的咨询</button>',
         '<button class="result-action" data-action="share">分享结果</button>',
       ].filter(Boolean)
     : [
-        primaryButtonHtml,
-        needsInPerson ? '<button class="result-action" data-action="deep">继续咨询</button>' : '',
+        '<button class="result-action primary is-default" data-action="deep">继续咨询</button>',
         '<button class="result-action" data-action="restart">新的咨询</button>',
         '<button class="result-action" data-action="save">保存记录</button>',
         '<button class="result-action" data-action="share">分享结果</button>',
@@ -2084,7 +2160,7 @@ async function renderResultCards() {
       '<div class="result-card action-card">',
       '<div class="action-head">',
       `<h3>${state.sharedView ? '后续建议' : '下一步'}</h3>`,
-      `<p>${state.sharedView ? '家属可以根据这份总结，继续陪你处理这次问题。' : imageHighRisk ? '图片提示风险偏高，优先尽快线下就医。' : needsInPerson ? '需要线下就医时，再展开挂号建议。' : '先按建议处理，也可以继续补充后再更新分析。'}</p>`,
+      `<p>${state.sharedView ? '家属可以根据这份总结，继续陪你处理这次问题。' : imageHighRisk ? '图片提示风险偏高，建议优先线下就医。' : needsInPerson ? '需要线下就医时，可查看“推荐医院科室”。' : '先按建议处理，也可以继续补充后再更新分析。'}</p>`,
       '</div>',
       '<div class="result-actions">',
       ...actionButtons,
@@ -2094,15 +2170,6 @@ async function renderResultCards() {
   ));
   actionRow.dataset.resultView = 'full';
   actionRow.dataset.topicCard = 'continue';
-  if (actionRow.querySelector('[data-action="booking"]')) {
-    actionRow.querySelector('[data-action="booking"]').onclick = async () => {
-      state.showBookingPanel = true;
-      state.resultViewMode = 'full';
-      state.resultAnchor = 'booking';
-      setCurrentFocus({ key: 'booking', label: '去哪个医院' }, { switchToFull: true });
-      await renderResultCards();
-    };
-  }
   if (actionRow.querySelector('[data-action="deep"]')) {
     actionRow.querySelector('[data-action="deep"]').onclick = async () => {
       setResultViewMode('full');
@@ -2508,7 +2575,7 @@ async function listRecords() {
   });
 }
 
-function buildRecordDetailView(record, mode = 'full') {
+function buildRecordDetailView(record) {
   const snapshot = record.summarySnapshot || {};
   const core = snapshot.core || {};
   const detail = snapshot.detail || {};
@@ -2533,7 +2600,7 @@ function buildRecordDetailView(record, mode = 'full') {
   if (needsInPerson && (examAdvice.length || firstChecks.length)) {
     sections.push(
       buildPlainResultCardHtml(
-        '第一步检查',
+        '检查项目',
         `${buildAdviceListHtml(examAdvice)}${firstChecks.length ? `<div class="record-checks">${firstChecks.map((item) => `<span class="record-chip">${escapeHtml(item)}</span>`).join('')}</div>` : ''}`,
         'strong'
       )
@@ -2570,30 +2637,19 @@ function buildRecordDetailView(record, mode = 'full') {
     buildSummarySectionHeading('小科建议'),
     `<div class="summary-next"><strong>${escapeHtml(core.text || record.summaryText || record.summary || '这次咨询已经保存。')}</strong></div>`,
     '</div>',
-    '<div class="result-mode-toggle">',
-    `<button class="result-mode-btn ${mode === 'full' ? 'active' : ''}" data-record-detail-mode="full">完整版建议</button>`,
-    `<button class="result-mode-btn ${mode === 'simple' ? 'active' : ''}" data-record-detail-mode="simple">只看重点</button>`,
     '</div>',
-    '</div>',
-    mode === 'full' ? `<div class="record-detail-sections">${sections.join('')}</div>` : '',
+    `<div class="record-detail-sections">${sections.join('')}</div>`,
     `<div class="record-detail-meta"><span class="record-time">${escapeHtml((record.createdAt || '-').slice(0, 16).replace('T', ' '))}</span></div>`,
     '</div>',
   ].join('');
 }
 
 function renderRecordDetail(record) {
-  $('recordDetailBody').innerHTML = buildRecordDetailView(record, state.activeRecordDetailMode);
-  $('recordDetailBody').querySelectorAll('[data-record-detail-mode]').forEach((button) => {
-    button.onclick = () => {
-      state.activeRecordDetailMode = button.dataset.recordDetailMode;
-      renderRecordDetail(record);
-    };
-  });
+  $('recordDetailBody').innerHTML = buildRecordDetailView(record);
 }
 
 function openRecordDetail(record) {
   state.activeRecordDetail = record;
-  state.activeRecordDetailMode = 'full';
   renderRecordDetail(record);
   $('recordDetailDialog').showModal();
 }

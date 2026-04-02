@@ -783,6 +783,11 @@ body {
   line-height: 1.6;
 }
 
+.booking-dept {
+  color: var(--brand-dark);
+  font-weight: 700;
+}
+
 .booking-hospital-search {
   color: var(--brand-dark);
 }

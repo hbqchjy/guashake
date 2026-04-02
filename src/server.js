@@ -323,31 +323,30 @@ function buildTopicChips(session, triageResult) {
   const core = triageResult?.layeredOutput?.core || {};
   const detail = triageResult?.layeredOutput?.detail || {};
   const needsInPerson = ['routine_clinic', 'specialist_clinic', 'hospital_priority_high'].includes(core.recommendationLevel);
-  const chips = [{ key: 'summary', label: '先看总结' }];
+  const chips = [];
   const requestedFocus =
     session?.currentFocus && !['summary', 'other', 'new_issue'].includes(session.currentFocus)
       ? { key: session.currentFocus, label: session.currentFocusLabel || session.currentFocus }
       : null;
 
   if ((detail.selfCareAdvice || []).length || (detail.visitAdvice || []).length) {
-    chips.push({ key: 'care', label: '现在怎么处理' });
+    chips.push({ key: 'care', label: '现在怎么办' });
   }
   if ((detail.medicationAdvice || []).length) {
-    chips.push({ key: 'medication', label: '用什么药' });
+    chips.push({ key: 'medication', label: '用药建议' });
   }
   if (needsInPerson) {
-    chips.push({ key: 'booking', label: '去哪个医院' });
+    chips.push({ key: 'booking', label: '推荐医院科室' });
+  }
+  if (needsInPerson && ((detail.examAdvice || []).length || (core.firstChecks || []).length)) {
+    chips.push({ key: 'checks', label: '检查项目' });
   }
   if (core.needsCost) {
     chips.push({ key: 'cost', label: '费用参考' });
   }
   if ((session?.supplementFiles || []).length) {
-    chips.push({ key: 'report', label: '看检查报告' });
+    chips.push({ key: 'report', label: '检查报告解读' });
   }
-  if (needsInPerson && ((detail.examAdvice || []).length || (core.firstChecks || []).length)) {
-    chips.push({ key: 'checks', label: '要做哪些检查' });
-  }
-  chips.push({ key: 'continue', label: '继续聊当前问题' });
   if (requestedFocus) {
     chips.push(requestedFocus);
   }
@@ -1724,7 +1723,7 @@ app.get('/triage/result/:id', async (req, res) => {
   const topicChips = buildTopicChips(session, triageResult);
   const currentFocus = topicChips.find((chip) => chip.key === session.currentFocus)
     ? { key: session.currentFocus, label: session.currentFocusLabel || topicChips.find((chip) => chip.key === session.currentFocus)?.label || '' }
-    : { key: 'summary', label: '先看总结' };
+    : { key: 'summary', label: '小科总结' };
   return res.json({
     ...triageResult,
     snapshot: {
@@ -1878,7 +1877,7 @@ app.get('/triage/session/:id/state', async (req, res) => {
     : null;
   const currentFocus = {
     key: session.currentFocus || 'summary',
-    label: session.currentFocusLabel || '先看总结',
+    label: session.currentFocusLabel || '小科总结',
   };
 
   return res.json({
