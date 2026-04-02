@@ -319,6 +319,18 @@ function shouldPersistAsSupplement(intentType = '') {
   return ['medical_followup', 'cost_question', 'booking_question', 'report_notice'].includes(intentType);
 }
 
+function looksMedicalFollowup(text = '') {
+  const value = String(text || '').trim();
+  if (!value) return false;
+  return /(疼|痛|闷|慌|晕|咳|痰|喘|烧|发热|拉肚子|便秘|尿频|尿急|尿痛|出血|恶心|呕吐|失眠|乏力|麻|肿|心跳|血压|呼吸|胸|腹|头|药|挂号|检查|报告|医院|科)/.test(value);
+}
+
+function hasEscalationSignal(text = '') {
+  const value = String(text || '').trim();
+  if (!value) return false;
+  return /(加重|越来越|持续.*(痛|疼|闷|慌)|夜间憋醒|走路都喘|呼吸困难|胸痛|黑便|便血|高烧|39|40|意识|说话不清|肢体无力|抽搐|晕倒|剧烈头痛)/.test(value);
+}
+
 function buildTopicChips(session, triageResult) {
   const core = triageResult?.layeredOutput?.core || {};
   const detail = triageResult?.layeredOutput?.detail || {};
@@ -1319,7 +1331,17 @@ app.post('/triage/message', async (req, res) => {
   }).catch(() => null);
 
   if (!openPlan) {
-    return res.status(503).json({ error: '当前智能分析暂时不可用，请稍后再试。' });
+    return res.json({
+      ok: true,
+      intentType,
+      mode: 'text',
+      assistantReply: '我在重试分析中。你先补充“持续多久、是否加重、有没有发热/疼痛位置变化”这些信息，我会继续分析。',
+      nextPrompt: {
+        type: 'text',
+        text: '先告诉我：持续多久了？最近是在变重还是变轻？',
+      },
+      currentFocus,
+    });
   }
 
   if (openPlan.collectMode === 'summary') {
@@ -1345,7 +1367,15 @@ app.post('/triage/message', async (req, res) => {
   if (openPlan.collectMode === 'structured') {
     const picked = candidates.find((item) => item.id === openPlan.questionId) || candidates[0] || null;
     if (!picked) {
-      return res.status(503).json({ error: '当前智能分析暂时不可用，请稍后再试。' });
+      return res.json({
+        ok: true,
+        intentType,
+        mode: 'confirmation',
+        assistantReply: '我这边先整理一下，现在可以给你初步分析了。',
+        insight,
+        needsConfirmation: true,
+        currentFocus,
+      });
     }
     const nextQuestion = {
       ...picked,
@@ -1420,7 +1450,10 @@ app.post('/triage/supplement', async (req, res) => {
     turnIntent = null;
   }
 
-  const intentType = turnIntent?.intentType || 'medical_followup';
+  let intentType = turnIntent?.intentType || 'medical_followup';
+  if (intentType === 'off_topic' && looksMedicalFollowup(text)) {
+    intentType = 'medical_followup';
+  }
   const currentFocus = mapIntentToFocus(intentType, turnIntent?.topicKey, turnIntent?.focusLabel);
   if (intentType === 'off_topic') {
     upsertSession(sessionId, {
@@ -1521,13 +1554,12 @@ app.post('/triage/supplement', async (req, res) => {
     supplements: updated.supplements || [],
     insight,
     reply: followUpAnswer?.answer || turnIntent?.reply || '',
-    affectsSummary: Boolean(followUpAnswer?.affectsSummary),
-    impactLevel: followUpAnswer?.impactLevel || 'none',
+    affectsSummary: Boolean(followUpAnswer?.affectsSummary) || hasEscalationSignal(text),
+    impactLevel: hasEscalationSignal(text) ? 'major' : (followUpAnswer?.impactLevel || 'none'),
     refreshSummary:
       Boolean(session.triageResult) &&
       ['medical_followup', 'medication_question', 'booking_question', 'cost_question'].includes(intentType) &&
-      Boolean(followUpAnswer?.affectsSummary) &&
-      (followUpAnswer?.shouldRefreshSummary !== false),
+      ((Boolean(followUpAnswer?.affectsSummary) && (followUpAnswer?.shouldRefreshSummary !== false)) || hasEscalationSignal(text)),
   });
 });
 

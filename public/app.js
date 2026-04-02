@@ -1510,121 +1510,35 @@ async function detectRegionByIp() {
 
 async function promptRegionConfirmation(forceRetry = false) {
   const sessionRegion = isRegionValid(state.profile) ? state.profile : null;
-  const cachedRegion = isRegionValid(state.savedRegion) ? state.savedRegion : null;
-
   if (!forceRetry && sessionRegion) {
-    await revealChoiceBlock(
-      '这次继续用这个地区吗',
-      [
-        { label: `继续用 ${formatRegion(sessionRegion)}`, type: 'current', region: sessionRegion },
-        { label: '更改地址', type: 'manual' },
-      ],
-      async (option) => {
-        if (option.type === 'current') {
-          await selectRegion(option.region);
-          return;
-        }
-        await promptManualRegionEntry();
-      },
-      '这样可以少输一次地址。'
-    );
-    return;
-  }
-
-  if (!forceRetry && cachedRegion && !state.autoLocateTried) {
-    await revealChoiceBlock(
-      '先用哪个地区',
-      [
-        { label: `用上次地区 ${formatRegion(cachedRegion)}`, type: 'cached', region: cachedRegion },
-        { label: '自动获取地区', type: 'locate' },
-        { label: '手动输入地区', type: 'manual' },
-      ],
-      async (option) => {
-        if (option.type === 'cached') {
-          await selectRegion(option.region);
-          return;
-        }
-        if (option.type === 'locate') {
-          await promptRegionConfirmation(true);
-          return;
-        }
-        await promptManualRegionEntry();
-      },
-      '如果你看病常在同一个地方，这样会更快。'
-    );
+    await selectRegion(sessionRegion);
     return;
   }
 
   if (!forceRetry && state.autoLocateTried) {
-    await promptManualRegionEntry('为了给你推荐就近医院和费用范围，你可以确认一下地区，或者手动改。');
+    await promptManualRegionEntry('为了给你推荐就近医院和费用范围，请手动输入地区。');
     return;
   }
 
   state.autoLocateTried = true;
 
   if (!state.isWeChat) {
-    await addBotText('我先试着按你现在的位置补一个地区，你确认一下。');
+    await addBotText('我先试着自动定位你当前地区。');
     const preciseRegion = await detectCurrentRegion().catch(() => null);
     if (preciseRegion) {
-      await revealChoiceBlock(
-        '我拿到了一个当前位置，你确认一下',
-        [
-          { label: `确认 ${formatRegion(preciseRegion)}`, type: 'confirm', region: preciseRegion },
-          { label: '更改地址', type: 'manual' },
-        ],
-        async (option) => {
-          if (option.type === 'confirm') {
-            await selectRegion(option.region);
-            return;
-          }
-          await promptManualRegionEntry();
-        },
-        '如果定位不准，你再手动改。'
-      );
+      await selectRegion(preciseRegion);
       return;
     }
   }
 
-  await addBotText(state.isWeChat ? '微信里精确定位不太稳定，我先按网络位置估一个地区，你确认一下。' : '精确定位没拿到，我先按网络位置估一个地区，你确认一下。');
+  await addBotText(state.isWeChat ? '我再试一下按网络位置估算地区。' : '精确定位没拿到，我再按网络位置估算地区。');
   const ipRegion = await detectRegionByIp().catch(() => null);
   if (ipRegion) {
-    await revealChoiceBlock(
-      '我先按网络位置估了一个地区，你确认一下',
-      [
-        { label: `确认 ${formatRegion(ipRegion)}`, type: 'confirm', region: ipRegion },
-        { label: '更改地址', type: 'manual' },
-      ],
-      async (option) => {
-        if (option.type === 'confirm') {
-          await selectRegion(option.region);
-          return;
-        }
-        await promptManualRegionEntry();
-      },
-      '网络位置只做大致参考，不准的话你直接改。'
-    );
+    await selectRegion(ipRegion);
     return;
   }
 
-  if (cachedRegion) {
-    await revealChoiceBlock(
-      '自动获取没拿准，先用哪个地区',
-      [
-        { label: `继续用上次地区 ${formatRegion(cachedRegion)}`, type: 'cached', region: cachedRegion },
-        { label: '手动输入地区', type: 'manual' },
-      ],
-      async (option) => {
-        if (option.type === 'cached') {
-          await selectRegion(option.region);
-          return;
-        }
-        await promptManualRegionEntry();
-      }
-    );
-    return;
-  }
-
-  await promptManualRegionEntry('自动获取地区这次没拿准，你直接输入县、区或市名就行。');
+  await promptManualRegionEntry('自动定位失败，请手动输入地区（县、区或市名）。');
 }
 
 async function selectRegion(region) {
@@ -1793,7 +1707,6 @@ function buildBookingCard(booking, prepItems) {
   const hospitals = (booking.hospitals || []).slice(0, 5);
   const primaryHospitals = hospitals.slice(0, 2);
   const extraHospitals = hospitals.slice(2);
-  const cachedRegion = isRegionValid(state.savedRegion) ? state.savedRegion : null;
   const hospitalCardHtml = (hospital) => {
     const entryButton = '';
     return [
@@ -1807,12 +1720,9 @@ function buildBookingCard(booking, prepItems) {
     ? [
         '<div class="result-card booking-card">',
         `<div class="result-card-head"><span class="result-card-icon">${getInlineIcon('bag')}</span><h3>推荐医院科室</h3></div>`,
-        '<p>先确认一下地区，我再给你看更贴近本地的医院和挂号入口。</p>',
-        cachedRegion ? `<p class="booking-cache-tip">上次用过的地区：${escapeHtml(formatRegion(cachedRegion))}</p>` : '',
+        '<p>正在尝试自动定位你的地区；如果失败，请手动输入地区。</p>',
         '<div class="booking-actions">',
-        cachedRegion ? '<button class="result-action" data-booking-action="recent">用上次地区</button>' : '',
-        '<button class="result-action primary" data-booking-action="locate">自动获取地区</button>',
-        '<button class="result-action" data-booking-action="manual">手动输入地区</button>',
+        '<button class="result-action primary" data-booking-action="manual">手动输入地区</button>',
         '</div>',
         '</div>',
       ].join('')
@@ -1841,22 +1751,6 @@ function buildBookingCard(booking, prepItems) {
       ].join('');
 
   const row = markResultRow(addRow('bot', html));
-  row.querySelectorAll('[data-booking-action="locate"]').forEach((button) => {
-    button.onclick = async () => {
-      state.resultViewMode = 'full';
-      state.resultAnchor = 'booking';
-      state.awaitingContext = null;
-      await promptRegionConfirmation(true);
-    };
-  });
-  row.querySelectorAll('[data-booking-action="recent"]').forEach((button) => {
-    button.onclick = async () => {
-      if (!cachedRegion) return;
-      state.resultViewMode = 'full';
-      state.resultAnchor = 'booking';
-      await selectRegion(cachedRegion);
-    };
-  });
   row.querySelectorAll('[data-booking-action="manual"]').forEach((button) => {
     button.onclick = async () => {
       state.resultViewMode = 'full';
@@ -2070,6 +1964,10 @@ async function renderResultCards() {
         },
       };
   const booking = needsBooking ? resolved.shift() : { preparation: [], hospitals: [] };
+  if (needsBooking && booking?.requiresRegion && !state.autoLocateTried) {
+    await promptRegionConfirmation(true);
+    return;
+  }
 
   state.cost = cost || null;
   state.booking = booking || null;
@@ -2165,15 +2063,6 @@ async function renderResultCards() {
     essentialCost.dataset.topicCard = 'cost';
   }
 
-  let bookingCard = null;
-  let prepCard = null;
-  if (sectionVisible.booking && state.showBookingPanel) {
-    bookingCard = buildBookingCard(booking, prepItems);
-    bookingCard.dataset.resultView = 'full';
-    bookingCard.dataset.bookingCard = 'true';
-    bookingCard.dataset.topicCard = 'booking';
-  }
-
   if (needsInPerson && sectionVisible.medication) {
     medicationCard = buildResultCard(
       '用药建议',
@@ -2181,6 +2070,15 @@ async function renderResultCards() {
     );
     medicationCard.dataset.resultView = 'full';
     medicationCard.dataset.topicCard = 'medication';
+  }
+
+  let bookingCard = null;
+  let prepCard = null;
+  if (sectionVisible.booking && state.showBookingPanel) {
+    bookingCard = buildBookingCard(booking, prepItems);
+    bookingCard.dataset.resultView = 'full';
+    bookingCard.dataset.bookingCard = 'true';
+    bookingCard.dataset.topicCard = 'booking';
   }
 
   const riskCard = buildCollapsibleResultCard('风险提醒', '有胸痛加重或呼吸困难要尽快急诊', `<ul>${riskItems}</ul>`, 'risk');
