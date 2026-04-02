@@ -72,6 +72,8 @@ let pendingAfterLogin = null;
 const AUTH_STORAGE_KEY = 'guashake-auth-v1';
 const REGION_STORAGE_KEY = 'guashake-last-region-v1';
 const RUNTIME_STORAGE_KEY = 'guashake-runtime-v1';
+const THEME_STORAGE_KEY = 'guashake-theme-v1';
+const SUPPORTED_THEMES = new Set(['medical', 'wechat']);
 
 const $ = (id) => document.getElementById(id);
 
@@ -159,6 +161,37 @@ function formatDateTimeText(value, fallback = '暂无') {
 
 function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function applyTheme(themeName = 'medical', options = {}) {
+  const nextTheme = SUPPORTED_THEMES.has(themeName) ? themeName : 'medical';
+  document.documentElement.dataset.theme = nextTheme;
+  if (!options.skipPersist) {
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
+    } catch (_error) {
+    }
+  }
+  return nextTheme;
+}
+
+function initThemeFromQuery() {
+  const params = new URLSearchParams(window.location.search);
+  const queryTheme = String(params.get('theme') || '').trim().toLowerCase();
+  if (SUPPORTED_THEMES.has(queryTheme)) {
+    applyTheme(queryTheme);
+    return queryTheme;
+  }
+  try {
+    const saved = String(localStorage.getItem(THEME_STORAGE_KEY) || '').trim().toLowerCase();
+    if (SUPPORTED_THEMES.has(saved)) {
+      applyTheme(saved, { skipPersist: true });
+      return saved;
+    }
+  } catch (_error) {
+  }
+  applyTheme('medical', { skipPersist: true });
+  return 'medical';
 }
 
 function stopSpeechPlayback() {
@@ -2784,6 +2817,7 @@ async function loadSharedSession(sessionId) {
 }
 
 async function bootstrap() {
+  initThemeFromQuery();
   state.isWeChat = /MicroMessenger/i.test(navigator.userAgent || '');
   state.isTouchDevice = ('ontouchstart' in window) || navigator.maxTouchPoints > 0 || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
   if (state.isWeChat) {
