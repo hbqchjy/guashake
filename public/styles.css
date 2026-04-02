@@ -447,6 +447,28 @@ body {
   line-height: 1.65;
 }
 
+.summary-dirty,
+.summary-upgrade {
+  margin: 0;
+  padding: 6px 8px;
+  border-radius: 10px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.summary-dirty {
+  color: #845500;
+  background: #fff7e0;
+  border: 1px solid #f0deaa;
+}
+
+.summary-dirty.major,
+.summary-upgrade {
+  color: #0c6f3f;
+  background: #e9f8ef;
+  border: 1px solid #bfe6cf;
+}
+
 .summary-subtext {
   display: none;
 }

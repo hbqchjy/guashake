@@ -57,6 +57,7 @@ const state = {
   topicChips: [],
   summaryDirty: false,
   summaryImpactLevel: 'none',
+  analysisUpgradeNote: '',
   isWeChat: false,
   isTouchDevice: false,
   ttsToggleOn: true,
@@ -1061,6 +1062,7 @@ function resetConversation() {
   state.currentFocus = { key: 'summary', label: '小科分析' };
   state.topicChips = [];
   clearSummaryDirty();
+  state.analysisUpgradeNote = '';
   state.resultAnchor = 'summary';
   state.profile = {
     province: '',
@@ -1338,9 +1340,12 @@ async function answerQuestion(answer) {
 }
 
 async function directResult() {
+  const previousLevel = state.triageResult?.layeredOutput?.core?.recommendationLevel || '';
   const data = await api(`/triage/result/${encodeURIComponent(state.sessionId)}`);
   syncSnapshotMeta(data.snapshot);
   state.triageResult = data;
+  const nextLevel = data?.layeredOutput?.core?.recommendationLevel || '';
+  state.analysisUpgradeNote = buildAnalysisUpgradeNote(previousLevel, nextLevel);
   state.followUpProgress = null;
   state.generationReady = false;
   state.currentPrompt = null;
@@ -1913,6 +1918,24 @@ function formatRecommendationLevel(level) {
   return mapping[level] || level || '继续结合症状判断';
 }
 
+function recommendationRank(level = '') {
+  const mapping = {
+    self_care: 1,
+    otc_guidance: 2,
+    routine_clinic: 3,
+    specialist_clinic: 4,
+    hospital_priority_high: 5,
+  };
+  return mapping[level] || 0;
+}
+
+function buildAnalysisUpgradeNote(previousLevel = '', nextLevel = '') {
+  const prevRank = recommendationRank(previousLevel);
+  const nextRank = recommendationRank(nextLevel);
+  if (!prevRank || !nextRank || nextRank <= prevRank) return '';
+  return `分析已升级：由「${formatRecommendationLevel(previousLevel)}」调整为「${formatRecommendationLevel(nextLevel)}」。`;
+}
+
 async function renderResultCards() {
   state.resultViewMode = 'full';
   clearResultRows();
@@ -2015,6 +2038,7 @@ async function renderResultCards() {
     `<p class="summary-title compact">${escapeHtml(summaryTitle)}</p>`,
     ...summaryLines.map((line) => `<p class="summary-text">${escapeHtml(line)}</p>`),
     state.summaryDirty ? `<p class="summary-dirty ${state.summaryImpactLevel === 'major' ? 'major' : ''}">根据你后面补充的新信息，这份分析可以再更新一次。</p>` : '',
+    state.analysisUpgradeNote ? `<p class="summary-upgrade">${escapeHtml(state.analysisUpgradeNote)}</p>` : '',
     buildSummarySectionHeading('小科建议'),
     `<div class="summary-next"><strong>${escapeHtml(triage.core.text || '')}</strong></div>`,
     '</div>',
