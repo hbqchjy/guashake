@@ -1848,16 +1848,17 @@ app.post('/api/asr', memUpload.single('audio'), async (req, res) => {
   }
 });
 
-app.post('/api/tts', async (req, res) => {
+async function handleTtsRequest(req, res) {
   try {
-    const text = String(req.body?.text || '').trim();
+    const source = req.method === 'GET' ? req.query : req.body;
+    const text = String(source?.text || '').trim();
     if (!text) {
       return res.status(400).json({ ok: false, error: 'text is required' });
     }
     const result = await synthesizeSpeech(text, {
-      model: req.body?.model,
-      voice: req.body?.voice,
-      format: req.body?.format || 'mp3',
+      model: source?.model,
+      voice: source?.voice,
+      format: source?.format || 'mp3',
     });
     res.setHeader('Content-Type', result.mimeType || 'audio/mpeg');
     res.setHeader('Cache-Control', 'no-store');
@@ -1866,7 +1867,10 @@ app.post('/api/tts', async (req, res) => {
     console.error('[tts]', error.message);
     return res.status(500).json({ ok: false, error: error.message });
   }
-});
+}
+
+app.post('/api/tts', handleTtsRequest);
+app.get('/api/tts', handleTtsRequest);
 
 app.get('*', (_req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));

@@ -64,8 +64,8 @@ const state = {
   wechatTtsSeq: 0,
   wechatTtsEnabled: false,
   wechatTtsAudio: null,
-  wechatTtsBlobUrl: '',
   wechatBridgeReady: false,
+  wechatTtsWarned: false,
 };
 
 let botTextQueue = Promise.resolve();
@@ -131,10 +131,6 @@ function stopSpeechPlayback() {
     } catch (_error) {
     }
   }
-  if (state.wechatTtsBlobUrl) {
-    URL.revokeObjectURL(state.wechatTtsBlobUrl);
-    state.wechatTtsBlobUrl = '';
-  }
   if ('speechSynthesis' in window) {
     window.speechSynthesis.cancel();
   }
@@ -144,44 +140,41 @@ function ensureWeChatTtsAudio() {
   if (!state.wechatTtsAudio) {
     const audio = new Audio();
     audio.preload = 'auto';
-    audio.crossOrigin = 'anonymous';
+    audio.crossOrigin = 'use-credentials';
     audio.setAttribute('playsinline', 'true');
     audio.setAttribute('webkit-playsinline', 'true');
+    audio.style.display = 'none';
+    document.body.appendChild(audio);
     state.wechatTtsAudio = audio;
   }
   return state.wechatTtsAudio;
 }
 
+function buildWeChatTtsUrl(text) {
+  const clipped = String(text || '').trim().slice(0, 220);
+  const url = new URL('/api/tts', window.location.origin);
+  url.searchParams.set('text', clipped);
+  url.searchParams.set('_t', String(Date.now()));
+  return url.toString();
+}
+
 function playAudioForWeChat(audio) {
   if (!audio) return Promise.resolve();
-  const directPlay = () => audio.play().catch(() => {});
+  const directPlay = () => audio.play();
 
   if (!state.isWeChat) {
     return directPlay();
   }
 
   if (typeof window.WeixinJSBridge !== 'undefined' && typeof window.WeixinJSBridge.invoke === 'function') {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       window.WeixinJSBridge.invoke('getNetworkType', {}, () => {
-        directPlay().finally(resolve);
+        directPlay().then(resolve).catch(reject);
       });
     });
   }
 
   return directPlay();
-}
-
-async function fetchWeChatTtsBlob(text) {
-  const response = await fetch('/api/tts', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text }),
-  });
-  if (!response.ok) {
-    const detail = await response.json().catch(() => ({}));
-    throw new Error(detail.error || '语音播报失败');
-  }
-  return response.blob();
 }
 
 function getPreferredSpeechVoice() {
@@ -253,17 +246,16 @@ function speakBotText(text) {
   if (state.isWeChat) {
     if (!state.wechatTtsEnabled) return;
     const seq = ++state.wechatTtsSeq;
-    fetchWeChatTtsBlob(content)
-      .then((blob) => {
-        if (seq !== state.wechatTtsSeq || !state.speechSynthesisEnabled || !state.ttsToggleOn || !state.isWeChat) return;
-        const audio = ensureWeChatTtsAudio();
-        stopSpeechPlayback();
-        const blobUrl = URL.createObjectURL(blob);
-        state.wechatTtsBlobUrl = blobUrl;
-        audio.src = blobUrl;
-        return playAudioForWeChat(audio);
-      })
-      .catch(() => {});
+    const audio = ensureWeChatTtsAudio();
+    stopSpeechPlayback();
+    audio.src = buildWeChatTtsUrl(content);
+    playAudioForWeChat(audio).catch(() => {
+      if (seq !== state.wechatTtsSeq) return;
+      if (!state.wechatTtsWarned) {
+        state.wechatTtsWarned = true;
+        addStatusPill('语音播报未成功，可点消息右侧喇叭重试');
+      }
+    });
     return;
   }
   if (!('speechSynthesis' in window)) return;
@@ -863,6 +855,9 @@ function setComposerMode(mode) {
   state.composerMode = mode;
   state.speechSynthesisEnabled = mode === 'voice';
   state.wechatTtsEnabled = mode === 'voice';
+  if (mode !== 'voice') {
+    state.wechatTtsWarned = false;
+  }
   const isVoice = mode === 'voice';
 
   $('composerInput').classList.toggle('hidden', isVoice);
