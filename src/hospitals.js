@@ -35,6 +35,10 @@ function buildWechatProfileScheme(wechatAccount = '') {
   return `weixin://contacts/profile/${encodeURIComponent(account)}`;
 }
 
+function isMpArticleUrl(url = '') {
+  return /^https:\/\/mp\.weixin\.qq\.com\/s\//.test(String(url || '').trim());
+}
+
 const KNOWN_HOSPITALS = Object.fromEntries(
   hubeiHospitalDirectory.map((item) => [
     item.hospitalName,
@@ -78,9 +82,11 @@ function buildKnownHospitalCard(name, department, index) {
   const officialProfileUrl = known.officialProfileUrl || buildOfficialProfileUrl(known.officialBiz || '');
   const wechatProfileScheme = buildWechatProfileScheme(known.wechatAccount || '');
   const bookingUrl = known.bookingUrl || '';
+  const officialArticleUrl = isMpArticleUrl(known.sourceUrl || '') ? known.sourceUrl : '';
   const miniProgramPath = known.miniProgramPath || '';
   const entryUrl =
     officialProfileUrl ||
+    officialArticleUrl ||
     wechatProfileScheme ||
     ((known.verificationStatus || '') === 'confirmed_booking_url' ? bookingUrl : '');
   const officialEntryFound = Boolean(entryUrl || miniProgramPath);
@@ -95,12 +101,20 @@ function buildKnownHospitalCard(name, department, index) {
     wechatAccount: known.wechatAccount || '',
     miniProgramName: known.miniProgramName || '',
     officialProfileUrl,
+    officialArticleUrl,
     wechatProfileScheme,
     bookingUrl,
     miniProgramPath,
     officialEntryFound,
     entryUrl,
-    entryLabel: getEntryLabel(known.verificationStatus || '', bookingUrl, officialProfileUrl, miniProgramPath, wechatProfileScheme),
+    entryLabel: getEntryLabel(
+      known.verificationStatus || '',
+      bookingUrl,
+      officialProfileUrl,
+      miniProgramPath,
+      wechatProfileScheme,
+      officialArticleUrl
+    ),
     verificationStatus: known.verificationStatus || 'unknown',
     sourceUrl: known.sourceUrl || '',
     notes: known.notes || '',
@@ -113,8 +127,16 @@ function buildKnownHospitalCard(name, department, index) {
   };
 }
 
-function getEntryLabel(verificationStatus = '', bookingUrl = '', officialProfileUrl = '', miniProgramPath = '', wechatProfileScheme = '') {
+function getEntryLabel(
+  verificationStatus = '',
+  bookingUrl = '',
+  officialProfileUrl = '',
+  miniProgramPath = '',
+  wechatProfileScheme = '',
+  officialArticleUrl = ''
+) {
   if (officialProfileUrl || wechatProfileScheme) return '打开公众号';
+  if (officialArticleUrl) return '打开公众号';
   if (miniProgramPath) return '打开小程序';
   if (bookingUrl && verificationStatus === 'confirmed_booking_url') return '去挂号';
   if (bookingUrl) return '查看挂号方式';
@@ -126,12 +148,26 @@ function findDirectoryMatches(region = {}) {
   const district = normalized.district || '';
   const city = normalized.city || '';
   const province = normalized.province || '';
-  return hubeiHospitalDirectory.filter((item) => {
-    if (district) return item.district === district;
-    if (city) return item.city === city;
-    if (province) return item.province === province;
-    return false;
-  });
+  const byDistrict = district ? hubeiHospitalDirectory.filter((item) => item.district === district) : [];
+  const byCity = city ? hubeiHospitalDirectory.filter((item) => item.city === city) : [];
+  const byProvince = province ? hubeiHospitalDirectory.filter((item) => item.province === province) : [];
+  const merged = [];
+  const seen = new Set();
+  const pushRows = (rows = []) => {
+    rows.forEach((item) => {
+      const key = `${item.province}-${item.city}-${item.district}-${item.hospitalName}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      merged.push(item);
+    });
+  };
+  // 优先本区县，再补同城，最后补同省，确保地址变化后推荐明显不同。
+  pushRows(byDistrict);
+  pushRows(byCity);
+  if (!city) {
+    pushRows(byProvince);
+  }
+  return merged;
 }
 
 function buildTemplateRecommendations(region = {}, scenario = {}) {
@@ -147,9 +183,11 @@ function buildTemplateRecommendations(region = {}, scenario = {}) {
     const officialProfileUrl = known.officialProfileUrl || buildOfficialProfileUrl(template.officialBiz || known.officialBiz || '');
     const wechatProfileScheme = buildWechatProfileScheme(known.wechatAccount || '');
     const bookingUrl = known.bookingUrl || template.bookingUrl || '';
+    const officialArticleUrl = isMpArticleUrl(known.sourceUrl || '') ? known.sourceUrl : '';
     const miniProgramPath = known.miniProgramPath || template.miniProgramPath || '';
     const entryUrl =
       officialProfileUrl ||
+      officialArticleUrl ||
       wechatProfileScheme ||
       ((known.verificationStatus || '') === 'confirmed_booking_url' ? bookingUrl : '');
     const officialEntryFound = Boolean(entryUrl || miniProgramPath);
@@ -163,12 +201,20 @@ function buildTemplateRecommendations(region = {}, scenario = {}) {
       wechatAccount: known.wechatAccount || '',
       miniProgramName: known.miniProgramName || (index < 3 ? buildMiniProgramName(name) : ''),
       officialProfileUrl,
+      officialArticleUrl,
       wechatProfileScheme,
       bookingUrl,
       miniProgramPath,
       officialEntryFound,
       entryUrl,
-      entryLabel: getEntryLabel(known.verificationStatus || '', bookingUrl, officialProfileUrl, miniProgramPath, wechatProfileScheme),
+      entryLabel: getEntryLabel(
+        known.verificationStatus || '',
+        bookingUrl,
+        officialProfileUrl,
+        miniProgramPath,
+        wechatProfileScheme,
+        officialArticleUrl
+      ),
       verificationStatus: known.verificationStatus || 'unknown',
       sourceUrl: known.sourceUrl || '',
       notes: known.notes || '',
@@ -186,10 +232,13 @@ function buildHospitalRecommendations(region = {}, scenario = {}) {
   const normalized = normalizeRegion(region);
   const department = scenario.department || '内科';
   const matches = findDirectoryMatches(normalized).slice(0, 5);
-  if (matches.length) {
-    return matches.map((item, index) => buildKnownHospitalCard(item.hospitalName, department, index));
+  const knownCards = matches.map((item, index) => buildKnownHospitalCard(item.hospitalName, department, index));
+  if (knownCards.length >= 5) {
+    return knownCards.slice(0, 5);
   }
-  return buildTemplateRecommendations(normalized, scenario);
+  const knownNames = new Set(knownCards.map((item) => item.name));
+  const templateCards = buildTemplateRecommendations(normalized, scenario).filter((item) => !knownNames.has(item.name));
+  return knownCards.concat(templateCards).slice(0, 5);
 }
 
 module.exports = {

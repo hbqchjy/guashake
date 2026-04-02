@@ -11,8 +11,8 @@
     "officialProfileUrl": "",
     "miniProgramName": "",
     "verificationStatus": "confirmed_booking_url",
-    "sourceUrl": "https://zsyy.1451cn.com/#/choice-room-today",
-    "notes": "用户提供真实挂号 H5 入口，可直接作为挂号示例。"
+    "sourceUrl": "https://mp.weixin.qq.com/s/xdAu_csz1L_kYWOrbb6b7Q",
+    "notes": "用户提供公众号文章链接和挂号 H5 入口，优先走公众号文章桥接。"
   },
   {
     "province": "湖北省",
