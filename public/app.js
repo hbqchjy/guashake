@@ -1548,7 +1548,7 @@ async function promptRegionConfirmation(forceRetry = false) {
 
 async function selectRegion(region) {
   state.resultViewMode = 'full';
-  state.resultAnchor = 'booking';
+  state.resultAnchor = 'summary';
   state.showBookingPanel = true;
   persistRegion(region);
   await updateSessionProfile({
