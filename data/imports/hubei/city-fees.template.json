@@ -1,0 +1,18 @@
+[
+  {
+    "item": "挂号费",
+    "min": 6,
+    "max": 18,
+    "sourceUrl": "https://example.gov.cn/price-notice",
+    "sourceTitle": "某市医疗服务价格公示",
+    "sourceDate": "2026-03-01"
+  },
+  {
+    "item": "血常规",
+    "min": 20,
+    "max": 32,
+    "sourceUrl": "https://example.gov.cn/price-notice",
+    "sourceTitle": "某市医疗服务价格公示",
+    "sourceDate": "2026-03-01"
+  }
+]

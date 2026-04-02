@@ -224,6 +224,10 @@ pm2 restart guashake --update-env
 - 城市覆盖库：`data/cost-reference.hubei.city-overrides.json`
 - 城市系数库（17地市）：`data/cost-reference.hubei.city-factors.json`
 - 更新脚本：`scripts/update-hubei-cost-overrides.js`
+- 官方来源台账：`data/cost-source.hubei.official.json`
+- 导入校验脚本：`scripts/validate-hubei-cost-import.js`
+- 月更一键脚本：`scripts/monthly-update-hubei-cost.sh`
+- 导入模板：`data/imports/hubei/city-fees.template.json`
 
 示例：
 ```bash
@@ -234,6 +238,17 @@ node scripts/update-hubei-cost-overrides.js --city 武汉 --item 挂号费 --min
 ```bash
 node scripts/update-hubei-cost-overrides.js --city 黄石 --from-json ./tmp/huangshi-fees.json
 ```
+
+月更流程（推荐）：
+```bash
+# 1) 先准备导入文件（参考 data/imports/hubei/city-fees.template.json）
+# 2) 校验并导入
+bash scripts/monthly-update-hubei-cost.sh 武汉 data/imports/hubei/wuhan-2026-04.json
+```
+
+说明：
+- 目前已具备“17地市统一框架 + 城市系数 + 城市覆盖价”的完整链路。
+- 官方来源台账已建好结构，链接状态区分为 `pending_review`，可按月补齐并固化。
 - 数据准确性：前台显示更新时间与覆盖等级
 - 审核策略：敏感词、疾病断言、夸大疗效必须拦截
 - 隐私安全：上线前补齐鉴权、加密存储、访问审计
