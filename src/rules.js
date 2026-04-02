@@ -1,4 +1,5 @@
 const { buildHospitalRecommendations, formatRegionName } = require('./hospitals');
+const costReference = require('../data/cost-reference.common.json');
 
 const RED_FLAG_KEYWORDS = [
   '胸痛加重',
@@ -287,32 +288,32 @@ const SECOND_ROUND_CHECKS = {
 
 const MEDICATION_PRICE_RANGES = {
   cardio: [
-    { category: '降压药（常见口服）', min: 20, max: 120, note: '按月计算，具体看药物类别与品牌' },
-    { category: '缓解心慌类药物', min: 25, max: 160, note: '需结合医生评估，不建议长期自行加量' },
+    { category: '降压药（常见口服）', domesticPrice: '25~45元/月', importedPrice: '90~140元/月', note: '示例：国产苯磺酸氨氯地平、进口络活喜等' },
+    { category: '缓解心慌类药物', domesticPrice: '30~60元/盒', importedPrice: '100~180元/盒', note: '需结合医生评估，不建议长期自行加量' },
   ],
   lumbar: [
-    { category: '外用止痛贴/凝胶', min: 15, max: 80, note: '多用于短期疼痛缓解' },
-    { category: '口服止痛抗炎药', min: 20, max: 120, note: '胃部不适或慢病人群需谨慎' },
+    { category: '外用止痛贴/凝胶', domesticPrice: '20~40元/盒', importedPrice: '70~120元/盒', note: '多用于短期疼痛缓解' },
+    { category: '口服止痛抗炎药', domesticPrice: '20~50元/盒', importedPrice: '80~150元/盒', note: '胃部不适或慢病人群需谨慎' },
   ],
   digestive: [
-    { category: '抑酸/护胃药', min: 20, max: 150, note: '常见短期用药区间' },
-    { category: '止泻/调节肠道药', min: 15, max: 100, note: '腹泻明显时短期使用' },
+    { category: '抑酸/护胃药', domesticPrice: '20~45元/盒', importedPrice: '90~180元/盒', note: '常见短期用药区间' },
+    { category: '止泻/调节肠道药', domesticPrice: '15~35元/盒', importedPrice: '50~120元/盒', note: '腹泻明显时短期使用' },
   ],
   urinary: [
-    { category: '常见抗感染药', min: 25, max: 180, note: '需结合感染类型与疗程' },
-    { category: '解痉镇痛类药', min: 20, max: 120, note: '以对症缓解为主' },
+    { category: '常见抗感染药', domesticPrice: '25~60元/疗程', importedPrice: '90~220元/疗程', note: '需结合感染类型与疗程' },
+    { category: '解痉镇痛类药', domesticPrice: '20~40元/盒', importedPrice: '60~130元/盒', note: '以对症缓解为主' },
   ],
   respiratory: [
-    { category: '止咳化痰药', min: 20, max: 120, note: '根据症状选型，短期观察' },
-    { category: '退热镇痛药', min: 10, max: 80, note: '按需短期使用' },
+    { category: '止咳化痰药', domesticPrice: '18~40元/盒', importedPrice: '60~130元/盒', note: '根据症状选型，短期观察' },
+    { category: '退热镇痛药', domesticPrice: '10~25元/盒', importedPrice: '30~80元/盒', note: '按需短期使用' },
   ],
   skinTrauma: [
-    { category: '外用消毒/抗炎药', min: 15, max: 90, note: '轻中度皮损常见范围' },
-    { category: '口服抗过敏药', min: 20, max: 120, note: '按症状短期使用' },
+    { category: '外用消毒/抗炎药', domesticPrice: '15~35元/支', importedPrice: '50~100元/支', note: '轻中度皮损常见范围' },
+    { category: '口服抗过敏药', domesticPrice: '20~35元/盒', importedPrice: '60~140元/盒', note: '按症状短期使用' },
   ],
   maleHealth: [
-    { category: '男科常见口服药', min: 60, max: 300, note: '价格差异与品牌和疗程相关' },
-    { category: '情绪/睡眠辅助药物', min: 20, max: 180, note: '需按医生建议用药' },
+    { category: '男科常见口服药', domesticPrice: '60~120元/盒', importedPrice: '180~360元/盒', note: '价格差异与品牌和疗程相关' },
+    { category: '情绪/睡眠辅助药物', domesticPrice: '20~50元/盒', importedPrice: '80~180元/盒', note: '需按医生建议用药' },
   ],
 };
 
@@ -392,6 +393,19 @@ function calcBaseCost(baseChecks) {
     { min: 0, max: 0 }
   );
   return total;
+}
+
+function normalizeBaseChecks(baseChecks = []) {
+  const map = costReference?.items || {};
+  return baseChecks.map((item) => {
+    const ref = map[item.name];
+    if (!ref) return item;
+    return {
+      ...item,
+      min: Number(ref.min),
+      max: Number(ref.max),
+    };
+  });
 }
 
 function roundToTen(value, mode = 'round') {
@@ -625,6 +639,7 @@ function buildFallbackGuidance(session) {
 
 function buildTriageResult(session) {
   const scenario = session.scenario;
+  const normalizedBaseChecks = normalizeBaseChecks(scenario.baseChecks);
   const redFlag = hasRedFlag({
     chiefComplaint: session.chiefComplaint,
     answers: session.answers,
@@ -632,7 +647,7 @@ function buildTriageResult(session) {
   });
   const answerCount = Object.keys(session.answers || {}).length;
   const confidence = confidenceLevel(answerCount, redFlag);
-  const baseCost = calcBaseCost(scenario.baseChecks);
+  const baseCost = calcBaseCost(normalizedBaseChecks);
   const schema = buildGenericSymptomSchema(session);
   const schemaHighlights = buildSchemaHighlights(schema);
   const possibleTypes = buildPossibleTypes(session, schema);
@@ -660,7 +675,7 @@ function buildTriageResult(session) {
         possibleTypes,
         suggestHospital: scenario.hospitalLevel,
         suggestDepartment: scenario.department,
-        firstChecks: scenario.baseChecks,
+        firstChecks: normalizedBaseChecks,
         firstCostRange: `${baseCost.min}~${baseCost.max}元`,
         recommendationLevel: fallbackGuidance.recommendationLevel,
         severityLevel: fallbackGuidance.severityLevel,
@@ -697,6 +712,7 @@ function buildTriageResult(session) {
 
 function buildCostEstimate(session) {
   const scenario = session.scenario;
+  const normalizedBaseChecks = normalizeBaseChecks(scenario.baseChecks);
   const region = {
     province: session.province || '',
     city: session.city || '',
@@ -706,8 +722,8 @@ function buildCostEstimate(session) {
   const recommendations = hasRegion ? buildHospitalRecommendations(region, scenario) : [];
   const primaryHospital = recommendations[0] || null;
   const costFactor = getHospitalCostFactor(primaryHospital?.level || scenario.hospitalLevel);
-  const range = buildNarrowCostRange(scenario.baseChecks, costFactor);
-  const feeItems = estimateFeeItems(scenario.baseChecks, costFactor);
+  const range = buildNarrowCostRange(normalizedBaseChecks, costFactor);
+  const feeItems = estimateFeeItems(normalizedBaseChecks, costFactor);
   const secondRound = estimateSecondRoundItems(SECOND_ROUND_CHECKS[scenario.id] || [], costFactor);
   const medicationRefs = MEDICATION_PRICE_RANGES[scenario.id] || [];
 
@@ -723,7 +739,7 @@ function buildCostEstimate(session) {
       secondRoundChecks: secondRound,
       medicationPriceRefs: medicationRefs,
       ifThen: scenario.nextStepRules,
-      updateCycle: '样板价格按月整理，当前版本：2026-04',
+      updateCycle: `样板价格按月整理，当前版本：${costReference?.version || '2026-04'}`,
       disclaimer: '不同医院同项目价格会有波动，先按首轮基础检查范围做预算更稳妥。',
     },
   };

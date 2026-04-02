@@ -1751,14 +1751,12 @@ function buildBookingCard(booking, prepItems) {
   const extraHospitals = hospitals.slice(2);
   const cachedRegion = isRegionValid(state.savedRegion) ? state.savedRegion : null;
   const hospitalCardHtml = (hospital) => {
-    const entryButton = '<span class="record-action disabled">请在微信搜索医院全名挂号</span>';
-    const channelHint = `建议搜索：${escapeHtml(hospital.officialWechatName || hospital.name || '医院全名')}${hospital.wechatAccount ? `（微信号：${escapeHtml(hospital.wechatAccount)}）` : ''}${hospital.miniProgramName ? ` / 小程序：${escapeHtml(hospital.miniProgramName)}` : ''}`;
+    const entryButton = '';
     return [
       '<div class="booking-hospital-item">',
       `<div class="booking-hospital-top"><div><p class="booking-hospital-name">${escapeHtml(hospital.name)}</p><p class="booking-hospital-meta">${escapeHtml(`${hospital.level} · 建议挂 ${hospital.department}`)}</p></div><div class="booking-hospital-actions">${entryButton}</div></div>`,
       `<p class="booking-hospital-note">${escapeHtml(hospital.recommendation)}</p>`,
-      `<p class="booking-hospital-search">${channelHint}</p>`,
-      `<p class="booking-hospital-channel">挂号方式：微信搜索医院后进入挂号入口</p>`,
+      `<p class="booking-hospital-channel">挂号方式：请在微信搜索医院全名挂号</p>`,
       '</div>',
     ].join('');
   };
@@ -1890,7 +1888,7 @@ function buildCostHtml(cost, options = {}) {
         '<div class="detail-section">',
         '<h4>用药价格参考</h4>',
         '<ul class="result-advice-list">',
-        ...medicationRefs.map((item) => `<li>${escapeHtml(item.category)}：约 ${escapeHtml(`${item.min}~${item.max}元`)}；${escapeHtml(item.note || '')}</li>`),
+        ...medicationRefs.map((item) => `<li>${escapeHtml(item.category)}：国产约 ${escapeHtml(`${item.domesticPrice || '-'}`)}，进口约 ${escapeHtml(`${item.importedPrice || '-'}`)}；${escapeHtml(item.note || '')}</li>`),
         '</ul>',
         '</div>',
       ].join('')
@@ -1899,8 +1897,6 @@ function buildCostHtml(cost, options = {}) {
     '<div class="result-kv-grid">',
     `<div class="result-kv"><span>大概先花</span><strong>${escapeHtml(cost.simple.costRange)}</strong></div>`,
     `<div class="result-kv"><span>参考医院</span><strong>${escapeHtml(cost.simple.basedOn || '-')}</strong></div>`,
-    `<div class="result-kv full"><span>估算规则</span><strong>${escapeHtml(cost.simple.pricingRule || '-')}</strong></div>`,
-    `<div class="result-kv full"><span>更新周期</span><strong>${escapeHtml(cost.expanded.updateCycle || '-')}</strong></div>`,
     '</div>',
     `<p class="result-card-subtitle">${escapeHtml(cost.expanded.disclaimer || '')}</p>`,
     secondRoundHtml,
@@ -2050,11 +2046,6 @@ async function renderResultCards() {
     bookingCard.dataset.resultView = 'full';
     bookingCard.dataset.bookingCard = 'true';
     bookingCard.dataset.topicCard = 'booking';
-    if (needsInPerson && prepItems) {
-      prepCard = buildCollapsibleResultCard('去医院前带什么', '身份证、近期检查结果、正在用药', `<ul>${prepItems}</ul>`);
-      prepCard.dataset.resultView = 'full';
-      prepCard.dataset.topicCard = 'booking';
-    }
   }
 
   const riskCard = buildCollapsibleResultCard('风险提醒', '有胸痛加重或呼吸困难要尽快急诊', `<ul>${riskItems}</ul>`, 'risk');
