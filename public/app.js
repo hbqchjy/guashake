@@ -60,7 +60,7 @@ const state = {
   summaryImpactLevel: 'none',
   isWeChat: false,
   isTouchDevice: false,
-  wechatTtsArmed: false,
+  ttsToggleOn: true,
 };
 
 let botTextQueue = Promise.resolve();
@@ -186,7 +186,7 @@ function speakGesturePrompt(text) {
 
 function speakBotText(text) {
   if (!state.speechSynthesisEnabled || !('speechSynthesis' in window)) return;
-  if (state.isWeChat && !state.wechatTtsArmed) return;
+  if (!state.ttsToggleOn) return;
   const content = String(text || '').trim();
   if (!content) return;
   if (!state.speechSynthesisPrimed) {
@@ -211,38 +211,11 @@ function speakBotText(text) {
   window.speechSynthesis.speak(utterance);
 }
 
-function syncWechatTtsEnableUi() {
-  const shouldShow = state.isWeChat && state.composerMode === 'voice' && !state.wechatTtsArmed;
-  $('wechatTtsEnableBtn')?.classList.toggle('hidden', !shouldShow);
-}
-
-function armWechatTtsFromGesture() {
-  if (!state.isWeChat) return Promise.resolve(true);
-  if (!('speechSynthesis' in window)) return Promise.resolve(false);
-  try {
-    // In WeChat WebView, onstart/onend callbacks are unreliable even when speech is allowed.
-    // Treat explicit user gesture as unlock signal and keep this session armed.
-    state.wechatTtsArmed = true;
-    state.speechSynthesisPrimed = true;
-    syncWechatTtsEnableUi();
-    stopSpeechPlayback();
-    window.speechSynthesis.resume?.();
-    const utterance = new SpeechSynthesisUtterance('语音播报已开启');
-    utterance.lang = 'zh-CN';
-    utterance.rate = 1;
-    const preferred = getPreferredSpeechVoice();
-    if (preferred) utterance.voice = preferred;
-    utterance.onerror = () => {
-      state.wechatTtsArmed = false;
-      syncWechatTtsEnableUi();
-    };
-    window.speechSynthesis.speak(utterance);
-    return Promise.resolve(true);
-  } catch (_error) {
-    state.wechatTtsArmed = false;
-    syncWechatTtsEnableUi();
-    return Promise.resolve(false);
-  }
+function syncInlineTtsButtons() {
+  document.querySelectorAll('.tts-inline-btn').forEach((btn) => {
+    btn.textContent = state.ttsToggleOn ? '🔊' : '🔇';
+    btn.classList.toggle('is-off', !state.ttsToggleOn);
+  });
 }
 
 function isRegionValid(region) {
@@ -566,12 +539,31 @@ async function typeTextInto(node, text) {
 async function addBotText(text) {
   botTextQueue = botTextQueue.then(async () => {
     clearThinkingBubble();
-    const row = addRow('bot', '<p></p>');
+    const showSpeaker = state.composerMode === 'voice';
+    const row = addRow(
+      'bot',
+      showSpeaker
+        ? '<div class="bot-text-wrap"><p></p><button type="button" class="tts-inline-btn" aria-label="语音播报开关">🔊</button></div>'
+        : '<p></p>'
+    );
     const p = row.querySelector('p');
     row.classList.add('is-typing');
     await wait(180);
     await typeTextInto(p, text);
     row.classList.remove('is-typing');
+    const ttsBtn = row.querySelector('.tts-inline-btn');
+    if (ttsBtn) {
+      ttsBtn.onclick = () => {
+        state.ttsToggleOn = !state.ttsToggleOn;
+        syncInlineTtsButtons();
+        if (state.ttsToggleOn) {
+          speakBotText(text);
+        } else {
+          stopSpeechPlayback();
+        }
+      };
+      syncInlineTtsButtons();
+    }
     speakBotText(text);
     return row;
   });
@@ -801,7 +793,7 @@ function setComposerMode(mode) {
   syncVoiceButton();
   if (isVoice) {
     primeSpeechPlayback();
-    if (previousMode !== 'voice' && (!state.isWeChat || state.wechatTtsArmed)) {
+    if (previousMode !== 'voice') {
       speakGesturePrompt('语音模式已开启');
     }
   }
@@ -814,7 +806,6 @@ function setComposerMode(mode) {
   }
   if (!isVoice) setComposerState(state.inputMode);
   syncComposerActions();
-  syncWechatTtsEnableUi();
 }
 
 function resetConversation() {
@@ -865,7 +856,6 @@ function resetConversation() {
   renderQuickSymptoms();
   setComposerState('symptom');
   syncComposerActions();
-  syncWechatTtsEnableUi();
   clearRuntimeState();
 }
 
@@ -2459,15 +2449,6 @@ function bindEvents() {
     setComposerMode(state.composerMode === 'text' ? 'voice' : 'text');
   });
 
-  $('wechatTtsEnableBtn')?.addEventListener('click', async () => {
-    const ok = await armWechatTtsFromGesture();
-    if (ok) {
-      addStatusPill('微信语音播报已开启');
-    } else {
-      addStatusPill('当前无法开启语音播报，可继续看文字回复');
-    }
-  });
-
   if (state.isTouchDevice) {
     $('voiceCaptureBtn')?.addEventListener('touchstart', startVoiceCapture, { passive: false });
     $('voiceCaptureBtn')?.addEventListener('touchend', stopVoiceCapture, { passive: false });
@@ -2582,7 +2563,6 @@ async function loadSharedSession(sessionId) {
 async function bootstrap() {
   state.isWeChat = /MicroMessenger/i.test(navigator.userAgent || '');
   state.isTouchDevice = ('ontouchstart' in window) || navigator.maxTouchPoints > 0 || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
-  state.wechatTtsArmed = !state.isWeChat;
   loadAuthState();
   loadSavedRegion();
   if ('speechSynthesis' in window && typeof window.speechSynthesis.onvoiceschanged !== 'undefined') {
@@ -2594,7 +2574,6 @@ async function bootstrap() {
   syncAuthUi();
   syncMyUi();
   bindEvents();
-  syncWechatTtsEnableUi();
   window.addEventListener('beforeunload', saveRuntimeState);
   const params = new URLSearchParams(window.location.search);
   const sharedSessionId = params.get('session');

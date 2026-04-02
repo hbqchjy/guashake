@@ -1212,11 +1212,35 @@ body.voice-pressing * {
   display: none;
 }
 
-.wechat-tts-btn {
-  width: 100%;
-  margin-top: 8px;
-  min-height: 42px;
-  border-radius: 14px;
+.bot-text-wrap {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.bot-text-wrap p {
+  margin: 0;
+  flex: 1;
+}
+
+.tts-inline-btn {
+  appearance: none;
+  border: 1px solid rgba(20, 36, 31, 0.16);
+  background: rgba(255, 255, 255, 0.9);
+  color: #1f2329;
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tts-inline-btn.is-off {
+  opacity: 0.55;
 }
 
 .records-dialog {
