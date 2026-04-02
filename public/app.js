@@ -1,5 +1,4 @@
 const QUICK_SYMPTOMS = ['心慌', '胸闷', '头晕', '腰酸', '肚子痛', '咳嗽', '尿频尿急', '皮肤/外伤'];
-const INSURANCE_OPTIONS = ['城镇职工医保', '城乡居民医保', '无医保'];
 
 const state = {
   sessionId: null,
@@ -98,7 +97,7 @@ const RESULT_CARD_ICONS = {
   用药建议: 'clipboard',
   什么时候去医院: 'bag',
   '第一步检查': 'clipboard',
-  '费用与医保': 'wallet',
+  '费用参考': 'wallet',
   '去医院前带什么': 'bag',
   '风险提醒': 'alert',
   '为什么这样建议': 'spark',
@@ -530,9 +529,6 @@ function syncMyUi() {
   if ($('myRegionValue')) {
     $('myRegionValue').textContent = isRegionValid(state.savedRegion) ? formatRegion(state.savedRegion) : '未设置';
   }
-  if ($('myInsuranceValue')) {
-    $('myInsuranceValue').textContent = state.profile.insuranceType || '未设置';
-  }
   if ($('myLogoutBtn')) {
     $('myLogoutBtn').disabled = !state.auth.loggedIn;
   }
@@ -865,7 +861,7 @@ function addIntroCard() {
     'bot',
     [
       '<div class="intro-card-inner">',
-      '<p class="intro-copy"><strong class="intro-accent">我是小科</strong>，帮您分析症状、推荐医院和科室、预估看病费用及医保报销，还能解读检查报告。直接告诉我哪里不舒服，或发送检查报告即可。</p>',
+      '<p class="intro-copy"><strong class="intro-accent">我是小科</strong>，帮您分析症状、推荐医院和科室、预估看病费用，还能解读检查报告。直接告诉我哪里不舒服，或发送检查报告即可。</p>',
       '</div>',
     ].join(''),
     'intro-card'
@@ -1875,30 +1871,40 @@ function buildCheckListHtml(items = []) {
   ].join('');
 }
 
-function buildInsuranceSelectorHtml(selected) {
-  return [
-    '<div class="insurance-selector">',
-    '<p class="insurance-label">选择医保类型后，费用和报销说明会更贴近你。</p>',
-    '<div class="insurance-grid">',
-    ...INSURANCE_OPTIONS.map(
-      (label) =>
-        `<button class="insurance-btn ${selected === label ? 'active' : ''}" data-insurance-option="${escapeHtml(label)}">${escapeHtml(label)}</button>`
-    ),
-    '</div>',
-    '</div>',
-  ].join('');
-}
-
-function buildCostHtml(cost, insuranceType) {
+function buildCostHtml(cost, options = {}) {
+  const secondRoundChecks = Array.isArray(cost?.expanded?.secondRoundChecks) ? cost.expanded.secondRoundChecks : [];
+  const medicationRefs = Array.isArray(cost?.expanded?.medicationPriceRefs) ? cost.expanded.medicationPriceRefs : [];
+  const showMedicationPrices = Boolean(options.showMedicationPrices);
+  const secondRoundHtml = secondRoundChecks.length
+    ? [
+        '<div class="detail-section">',
+        '<h4>第二轮必要检查（按触发条件追加）</h4>',
+        '<ul class="result-advice-list">',
+        ...secondRoundChecks.map((item) => `<li>${escapeHtml(item.name)}：约 ${escapeHtml(`${item.min}~${item.max}元`)}；触发条件：${escapeHtml(item.trigger || '按医生判断')}</li>`),
+        '</ul>',
+        '</div>',
+      ].join('')
+    : '';
+  const medicationHtml = showMedicationPrices && medicationRefs.length
+    ? [
+        '<div class="detail-section">',
+        '<h4>用药价格参考</h4>',
+        '<ul class="result-advice-list">',
+        ...medicationRefs.map((item) => `<li>${escapeHtml(item.category)}：约 ${escapeHtml(`${item.min}~${item.max}元`)}；${escapeHtml(item.note || '')}</li>`),
+        '</ul>',
+        '</div>',
+      ].join('')
+    : '';
   return [
     '<div class="result-kv-grid">',
     `<div class="result-kv"><span>大概先花</span><strong>${escapeHtml(cost.simple.costRange)}</strong></div>`,
-    `<div class="result-kv"><span>医保参考</span><strong>${escapeHtml(cost.simple.insuranceCoverage)}</strong></div>`,
-    `<div class="result-kv full"><span>更划算建议</span><strong>${escapeHtml(cost.simple.costEffectivePlan)}</strong></div>`,
-    `<div class="result-kv full"><span>补充说明</span><strong>${escapeHtml(cost.expanded.insuranceGuide)}</strong></div>`,
+    `<div class="result-kv"><span>参考医院</span><strong>${escapeHtml(cost.simple.basedOn || '-')}</strong></div>`,
+    `<div class="result-kv full"><span>估算规则</span><strong>${escapeHtml(cost.simple.pricingRule || '-')}</strong></div>`,
+    `<div class="result-kv full"><span>更新周期</span><strong>${escapeHtml(cost.expanded.updateCycle || '-')}</strong></div>`,
     '</div>',
-    insuranceType ? `<div class="selected-insurance"><span class="record-tag">${escapeHtml(insuranceType)}</span></div>` : '',
-    buildInsuranceSelectorHtml(insuranceType),
+    `<p class="result-card-subtitle">${escapeHtml(cost.expanded.disclaimer || '')}</p>`,
+    secondRoundHtml,
+    medicationHtml,
   ].join('');
 }
 
@@ -1924,38 +1930,46 @@ function formatRecommendationLevel(level) {
   return mapping[level] || level || '继续结合症状判断';
 }
 
-function attachInsuranceActions(row) {
-  row.querySelectorAll('[data-insurance-option]').forEach((button) => {
-    button.onclick = async () => {
-      state.resultViewMode = 'full';
-      state.resultAnchor = 'summary';
-      await updateSessionProfile({ insuranceType: button.dataset.insuranceOption });
-      state.awaitingContext = null;
-      setComposerState('symptom');
-      await renderResultCards();
-    };
-  });
-}
-
 async function renderResultCards() {
   clearResultRows();
   const triage = state.triageResult.layeredOutput;
   const recommendationLevel = triage.core.recommendationLevel || 'routine_clinic';
   const needsInPerson = ['routine_clinic', 'specialist_clinic', 'hospital_priority_high'].includes(recommendationLevel);
   const needsBooking = Boolean(triage.core.needsBooking || needsInPerson);
-  const needsCost = false;
+  const needsCost = Boolean(triage.core.needsCost || needsInPerson);
   if (!needsInPerson) {
     state.showBookingPanel = false;
   }
 
   const requests = [];
+  if (needsCost) {
+    requests.push(
+      api('/cost/estimate', {
+        method: 'POST',
+        body: JSON.stringify({ sessionId: state.sessionId }),
+      })
+    );
+  }
   if (needsBooking) {
     requests.push(api(`/booking/options?sessionId=${encodeURIComponent(state.sessionId)}`));
   }
   const resolved = await Promise.all(requests);
+  const cost = needsCost
+    ? resolved.shift()
+    : {
+        simple: {
+          costRange: triage.core.firstCostRange || '',
+          basedOn: '当前暂无',
+          pricingRule: '当前这轮不需要单独费用估算',
+        },
+        expanded: {
+          updateCycle: '按月更新',
+          disclaimer: '如果后面要线下就医，再查看费用估算会更准确。',
+        },
+      };
   const booking = needsBooking ? resolved.shift() : { preparation: [], hospitals: [] };
 
-  state.cost = null;
+  state.cost = cost || null;
   state.booking = booking || null;
   setComposerState('symptom');
 
@@ -1967,7 +1981,8 @@ async function renderResultCards() {
   const topicChips = state.topicChips || [];
   const careAdvice = Array.from(new Set([...visitAdvice, ...selfCareAdvice].filter(Boolean)));
   const firstChecks = buildCheckListHtml(triage.core.firstChecks || []);
-  const prepItems = (booking.preparation || []).map((item) => `<li>${escapeHtml(item)}</li>`).join('');
+  const costItems = buildCostHtml(cost, { showMedicationPrices: medicationAdvice.length > 0 });
+  const prepItems = (booking.preparation || []).filter((item) => !String(item).includes('医保')).map((item) => `<li>${escapeHtml(item)}</li>`).join('');
   const riskItems = (triage.riskReminder || []).map((item) => `<li>${escapeHtml(item)}</li>`).join('');
   const summaryTitle = possibleTypes[0] || triage.core.suggestDepartment || '还需要结合症状继续判断';
   const summaryLines = [possibleTypes[1], triage.core.severityText].filter(Boolean);
@@ -2021,6 +2036,13 @@ async function renderResultCards() {
     essentialChecks.dataset.topicCard = 'checks';
   }
 
+  let essentialCost = null;
+  if (needsCost) {
+    essentialCost = buildResultCard('费用参考', costItems);
+    essentialCost.dataset.resultView = 'full';
+    essentialCost.dataset.topicCard = 'cost';
+  }
+
   let bookingCard = null;
   let prepCard = null;
   if (needsBooking && state.showBookingPanel) {
@@ -2029,7 +2051,7 @@ async function renderResultCards() {
     bookingCard.dataset.bookingCard = 'true';
     bookingCard.dataset.topicCard = 'booking';
     if (needsInPerson && prepItems) {
-      prepCard = buildCollapsibleResultCard('去医院前带什么', '身份证、医保卡、近期检查结果', `<ul>${prepItems}</ul>`);
+      prepCard = buildCollapsibleResultCard('去医院前带什么', '身份证、近期检查结果、正在用药', `<ul>${prepItems}</ul>`);
       prepCard.dataset.resultView = 'full';
       prepCard.dataset.topicCard = 'booking';
     }

@@ -206,13 +206,6 @@ const SCENARIOS = {
   },
 };
 
-const INSURANCE_GUIDE = {
-  '无医保': '你当前没有医保，建议先去县医院做首轮基础检查，避免一次做太多高价项目。',
-  '城镇职工医保': '职工医保一般门诊有一定报销，慢病长期用药可咨询当地是否支持慢病备案。',
-  '城乡居民医保': '居民医保门诊报销比例通常低于住院，先做基础检查后再决定是否转上级医院更省钱。',
-  '其他商业医保': '商业医保通常要看你买的险种和条款，先把病历和票据留好，后面理赔会更方便。',
-};
-
 const QUESTION_SLOT_META = {
   chestPain: { slot: 'pain', slotLabel: '疼痛/压迫感' },
   breath: { slot: 'breath', slotLabel: '气促程度' },
@@ -259,6 +252,68 @@ const QUESTION_SLOT_META = {
   stress: { slot: 'stressSleep', slotLabel: '压力/睡眠' },
   partner: { slot: 'lifeImpact', slotLabel: '生活影响' },
   maleHistory: { slot: 'history', slotLabel: '既往病史' },
+};
+
+const SECOND_ROUND_CHECKS = {
+  cardio: [
+    { name: '心电图', min: 30, max: 80, trigger: '基础化验异常、心慌发作频繁或胸闷加重时' },
+    { name: '心脏彩超', min: 180, max: 320, trigger: '心电图异常或持续胸闷气促时' },
+  ],
+  lumbar: [
+    { name: '腰椎MRI', min: 380, max: 680, trigger: '腿麻加重、下肢无力或保守治疗无效时' },
+    { name: '神经传导检查', min: 220, max: 420, trigger: '怀疑神经受压或症状持续进展时' },
+  ],
+  digestive: [
+    { name: '腹部B超', min: 120, max: 240, trigger: '持续腹痛、体检异常或肝胆胰问题疑似时' },
+    { name: '胃镜', min: 260, max: 520, trigger: '反复上腹不适、黑便或长期反酸时' },
+  ],
+  urinary: [
+    { name: '尿培养', min: 80, max: 180, trigger: '尿路感染反复、用药后仍反复发作时' },
+    { name: '泌尿系CT', min: 260, max: 520, trigger: '怀疑结石、梗阻或血尿持续时' },
+  ],
+  respiratory: [
+    { name: '胸片', min: 80, max: 180, trigger: '发热不退或咳嗽超过1周时' },
+    { name: '胸部CT', min: 260, max: 520, trigger: '胸片异常、气促明显或症状持续加重时' },
+  ],
+  skinTrauma: [
+    { name: '伤口细菌培养', min: 90, max: 220, trigger: '伤口化脓、反复感染时' },
+    { name: '深部软组织超声', min: 120, max: 260, trigger: '怀疑深部组织损伤或脓肿时' },
+  ],
+  maleHealth: [
+    { name: '激素六项', min: 180, max: 420, trigger: '持续存在性功能问题且伴慢病/睡眠压力异常时' },
+    { name: '前列腺彩超', min: 120, max: 260, trigger: '合并排尿异常或医生建议进一步评估时' },
+  ],
+};
+
+const MEDICATION_PRICE_RANGES = {
+  cardio: [
+    { category: '降压药（常见口服）', min: 20, max: 120, note: '按月计算，具体看药物类别与品牌' },
+    { category: '缓解心慌类药物', min: 25, max: 160, note: '需结合医生评估，不建议长期自行加量' },
+  ],
+  lumbar: [
+    { category: '外用止痛贴/凝胶', min: 15, max: 80, note: '多用于短期疼痛缓解' },
+    { category: '口服止痛抗炎药', min: 20, max: 120, note: '胃部不适或慢病人群需谨慎' },
+  ],
+  digestive: [
+    { category: '抑酸/护胃药', min: 20, max: 150, note: '常见短期用药区间' },
+    { category: '止泻/调节肠道药', min: 15, max: 100, note: '腹泻明显时短期使用' },
+  ],
+  urinary: [
+    { category: '常见抗感染药', min: 25, max: 180, note: '需结合感染类型与疗程' },
+    { category: '解痉镇痛类药', min: 20, max: 120, note: '以对症缓解为主' },
+  ],
+  respiratory: [
+    { category: '止咳化痰药', min: 20, max: 120, note: '根据症状选型，短期观察' },
+    { category: '退热镇痛药', min: 10, max: 80, note: '按需短期使用' },
+  ],
+  skinTrauma: [
+    { category: '外用消毒/抗炎药', min: 15, max: 90, note: '轻中度皮损常见范围' },
+    { category: '口服抗过敏药', min: 20, max: 120, note: '按症状短期使用' },
+  ],
+  maleHealth: [
+    { category: '男科常见口服药', min: 60, max: 300, note: '价格差异与品牌和疗程相关' },
+    { category: '情绪/睡眠辅助药物', min: 20, max: 180, note: '需按医生建议用药' },
+  ],
 };
 
 function normalizeText(v) {
@@ -337,6 +392,59 @@ function calcBaseCost(baseChecks) {
     { min: 0, max: 0 }
   );
   return total;
+}
+
+function roundToTen(value, mode = 'round') {
+  const num = Number(value || 0);
+  if (!Number.isFinite(num)) return 0;
+  if (mode === 'ceil') return Math.ceil(num / 10) * 10;
+  if (mode === 'floor') return Math.floor(num / 10) * 10;
+  return Math.round(num / 10) * 10;
+}
+
+function getHospitalCostFactor(levelText = '') {
+  const text = String(levelText || '');
+  if (/三甲|三级甲等/.test(text)) return 1.38;
+  if (/三级/.test(text)) return 1.28;
+  if (/市级/.test(text)) return 1.18;
+  if (/县级/.test(text)) return 1.06;
+  return 1.15;
+}
+
+function buildNarrowCostRange(baseChecks = [], factor = 1.15) {
+  const midpoint = baseChecks.reduce((sum, item) => sum + (Number(item.min || 0) + Number(item.max || 0)) / 2, 0) * factor;
+  const bandPct = 0.16;
+  const min = roundToTen(midpoint * (1 - bandPct), 'floor');
+  const max = roundToTen(midpoint * (1 + bandPct), 'ceil');
+  const ensuredMax = max - min < 60 ? min + 60 : max;
+  return { min, max: ensuredMax };
+}
+
+function estimateFeeItems(baseChecks = [], factor = 1.15) {
+  return baseChecks.map((item) => {
+    const mid = ((Number(item.min || 0) + Number(item.max || 0)) / 2) * factor;
+    const min = roundToTen(mid * 0.88, 'floor');
+    const max = roundToTen(mid * 1.12, 'ceil');
+    return {
+      ...item,
+      min: Math.max(0, min),
+      max: Math.max(min + 10, max),
+    };
+  });
+}
+
+function estimateSecondRoundItems(items = [], factor = 1.15) {
+  return items.map((item) => {
+    const mid = ((Number(item.min || 0) + Number(item.max || 0)) / 2) * (factor * 1.05);
+    const min = roundToTen(mid * 0.84, 'floor');
+    const max = roundToTen(mid * 1.16, 'ceil');
+    return {
+      name: item.name,
+      trigger: item.trigger || '',
+      min: Math.max(0, min),
+      max: Math.max(min + 20, max),
+    };
+  });
 }
 
 function confidenceLevel(answerCount, redFlag) {
@@ -589,20 +697,34 @@ function buildTriageResult(session) {
 
 function buildCostEstimate(session) {
   const scenario = session.scenario;
-  const baseCost = calcBaseCost(scenario.baseChecks);
-  const insurance = session.insuranceType || '';
+  const region = {
+    province: session.province || '',
+    city: session.city || '',
+    district: session.district || '',
+  };
+  const hasRegion = Boolean(region.province || region.city || region.district);
+  const recommendations = hasRegion ? buildHospitalRecommendations(region, scenario) : [];
+  const primaryHospital = recommendations[0] || null;
+  const costFactor = getHospitalCostFactor(primaryHospital?.level || scenario.hospitalLevel);
+  const range = buildNarrowCostRange(scenario.baseChecks, costFactor);
+  const feeItems = estimateFeeItems(scenario.baseChecks, costFactor);
+  const secondRound = estimateSecondRoundItems(SECOND_ROUND_CHECKS[scenario.id] || [], costFactor);
+  const medicationRefs = MEDICATION_PRICE_RANGES[scenario.id] || [];
+
   return {
     simple: {
-      costRange: `${baseCost.min}~${baseCost.max}元`,
-      insuranceCoverage: insurance ? '部分可报，具体以当地医保窗口为准' : '先选择医保类型，再看更贴近你的报销参考',
-      costEffectivePlan: scenario.hospitalLevel,
+      costRange: `${range.min}~${range.max}元`,
+      basedOn: primaryHospital ? `${primaryHospital.name}（${primaryHospital.level}）` : scenario.hospitalLevel,
+      pricingRule: '按首选医院级别 + 常规门诊基础检查项目估算',
       needMoreChecks: '视首轮检查结果决定是否追加检查',
     },
     expanded: {
-      feeItems: scenario.baseChecks,
+      feeItems,
+      secondRoundChecks: secondRound,
+      medicationPriceRefs: medicationRefs,
       ifThen: scenario.nextStepRules,
-      insuranceGuide: insurance ? INSURANCE_GUIDE[insurance] || INSURANCE_GUIDE['无医保'] : '你先选一下医保类型，小科再把费用和报销说明补全。',
-      disclaimer: '医保政策按地区和时间调整，请以当地医保窗口最新口径为准。',
+      updateCycle: '样板价格按月整理，当前版本：2026-04',
+      disclaimer: '不同医院同项目价格会有波动，先按首轮基础检查范围做预算更稳妥。',
     },
   };
 }

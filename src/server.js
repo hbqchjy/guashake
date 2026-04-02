@@ -229,7 +229,7 @@ function mapIntentToFocus(intentType = '', topicKey = '', focusLabel = '') {
     medical_followup: { key: 'symptom', label: '症状判断' },
     medication_question: { key: 'medication', label: '用药顾虑' },
     booking_question: { key: 'booking', label: '挂号医院' },
-    cost_question: { key: 'cost', label: '费用医保' },
+    cost_question: { key: 'cost', label: '费用参考' },
     report_notice: { key: 'report', label: '报告解读' },
     new_issue: { key: 'new_issue', label: '新的问题' },
     off_topic: { key: 'other', label: '当前无关' },
@@ -265,7 +265,7 @@ function buildTopicChips(session, triageResult) {
     chips.push({ key: 'booking', label: '去哪个医院' });
   }
   if (core.needsCost) {
-    chips.push({ key: 'cost', label: '费用和医保' });
+    chips.push({ key: 'cost', label: '费用参考' });
   }
   if ((session?.supplementFiles || []).length) {
     chips.push({ key: 'report', label: '看检查报告' });
