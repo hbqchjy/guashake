@@ -1,5 +1,6 @@
 const { buildHospitalRecommendations, formatRegionName } = require('./hospitals');
 const costReference = require('../data/cost-reference.common.json');
+const hubeiCityOverrides = require('../data/cost-reference.hubei.city-overrides.json');
 
 const RED_FLAG_KEYWORDS = [
   '胸痛加重',
@@ -410,10 +411,35 @@ function normalizeBaseChecks(baseChecks = []) {
   });
 }
 
-function normalizeNamedItems(items = []) {
+function normalizeCityKey(city = '') {
+  const raw = String(city || '').trim();
+  if (!raw) return '';
+  return raw.replace(/市$/, '');
+}
+
+function getPriceByRegion(name = '', session = {}) {
+  const cityKey = normalizeCityKey(session.city || '');
+  const cityMap = hubeiCityOverrides?.cities?.[cityKey] || {};
+  if (cityMap[name]) return cityMap[name];
+  return (costReference?.items || {})[name] || null;
+}
+
+function normalizeBaseChecksByRegion(baseChecks = [], session = {}) {
+  return baseChecks.map((item) => {
+    const ref = getPriceByRegion(item.name, session);
+    if (!ref) return item;
+    return {
+      ...item,
+      min: Number(ref.min),
+      max: Number(ref.max),
+    };
+  });
+}
+
+function normalizeNamedItems(items = [], session = {}) {
   const map = costReference?.items || {};
   return items.map((item) => {
-    const ref = map[item.name];
+    const ref = getPriceByRegion(item.name, session) || map[item.name];
     if (!ref) {
       return {
         ...item,
@@ -660,7 +686,7 @@ function buildFallbackGuidance(session) {
 
 function buildTriageResult(session) {
   const scenario = session.scenario;
-  const normalizedBaseChecks = normalizeBaseChecks(scenario.baseChecks);
+  const normalizedBaseChecks = normalizeBaseChecksByRegion(scenario.baseChecks, session);
   const redFlag = hasRedFlag({
     chiefComplaint: session.chiefComplaint,
     answers: session.answers,
@@ -733,7 +759,7 @@ function buildTriageResult(session) {
 
 function buildCostEstimate(session) {
   const scenario = session.scenario;
-  const normalizedBaseChecks = normalizeBaseChecks(scenario.baseChecks);
+  const normalizedBaseChecks = normalizeBaseChecksByRegion(scenario.baseChecks, session);
   const region = {
     province: session.province || '',
     city: session.city || '',
@@ -745,7 +771,7 @@ function buildCostEstimate(session) {
   const costFactor = getHospitalCostFactor(primaryHospital?.level || scenario.hospitalLevel);
   const range = buildNarrowCostRange(normalizedBaseChecks, costFactor);
   const feeItems = estimateFeeItems(normalizedBaseChecks, costFactor);
-  const secondRoundBase = normalizeNamedItems(SECOND_ROUND_CHECKS[scenario.id] || []);
+  const secondRoundBase = normalizeNamedItems(SECOND_ROUND_CHECKS[scenario.id] || [], session);
   const secondRound = estimateSecondRoundItems(secondRoundBase, costFactor);
   const medicationRefs = MEDICATION_PRICE_RANGES[scenario.id] || [];
 

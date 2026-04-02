@@ -218,6 +218,21 @@ pm2 restart guashake --update-env
 
 ## 12. 风险与后续建议
 - 医疗合规：保持“信息辅助”定位，避免诊断口吻
+
+## 13. 费用数据月更（湖北样板）
+- 基础费用库：`data/cost-reference.common.json`
+- 城市覆盖库：`data/cost-reference.hubei.city-overrides.json`
+- 更新脚本：`scripts/update-hubei-cost-overrides.js`
+
+示例：
+```bash
+node scripts/update-hubei-cost-overrides.js --city 武汉 --item 挂号费 --min 8 --max 20
+```
+
+或批量：
+```bash
+node scripts/update-hubei-cost-overrides.js --city 黄石 --from-json ./tmp/huangshi-fees.json
+```
 - 数据准确性：前台显示更新时间与覆盖等级
 - 审核策略：敏感词、疾病断言、夸大疗效必须拦截
 - 隐私安全：上线前补齐鉴权、加密存储、访问审计
