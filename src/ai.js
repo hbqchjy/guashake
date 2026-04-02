@@ -11,6 +11,12 @@ const DEFAULT_TTS_VOICE = 'longxiaochun_v2';
 const DEFAULT_TIMEOUT_MS = 15000;
 
 function getConfig() {
+  const fallbackListRaw = process.env.DASHSCOPE_TEXT_MODEL_FALLBACKS || process.env.DASHSCOPE_TEXT_MODEL_FALLBACK || '';
+  const textModelFallbacks = String(fallbackListRaw)
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+
   return {
     apiKey: process.env.DASHSCOPE_API_KEY || '',
     baseUrl: (process.env.DASHSCOPE_BASE_URL || DEFAULT_BASE_URL).replace(/\/$/, ''),
@@ -19,7 +25,7 @@ function getConfig() {
       process.env.DASHSCOPE_TEXT_MODEL ||
       DEFAULT_TEXT_MODEL,
     textModelCheap: process.env.DASHSCOPE_TEXT_MODEL_CHEAP || DEFAULT_CHEAP_TEXT_MODEL,
-    textModelFallback: process.env.DASHSCOPE_TEXT_MODEL_FALLBACK || '',
+    textModelFallbacks,
     ocrModel: process.env.DASHSCOPE_OCR_MODEL || DEFAULT_OCR_MODEL,
     asrModel: process.env.DASHSCOPE_ASR_MODEL || DEFAULT_ASR_MODEL,
     ttsModel: process.env.DASHSCOPE_TTS_MODEL || DEFAULT_TTS_MODEL,
@@ -45,7 +51,7 @@ function getStatus() {
     textModel: config.textModelPrimary,
     textModelPrimary: config.textModelPrimary,
     textModelCheap: config.textModelCheap,
-    textModelFallback: config.textModelFallback || '',
+    textModelFallbacks: config.textModelFallbacks,
     ocrModel: config.ocrModel,
     asrModel: config.asrModel,
     ttsModel: config.ttsModel,
@@ -150,12 +156,14 @@ function buildTextRouteCandidates(config, route = 'default') {
       });
     }
     if (item === 'dashFallback') {
-      addChatCandidate(candidates, {
-        source: 'dashscope-fallback',
-        baseUrl: config.baseUrl,
-        apiKey: config.apiKey,
-        model: config.textModelFallback,
-      });
+      for (let i = 0; i < config.textModelFallbacks.length; i += 1) {
+        addChatCandidate(candidates, {
+          source: `dashscope-fallback-${i + 1}`,
+          baseUrl: config.baseUrl,
+          apiKey: config.apiKey,
+          model: config.textModelFallbacks[i],
+        });
+      }
     }
     if (item === 'externalFallback') {
       addChatCandidate(candidates, {
