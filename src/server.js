@@ -341,7 +341,7 @@ function buildTopicChips(session, triageResult) {
   if (needsInPerson && ((detail.examAdvice || []).length || (core.firstChecks || []).length)) {
     chips.push({ key: 'checks', label: '检查项目' });
   }
-  if (core.needsCost) {
+  if (core.needsCost || needsInPerson || (detail.medicationAdvice || []).length) {
     chips.push({ key: 'cost', label: '费用参考' });
   }
   if ((session?.supplementFiles || []).length) {
@@ -500,7 +500,7 @@ function buildArchiveContextText(record, session) {
     .map((file) => file.summary?.title || file.originalName)
     .filter(Boolean);
 
-  if (record.summary) parts.push(`之前一次问诊总结：${record.summary}`);
+  if (record.summary) parts.push(`之前一次问诊分析：${record.summary}`);
   if (session?.chiefComplaint) parts.push(`当时主诉：${session.chiefComplaint}`);
   if (record.department) parts.push(`上次建议科室：${record.department}`);
   if (record.costRange) parts.push(`上次首轮费用：${record.costRange}`);
@@ -1335,7 +1335,7 @@ app.post('/triage/message', async (req, res) => {
       ok: true,
       intentType,
       mode: 'confirmation',
-      assistantReply: openPlan.assistantReply || '我这边先整理一下，现在可以给你初步总结了。',
+      assistantReply: openPlan.assistantReply || '我这边先整理一下，现在可以给你初步分析了。',
       insight,
       needsConfirmation: true,
       currentFocus,
@@ -1723,7 +1723,7 @@ app.get('/triage/result/:id', async (req, res) => {
   const topicChips = buildTopicChips(session, triageResult);
   const currentFocus = topicChips.find((chip) => chip.key === session.currentFocus)
     ? { key: session.currentFocus, label: session.currentFocusLabel || topicChips.find((chip) => chip.key === session.currentFocus)?.label || '' }
-    : { key: 'summary', label: '小科总结' };
+    : { key: 'summary', label: '小科分析' };
   return res.json({
     ...triageResult,
     snapshot: {
@@ -1877,7 +1877,7 @@ app.get('/triage/session/:id/state', async (req, res) => {
     : null;
   const currentFocus = {
     key: session.currentFocus || 'summary',
-    label: session.currentFocusLabel || '小科总结',
+    label: session.currentFocusLabel || '小科分析',
   };
 
   return res.json({

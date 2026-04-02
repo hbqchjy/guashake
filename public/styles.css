@@ -1,29 +1,4 @@
 :root {
-  --bg: #f3f7f4;
-  --panel: rgba(255, 255, 255, 0.84);
-  --panel-strong: rgba(255, 255, 255, 0.96);
-  --line: rgba(20, 36, 31, 0.11);
-  --text: #172027;
-  --muted: #5f6770;
-  --brand: #07c160;
-  --brand-soft: #e3f8ee;
-  --brand-dark: #028847;
-  --accent: #2f7ff9;
-  --accent-soft: #eaf2ff;
-  --radius-card: 20px;
-  --radius-soft: 14px;
-  --page-bg:
-    radial-gradient(920px 430px at 0% 0%, rgba(205, 245, 225, 0.9), transparent 62%),
-    radial-gradient(760px 400px at 100% 0%, rgba(226, 239, 255, 0.74), transparent 60%),
-    linear-gradient(180deg, #f7fbf8 0%, #f4faf6 58%, #f9f7ef 100%);
-  --card: #ffffff;
-  --risk-bg: #fff0ec;
-  --risk-line: #f0beb2;
-  --risk-text: #ae2d1f;
-  --shadow: 0 22px 44px rgba(15, 34, 24, 0.09);
-}
-
-:root[data-theme="wechat"] {
   --bg: #eceff3;
   --panel: rgba(255, 255, 255, 0.95);
   --panel-strong: rgba(255, 255, 255, 0.98);
@@ -35,13 +10,15 @@
   --brand-dark: #05a44f;
   --accent: #07c160;
   --accent-soft: #e8f9f0;
-  --shadow: 0 16px 32px rgba(15, 34, 24, 0.07);
+  --radius-card: 20px;
+  --radius-soft: 14px;
   --page-bg:
     linear-gradient(180deg, #f2f4f6 0%, #eff3f5 42%, #f2f4f7 100%);
-}
-
-:root[data-theme="medical"] {
-  --bg: #f3f7f4;
+  --card: #ffffff;
+  --risk-bg: #fff0ec;
+  --risk-line: #f0beb2;
+  --risk-text: #ae2d1f;
+  --shadow: 0 16px 32px rgba(15, 34, 24, 0.07);
 }
 
 * {
@@ -86,14 +63,10 @@ body {
   height: min(860px, calc(100dvh - 28px));
   width: min(520px, 100%);
   margin: 0 auto;
-  border-radius: 28px;
-  overflow: hidden;
-  border: 1px solid rgba(20, 36, 31, 0.1);
-}
-
-:root[data-theme="wechat"] .chat-shell {
   border-radius: 20px;
+  overflow: hidden;
   border-color: rgba(20, 36, 31, 0.08);
+  border: 1px solid rgba(20, 36, 31, 0.08);
 }
 
 
@@ -141,11 +114,6 @@ body {
 }
 
 .msg-row.user .bubble {
-  background: linear-gradient(180deg, #d7f5c8 0%, #c9efb8 100%);
-  border-color: rgba(7, 193, 96, 0.26);
-}
-
-:root[data-theme="wechat"] .msg-row.user .bubble {
   background: #95ec69;
   border-color: rgba(7, 193, 96, 0.2);
   box-shadow: 0 8px 18px rgba(7, 193, 96, 0.12);
@@ -409,16 +377,9 @@ body {
   overflow: hidden;
   border-radius: 22px;
   padding: 18px;
-  background:
-    radial-gradient(140px 90px at 100% 0%, rgba(65, 214, 133, 0.14), transparent 70%),
-    linear-gradient(180deg, #f4fff8 0%, #ffffff 100%);
-  border: 1px solid rgba(7, 193, 96, 0.2);
-  box-shadow: 0 16px 32px rgba(7, 193, 96, 0.1);
-}
-
-:root[data-theme="wechat"] .summary-card {
   background: linear-gradient(180deg, #f5fff9 0%, #ffffff 100%);
   border-color: rgba(7, 193, 96, 0.14);
+  border: 1px solid rgba(7, 193, 96, 0.14);
   box-shadow: 0 12px 24px rgba(7, 193, 96, 0.08);
 }
 
@@ -514,7 +475,7 @@ body {
   padding: 0 13px;
   border-radius: 999px;
   border: 1px solid rgba(20, 36, 31, 0.12);
-  background: rgba(255, 255, 255, 0.88);
+  background: #ffffff;
   color: var(--text);
   font: inherit;
   font-size: 13px;
@@ -528,19 +489,10 @@ body {
 }
 
 .topic-chip.active {
-  border-color: rgba(7, 193, 96, 0.38);
-  background: linear-gradient(180deg, rgba(7, 193, 96, 0.14) 0%, rgba(7, 193, 96, 0.09) 100%);
+  border-color: rgba(7, 193, 96, 0.32);
+  background: #e7f9ee;
   color: var(--brand-dark);
   box-shadow: 0 8px 18px rgba(7, 193, 96, 0.12);
-}
-
-:root[data-theme="wechat"] .topic-chip {
-  background: #ffffff;
-}
-
-:root[data-theme="wechat"] .topic-chip.active {
-  background: #e7f9ee;
-  border-color: rgba(7, 193, 96, 0.32);
 }
 
 .summary-next {
@@ -747,10 +699,6 @@ body {
 .result-kv strong {
   font-size: 16px;
   line-height: 1.4;
-  color: #0f6b3b;
-}
-
-:root[data-theme="wechat"] .result-kv strong {
   color: #0f7d47;
 }
 
@@ -996,14 +944,9 @@ body {
 
 .result-action.primary,
 .send-btn {
-  background: linear-gradient(135deg, var(--brand) 0%, #1ca78d 100%);
+  background: linear-gradient(135deg, #07c160 0%, #09b857 100%);
   color: #ffffff;
   border: 1px solid var(--brand-dark);
-}
-
-:root[data-theme="wechat"] .result-action.primary,
-:root[data-theme="wechat"] .send-btn {
-  background: linear-gradient(135deg, #07c160 0%, #09b857 100%);
 }
 
 .result-action.urgent {
