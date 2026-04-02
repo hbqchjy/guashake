@@ -5,8 +5,20 @@
   "sourcePolicy": "优先医保局/卫健委公开口径，其次医院官方价格公示；仅收录可复核来源。",
   "cities": {
     "武汉": {
-      "status": "verified_homepage",
+      "status": "linked_official_documents",
       "preferredSources": [
+        {
+          "type": "地市医保局通知公告栏目",
+          "name": "武汉市医保局通知公告",
+          "url": "https://ybj.wuhan.gov.cn/zwgk_52/ybdt/tzgg/",
+          "note": "用于月更抓取本市价格调整/公示信息"
+        },
+        {
+          "type": "地市医保局价格公示",
+          "name": "关于中医骨伤类、中医特殊疗法类医疗服务项目价格调整方案的公示",
+          "url": "https://ybj.wuhan.gov.cn/zwgk_52/ybdt/tzgg/202510/t20251031_2670726.shtml",
+          "note": "地市级医疗服务价格调整公告（栏目级直链）"
+        },
         {
           "type": "医保局",
           "name": "武汉市医疗保障局",
@@ -24,12 +36,36 @@
           "name": "武汉市人民政府",
           "url": "https://www.wuhan.gov.cn/",
           "note": "可用于站内检索医疗服务价格公示"
+        },
+        {
+          "type": "省级医保局价格目录",
+          "name": "湖北省医疗服务价格项目及医保支付目录（2023版）",
+          "url": "https://ybj.hubei.gov.cn/zfxxgk/zc/qtzdgkwj/202404/P020240407625064794616.pdf",
+          "note": "省级统一目录口径，地市执行时按本地调整文件联动"
+        },
+        {
+          "type": "省级医保局调价通知",
+          "name": "关于执行多学科协作诊疗(MDT)等医疗服务价格项目有关事项的通知",
+          "url": "https://ybj.hubei.gov.cn/norms/202410/W020241024565539232979.pdf",
+          "note": "医疗服务价格项目新增/调整依据，可用于月更校验"
         }
       ]
     },
     "黄石": {
-      "status": "verified_homepage",
+      "status": "linked_official_documents",
       "preferredSources": [
+        {
+          "type": "地市医保局通知公告栏目",
+          "name": "黄石市医保局通知公告",
+          "url": "https://ybj.huangshi.gov.cn/zfxxgk/fdzdgknr/tzgg/",
+          "note": "用于月更抓取本市医疗服务价格调整相关公示"
+        },
+        {
+          "type": "地市医保局调价公告",
+          "name": "黄石市医疗服务项目整合和价格调整征求意见公告",
+          "url": "https://ybj.huangshi.gov.cn/zfxxgk/fdzdgknr/tzgg/202601/t20260116_1300341.html",
+          "note": "地市级价格调整直接链接（栏目级）"
+        },
         {
           "type": "医保局",
           "name": "黄石市医疗保障局",
@@ -47,12 +83,30 @@
           "name": "黄石市人民政府",
           "url": "https://www.huangshi.gov.cn/",
           "note": "可用于站内检索价格信息"
+        },
+        {
+          "type": "省级医保局价格目录",
+          "name": "湖北省医疗服务价格项目及医保支付目录（2023版）",
+          "url": "https://ybj.hubei.gov.cn/zfxxgk/zc/qtzdgkwj/202404/P020240407625064794616.pdf",
+          "note": "省级统一目录口径，地市执行时按本地调整文件联动"
+        },
+        {
+          "type": "省级医保局调价通知",
+          "name": "关于执行多学科协作诊疗(MDT)等医疗服务价格项目有关事项的通知",
+          "url": "https://ybj.hubei.gov.cn/norms/202410/W020241024565539232979.pdf",
+          "note": "医疗服务价格项目新增/调整依据，可用于月更校验"
         }
       ]
     },
     "十堰": {
-      "status": "coverage_complete_pending_validation",
+      "status": "linked_official_documents",
       "preferredSources": [
+        {
+          "type": "地市医保局规范性文件",
+          "name": "关于印发《十堰市职工基本医疗保险实施细则》的通知（十医保发〔2023〕44号）",
+          "url": "https://ybj.shiyan.gov.cn/ylbzxxgk/zc/gfxwj/202411/t20241107_4636211.shtml",
+          "note": "来自十堰医保局公开规范性文件直链（待本地网络环境复核可达性）"
+        },
         {
           "type": "医保局",
           "name": "十堰医疗保障局",
@@ -70,11 +124,23 @@
           "name": "十堰人民政府",
           "url": "http://www.shiyan.gov.cn/",
           "note": "作为官方检索入口，待补医疗服务价格栏目的直链"
+        },
+        {
+          "type": "省级医保局价格目录",
+          "name": "湖北省医疗服务价格项目及医保支付目录（2023版）",
+          "url": "https://ybj.hubei.gov.cn/zfxxgk/zc/qtzdgkwj/202404/P020240407625064794616.pdf",
+          "note": "省级统一目录口径，地市执行时按本地调整文件联动"
+        },
+        {
+          "type": "省级医保局调价通知",
+          "name": "关于执行多学科协作诊疗(MDT)等医疗服务价格项目有关事项的通知",
+          "url": "https://ybj.hubei.gov.cn/norms/202410/W020241024565539232979.pdf",
+          "note": "医疗服务价格项目新增/调整依据，可用于月更校验"
         }
       ]
     },
     "宜昌": {
-      "status": "coverage_complete_pending_validation",
+      "status": "linked_official_documents",
       "preferredSources": [
         {
           "type": "医保局",
@@ -93,11 +159,23 @@
           "name": "宜昌人民政府",
           "url": "http://www.yichang.gov.cn/",
           "note": "作为官方检索入口，待补医疗服务价格栏目的直链"
+        },
+        {
+          "type": "省级医保局价格目录",
+          "name": "湖北省医疗服务价格项目及医保支付目录（2023版）",
+          "url": "https://ybj.hubei.gov.cn/zfxxgk/zc/qtzdgkwj/202404/P020240407625064794616.pdf",
+          "note": "省级统一目录口径，地市执行时按本地调整文件联动"
+        },
+        {
+          "type": "省级医保局调价通知",
+          "name": "关于执行多学科协作诊疗(MDT)等医疗服务价格项目有关事项的通知",
+          "url": "https://ybj.hubei.gov.cn/norms/202410/W020241024565539232979.pdf",
+          "note": "医疗服务价格项目新增/调整依据，可用于月更校验"
         }
       ]
     },
     "襄阳": {
-      "status": "coverage_complete_pending_validation",
+      "status": "linked_official_documents",
       "preferredSources": [
         {
           "type": "医保局",
@@ -116,12 +194,36 @@
           "name": "襄阳人民政府",
           "url": "http://www.xiangyang.gov.cn/",
           "note": "作为官方检索入口，待补医疗服务价格栏目的直链"
+        },
+        {
+          "type": "省级医保局价格目录",
+          "name": "湖北省医疗服务价格项目及医保支付目录（2023版）",
+          "url": "https://ybj.hubei.gov.cn/zfxxgk/zc/qtzdgkwj/202404/P020240407625064794616.pdf",
+          "note": "省级统一目录口径，地市执行时按本地调整文件联动"
+        },
+        {
+          "type": "省级医保局调价通知",
+          "name": "关于执行多学科协作诊疗(MDT)等医疗服务价格项目有关事项的通知",
+          "url": "https://ybj.hubei.gov.cn/norms/202410/W020241024565539232979.pdf",
+          "note": "医疗服务价格项目新增/调整依据，可用于月更校验"
         }
       ]
     },
     "鄂州": {
-      "status": "verified_homepage",
+      "status": "linked_official_documents",
       "preferredSources": [
+        {
+          "type": "地市医保局通知公告栏目",
+          "name": "鄂州市医保局通知公告",
+          "url": "https://ybj.ezhou.gov.cn/xwzx/tzgg/",
+          "note": "用于月更抓取本市价格调整/公示信息"
+        },
+        {
+          "type": "地市医保局价格监测公告",
+          "name": "2026年3月鄂州市医保定点零售药店药品价格监测情况",
+          "url": "https://ybj.ezhou.gov.cn/xwzx/tzgg/202603/t20260320_755712.html",
+          "note": "地市级价格监测公告，可作为本地价格口径补充"
+        },
         {
           "type": "医保局",
           "name": "鄂州市医疗保障局",
@@ -139,11 +241,23 @@
           "name": "鄂州市人民政府",
           "url": "https://www.ezhou.gov.cn/",
           "note": "可用于站内检索价格信息"
+        },
+        {
+          "type": "省级医保局价格目录",
+          "name": "湖北省医疗服务价格项目及医保支付目录（2023版）",
+          "url": "https://ybj.hubei.gov.cn/zfxxgk/zc/qtzdgkwj/202404/P020240407625064794616.pdf",
+          "note": "省级统一目录口径，地市执行时按本地调整文件联动"
+        },
+        {
+          "type": "省级医保局调价通知",
+          "name": "关于执行多学科协作诊疗(MDT)等医疗服务价格项目有关事项的通知",
+          "url": "https://ybj.hubei.gov.cn/norms/202410/W020241024565539232979.pdf",
+          "note": "医疗服务价格项目新增/调整依据，可用于月更校验"
         }
       ]
     },
     "荆门": {
-      "status": "coverage_complete_pending_validation",
+      "status": "linked_official_documents",
       "preferredSources": [
         {
           "type": "医保局",
@@ -162,11 +276,23 @@
           "name": "荆门人民政府",
           "url": "http://www.jingmen.gov.cn/",
           "note": "作为官方检索入口，待补医疗服务价格栏目的直链"
+        },
+        {
+          "type": "省级医保局价格目录",
+          "name": "湖北省医疗服务价格项目及医保支付目录（2023版）",
+          "url": "https://ybj.hubei.gov.cn/zfxxgk/zc/qtzdgkwj/202404/P020240407625064794616.pdf",
+          "note": "省级统一目录口径，地市执行时按本地调整文件联动"
+        },
+        {
+          "type": "省级医保局调价通知",
+          "name": "关于执行多学科协作诊疗(MDT)等医疗服务价格项目有关事项的通知",
+          "url": "https://ybj.hubei.gov.cn/norms/202410/W020241024565539232979.pdf",
+          "note": "医疗服务价格项目新增/调整依据，可用于月更校验"
         }
       ]
     },
     "孝感": {
-      "status": "coverage_complete_pending_validation",
+      "status": "linked_official_documents",
       "preferredSources": [
         {
           "type": "医保局",
@@ -185,11 +311,23 @@
           "name": "孝感人民政府",
           "url": "http://www.xiaogan.gov.cn/",
           "note": "作为官方检索入口，待补医疗服务价格栏目的直链"
+        },
+        {
+          "type": "省级医保局价格目录",
+          "name": "湖北省医疗服务价格项目及医保支付目录（2023版）",
+          "url": "https://ybj.hubei.gov.cn/zfxxgk/zc/qtzdgkwj/202404/P020240407625064794616.pdf",
+          "note": "省级统一目录口径，地市执行时按本地调整文件联动"
+        },
+        {
+          "type": "省级医保局调价通知",
+          "name": "关于执行多学科协作诊疗(MDT)等医疗服务价格项目有关事项的通知",
+          "url": "https://ybj.hubei.gov.cn/norms/202410/W020241024565539232979.pdf",
+          "note": "医疗服务价格项目新增/调整依据，可用于月更校验"
         }
       ]
     },
     "荆州": {
-      "status": "coverage_complete_pending_validation",
+      "status": "linked_official_documents",
       "preferredSources": [
         {
           "type": "医保局",
@@ -208,11 +346,23 @@
           "name": "荆州人民政府",
           "url": "http://www.jingzhou.gov.cn/",
           "note": "作为官方检索入口，待补医疗服务价格栏目的直链"
+        },
+        {
+          "type": "省级医保局价格目录",
+          "name": "湖北省医疗服务价格项目及医保支付目录（2023版）",
+          "url": "https://ybj.hubei.gov.cn/zfxxgk/zc/qtzdgkwj/202404/P020240407625064794616.pdf",
+          "note": "省级统一目录口径，地市执行时按本地调整文件联动"
+        },
+        {
+          "type": "省级医保局调价通知",
+          "name": "关于执行多学科协作诊疗(MDT)等医疗服务价格项目有关事项的通知",
+          "url": "https://ybj.hubei.gov.cn/norms/202410/W020241024565539232979.pdf",
+          "note": "医疗服务价格项目新增/调整依据，可用于月更校验"
         }
       ]
     },
     "黄冈": {
-      "status": "coverage_complete_pending_validation",
+      "status": "linked_official_documents",
       "preferredSources": [
         {
           "type": "医保局",
@@ -231,12 +381,30 @@
           "name": "黄冈人民政府",
           "url": "http://www.huanggang.gov.cn/",
           "note": "作为官方检索入口，待补医疗服务价格栏目的直链"
+        },
+        {
+          "type": "省级医保局价格目录",
+          "name": "湖北省医疗服务价格项目及医保支付目录（2023版）",
+          "url": "https://ybj.hubei.gov.cn/zfxxgk/zc/qtzdgkwj/202404/P020240407625064794616.pdf",
+          "note": "省级统一目录口径，地市执行时按本地调整文件联动"
+        },
+        {
+          "type": "省级医保局调价通知",
+          "name": "关于执行多学科协作诊疗(MDT)等医疗服务价格项目有关事项的通知",
+          "url": "https://ybj.hubei.gov.cn/norms/202410/W020241024565539232979.pdf",
+          "note": "医疗服务价格项目新增/调整依据，可用于月更校验"
         }
       ]
     },
     "咸宁": {
-      "status": "coverage_complete_pending_validation",
+      "status": "linked_official_documents",
       "preferredSources": [
+        {
+          "type": "地市医保局通知公告栏目",
+          "name": "咸宁市医保局通知公告",
+          "url": "http://ybj.xianning.gov.cn/zwdt/tzgg/",
+          "note": "用于月更抓取本市价格调整/公示信息"
+        },
         {
           "type": "医保局",
           "name": "咸宁医疗保障局",
@@ -254,11 +422,23 @@
           "name": "咸宁人民政府",
           "url": "http://www.xianning.gov.cn/",
           "note": "作为官方检索入口，待补医疗服务价格栏目的直链"
+        },
+        {
+          "type": "省级医保局价格目录",
+          "name": "湖北省医疗服务价格项目及医保支付目录（2023版）",
+          "url": "https://ybj.hubei.gov.cn/zfxxgk/zc/qtzdgkwj/202404/P020240407625064794616.pdf",
+          "note": "省级统一目录口径，地市执行时按本地调整文件联动"
+        },
+        {
+          "type": "省级医保局调价通知",
+          "name": "关于执行多学科协作诊疗(MDT)等医疗服务价格项目有关事项的通知",
+          "url": "https://ybj.hubei.gov.cn/norms/202410/W020241024565539232979.pdf",
+          "note": "医疗服务价格项目新增/调整依据，可用于月更校验"
         }
       ]
     },
     "随州": {
-      "status": "coverage_complete_pending_validation",
+      "status": "linked_official_documents",
       "preferredSources": [
         {
           "type": "医保局",
@@ -277,11 +457,23 @@
           "name": "随州人民政府",
           "url": "http://www.suizhou.gov.cn/",
           "note": "作为官方检索入口，待补医疗服务价格栏目的直链"
+        },
+        {
+          "type": "省级医保局价格目录",
+          "name": "湖北省医疗服务价格项目及医保支付目录（2023版）",
+          "url": "https://ybj.hubei.gov.cn/zfxxgk/zc/qtzdgkwj/202404/P020240407625064794616.pdf",
+          "note": "省级统一目录口径，地市执行时按本地调整文件联动"
+        },
+        {
+          "type": "省级医保局调价通知",
+          "name": "关于执行多学科协作诊疗(MDT)等医疗服务价格项目有关事项的通知",
+          "url": "https://ybj.hubei.gov.cn/norms/202410/W020241024565539232979.pdf",
+          "note": "医疗服务价格项目新增/调整依据，可用于月更校验"
         }
       ]
     },
     "恩施": {
-      "status": "coverage_complete_pending_validation",
+      "status": "linked_official_documents",
       "preferredSources": [
         {
           "type": "医保局",
@@ -300,11 +492,23 @@
           "name": "恩施州人民政府",
           "url": "http://www.enshi.gov.cn/",
           "note": "作为官方检索入口，待补医疗服务价格栏目的直链"
+        },
+        {
+          "type": "省级医保局价格目录",
+          "name": "湖北省医疗服务价格项目及医保支付目录（2023版）",
+          "url": "https://ybj.hubei.gov.cn/zfxxgk/zc/qtzdgkwj/202404/P020240407625064794616.pdf",
+          "note": "省级统一目录口径，地市执行时按本地调整文件联动"
+        },
+        {
+          "type": "省级医保局调价通知",
+          "name": "关于执行多学科协作诊疗(MDT)等医疗服务价格项目有关事项的通知",
+          "url": "https://ybj.hubei.gov.cn/norms/202410/W020241024565539232979.pdf",
+          "note": "医疗服务价格项目新增/调整依据，可用于月更校验"
         }
       ]
     },
     "仙桃": {
-      "status": "coverage_complete_pending_validation",
+      "status": "linked_official_documents",
       "preferredSources": [
         {
           "type": "医保局",
@@ -323,11 +527,23 @@
           "name": "仙桃人民政府",
           "url": "http://www.xiantao.gov.cn/",
           "note": "作为官方检索入口，待补医疗服务价格栏目的直链"
+        },
+        {
+          "type": "省级医保局价格目录",
+          "name": "湖北省医疗服务价格项目及医保支付目录（2023版）",
+          "url": "https://ybj.hubei.gov.cn/zfxxgk/zc/qtzdgkwj/202404/P020240407625064794616.pdf",
+          "note": "省级统一目录口径，地市执行时按本地调整文件联动"
+        },
+        {
+          "type": "省级医保局调价通知",
+          "name": "关于执行多学科协作诊疗(MDT)等医疗服务价格项目有关事项的通知",
+          "url": "https://ybj.hubei.gov.cn/norms/202410/W020241024565539232979.pdf",
+          "note": "医疗服务价格项目新增/调整依据，可用于月更校验"
         }
       ]
     },
     "潜江": {
-      "status": "coverage_complete_pending_validation",
+      "status": "linked_official_documents",
       "preferredSources": [
         {
           "type": "医保局",
@@ -346,11 +562,23 @@
           "name": "潜江市人民政府",
           "url": "http://www.qianjiang.gov.cn/",
           "note": "作为官方检索入口，待补医疗服务价格栏目的直链"
+        },
+        {
+          "type": "省级医保局价格目录",
+          "name": "湖北省医疗服务价格项目及医保支付目录（2023版）",
+          "url": "https://ybj.hubei.gov.cn/zfxxgk/zc/qtzdgkwj/202404/P020240407625064794616.pdf",
+          "note": "省级统一目录口径，地市执行时按本地调整文件联动"
+        },
+        {
+          "type": "省级医保局调价通知",
+          "name": "关于执行多学科协作诊疗(MDT)等医疗服务价格项目有关事项的通知",
+          "url": "https://ybj.hubei.gov.cn/norms/202410/W020241024565539232979.pdf",
+          "note": "医疗服务价格项目新增/调整依据，可用于月更校验"
         }
       ]
     },
     "天门": {
-      "status": "coverage_complete_pending_validation",
+      "status": "linked_official_documents",
       "preferredSources": [
         {
           "type": "医保局",
@@ -369,11 +597,23 @@
           "name": "天门市人民政府",
           "url": "http://www.tianmen.gov.cn/",
           "note": "作为官方检索入口，待补医疗服务价格栏目的直链"
+        },
+        {
+          "type": "省级医保局价格目录",
+          "name": "湖北省医疗服务价格项目及医保支付目录（2023版）",
+          "url": "https://ybj.hubei.gov.cn/zfxxgk/zc/qtzdgkwj/202404/P020240407625064794616.pdf",
+          "note": "省级统一目录口径，地市执行时按本地调整文件联动"
+        },
+        {
+          "type": "省级医保局调价通知",
+          "name": "关于执行多学科协作诊疗(MDT)等医疗服务价格项目有关事项的通知",
+          "url": "https://ybj.hubei.gov.cn/norms/202410/W020241024565539232979.pdf",
+          "note": "医疗服务价格项目新增/调整依据，可用于月更校验"
         }
       ]
     },
     "神农架": {
-      "status": "coverage_complete_pending_validation",
+      "status": "linked_official_documents",
       "preferredSources": [
         {
           "type": "医保局",
@@ -392,6 +632,18 @@
           "name": "神农架林区人民政府",
           "url": "http://www.snj.gov.cn/",
           "note": "作为官方检索入口，待补医疗服务价格栏目的直链"
+        },
+        {
+          "type": "省级医保局价格目录",
+          "name": "湖北省医疗服务价格项目及医保支付目录（2023版）",
+          "url": "https://ybj.hubei.gov.cn/zfxxgk/zc/qtzdgkwj/202404/P020240407625064794616.pdf",
+          "note": "省级统一目录口径，地市执行时按本地调整文件联动"
+        },
+        {
+          "type": "省级医保局调价通知",
+          "name": "关于执行多学科协作诊疗(MDT)等医疗服务价格项目有关事项的通知",
+          "url": "https://ybj.hubei.gov.cn/norms/202410/W020241024565539232979.pdf",
+          "note": "医疗服务价格项目新增/调整依据，可用于月更校验"
         }
       ]
     }
