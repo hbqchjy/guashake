@@ -83,6 +83,11 @@
 ### 5.1 当前 AI 接入（2026-03-30）
 - 文本模型：`qwen3.5-plus-2026-02-15`
 - OCR 模型：`qwen-vl-ocr-latest`
+- 文本路由（新增）：
+  - 低成本模型：`qwen-plus`（默认）
+  - 主模型：`qwen3.5-plus-2026-02-15`
+  - 同平台兜底模型：`DASHSCOPE_TEXT_MODEL_FALLBACK`（可选）
+  - 外部 OpenAI 兼容兜底：`FALLBACK_OPENAI_*`（可选）
 - 当前策略：
   - 首轮主诉先走规则路由
   - 规则明显识别不出来时，再调用文本模型做场景补路由
@@ -193,25 +198,46 @@ npm start
 
 ```bash
 export DASHSCOPE_API_KEY="你的阿里百炼 API Key"
-export DASHSCOPE_TEXT_MODEL="qwen3.5-plus-2026-02-15"
+export DASHSCOPE_TEXT_MODEL_PRIMARY="qwen3.5-plus-2026-02-15"
+export DASHSCOPE_TEXT_MODEL_CHEAP="qwen-plus"
+export DASHSCOPE_TEXT_MODEL_FALLBACK="qwen-turbo"
 export DASHSCOPE_OCR_MODEL="qwen-vl-ocr-latest"
+
+# 可选：外部 OpenAI 兼容兜底
+export FALLBACK_OPENAI_BASE_URL=""
+export FALLBACK_OPENAI_API_KEY=""
+export FALLBACK_OPENAI_MODEL=""
+
 export AI_RESULT_REWRITE="0"
 ```
 
 说明：
 - `DASHSCOPE_API_KEY`：必须配置，模型能力才会启用
-- `DASHSCOPE_TEXT_MODEL`：默认就是 `qwen3.5-plus-2026-02-15`
+- `DASHSCOPE_TEXT_MODEL_PRIMARY`：高质量主模型（默认 `qwen3.5-plus-2026-02-15`）
+- `DASHSCOPE_TEXT_MODEL_CHEAP`：低成本模型（默认 `qwen-plus`）
+- `DASHSCOPE_TEXT_MODEL_FALLBACK`：同平台兜底模型（可选）
+- `FALLBACK_OPENAI_*`：跨平台兜底（可选，三项都配置才生效）
 - `DASHSCOPE_OCR_MODEL`：默认就是 `qwen-vl-ocr-latest`
 - `AI_RESULT_REWRITE`：默认建议保持 `0`
   - `0`：结果总结继续走当前规则模板，不拖慢首屏
   - `1`：结果生成阶段再让模型润色，但当前实测会明显增加等待时间
 
+文本路由规则（默认）：
+- 开放式追问/补充理解/意图判断：优先 `CHEAP`，失败切 `PRIMARY`。
+- 总结与分级决策：优先 `PRIMARY`，失败降到 `CHEAP`。
+- 两者都失败时，继续尝试 `DASHSCOPE_TEXT_MODEL_FALLBACK`，再尝试 `FALLBACK_OPENAI_MODEL`。
+
 如果是 PM2 运行，可直接：
 
 ```bash
 DASHSCOPE_API_KEY="你的阿里百炼 API Key" \
-DASHSCOPE_TEXT_MODEL="qwen3.5-plus-2026-02-15" \
+DASHSCOPE_TEXT_MODEL_PRIMARY="qwen3.5-plus-2026-02-15" \
+DASHSCOPE_TEXT_MODEL_CHEAP="qwen-plus" \
+DASHSCOPE_TEXT_MODEL_FALLBACK="qwen-turbo" \
 DASHSCOPE_OCR_MODEL="qwen-vl-ocr-latest" \
+FALLBACK_OPENAI_BASE_URL="" \
+FALLBACK_OPENAI_API_KEY="" \
+FALLBACK_OPENAI_MODEL="" \
 AI_RESULT_REWRITE="0" \
 pm2 restart guashake --update-env
 ```

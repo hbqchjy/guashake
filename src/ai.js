@@ -3,6 +3,7 @@ const path = require('path');
 
 const DEFAULT_BASE_URL = 'https://dashscope.aliyuncs.com/compatible-mode/v1';
 const DEFAULT_TEXT_MODEL = 'qwen3.5-plus-2026-02-15';
+const DEFAULT_CHEAP_TEXT_MODEL = 'qwen-plus';
 const DEFAULT_OCR_MODEL = 'qwen-vl-ocr-latest';
 const DEFAULT_ASR_MODEL = 'qwen3-asr-flash';
 const DEFAULT_TTS_MODEL = 'cosyvoice-v2';
@@ -13,11 +14,19 @@ function getConfig() {
   return {
     apiKey: process.env.DASHSCOPE_API_KEY || '',
     baseUrl: (process.env.DASHSCOPE_BASE_URL || DEFAULT_BASE_URL).replace(/\/$/, ''),
-    textModel: process.env.DASHSCOPE_TEXT_MODEL || DEFAULT_TEXT_MODEL,
+    textModelPrimary:
+      process.env.DASHSCOPE_TEXT_MODEL_PRIMARY ||
+      process.env.DASHSCOPE_TEXT_MODEL ||
+      DEFAULT_TEXT_MODEL,
+    textModelCheap: process.env.DASHSCOPE_TEXT_MODEL_CHEAP || DEFAULT_CHEAP_TEXT_MODEL,
+    textModelFallback: process.env.DASHSCOPE_TEXT_MODEL_FALLBACK || '',
     ocrModel: process.env.DASHSCOPE_OCR_MODEL || DEFAULT_OCR_MODEL,
     asrModel: process.env.DASHSCOPE_ASR_MODEL || DEFAULT_ASR_MODEL,
     ttsModel: process.env.DASHSCOPE_TTS_MODEL || DEFAULT_TTS_MODEL,
     ttsVoice: process.env.DASHSCOPE_TTS_VOICE || DEFAULT_TTS_VOICE,
+    externalFallbackApiKey: process.env.FALLBACK_OPENAI_API_KEY || '',
+    externalFallbackBaseUrl: (process.env.FALLBACK_OPENAI_BASE_URL || '').replace(/\/$/, ''),
+    externalFallbackModel: process.env.FALLBACK_OPENAI_MODEL || '',
   };
 }
 
@@ -27,33 +36,44 @@ function isConfigured() {
 
 function getStatus() {
   const config = getConfig();
+  const externalFallbackEnabled = Boolean(
+    config.externalFallbackApiKey && config.externalFallbackBaseUrl && config.externalFallbackModel
+  );
   return {
     enabled: Boolean(config.apiKey),
     provider: config.apiKey ? 'dashscope' : 'fallback',
-    textModel: config.textModel,
+    textModel: config.textModelPrimary,
+    textModelPrimary: config.textModelPrimary,
+    textModelCheap: config.textModelCheap,
+    textModelFallback: config.textModelFallback || '',
     ocrModel: config.ocrModel,
     asrModel: config.asrModel,
     ttsModel: config.ttsModel,
     ttsVoice: config.ttsVoice,
     baseUrl: config.baseUrl,
+    externalFallbackEnabled,
+    externalFallbackBaseUrl: config.externalFallbackBaseUrl || '',
+    externalFallbackModel: config.externalFallbackModel || '',
   };
 }
 
-async function chatCompletions({ model, messages, temperature = 0.2, maxTokens = 800 }) {
-  const config = getConfig();
-  if (!config.apiKey) {
-    throw new Error('DASHSCOPE_API_KEY is not configured');
-  }
-
+async function callChatCompletionOnce({
+  baseUrl,
+  apiKey,
+  model,
+  messages,
+  temperature = 0.2,
+  maxTokens = 800,
+}) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
 
   let response;
   try {
-    response = await fetch(`${config.baseUrl}/chat/completions`, {
+    response = await fetch(`${baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${config.apiKey}`,
+        Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -77,7 +97,7 @@ async function chatCompletions({ model, messages, temperature = 0.2, maxTokens =
 
   if (!response.ok) {
     const detail = await response.text().catch(() => '');
-    throw new Error(`dashscope chat failed: ${response.status} ${detail}`.trim());
+    throw new Error(`chat failed: ${response.status} ${detail}`.trim());
   }
 
   const payload = await response.json();
@@ -87,6 +107,102 @@ async function chatCompletions({ model, messages, temperature = 0.2, maxTokens =
     return content.map((item) => item?.text || item?.content || '').join('\n').trim();
   }
   return '';
+}
+
+function addChatCandidate(candidates, candidate) {
+  if (!candidate?.apiKey || !candidate?.baseUrl || !candidate?.model) return;
+  const key = `${candidate.baseUrl}|${candidate.model}|${candidate.source}`;
+  if (candidates.some((item) => item.key === key)) return;
+  candidates.push({ key, ...candidate });
+}
+
+function buildTextRouteCandidates(config, route = 'default') {
+  const candidates = [];
+  const routeMap = {
+    default: ['cheap', 'primary', 'dashFallback', 'externalFallback'],
+    classify: ['cheap', 'primary', 'dashFallback', 'externalFallback'],
+    intake: ['cheap', 'primary', 'dashFallback', 'externalFallback'],
+    intent: ['cheap', 'primary', 'dashFallback', 'externalFallback'],
+    openInterview: ['cheap', 'primary', 'dashFallback', 'externalFallback'],
+    questionPlanning: ['cheap', 'primary', 'dashFallback', 'externalFallback'],
+    supplement: ['cheap', 'primary', 'dashFallback', 'externalFallback'],
+    followup: ['cheap', 'primary', 'dashFallback', 'externalFallback'],
+    summary: ['primary', 'cheap', 'dashFallback', 'externalFallback'],
+    decision: ['primary', 'cheap', 'dashFallback', 'externalFallback'],
+    rewrite: ['primary', 'cheap', 'dashFallback', 'externalFallback'],
+  };
+  const strategy = routeMap[route] || routeMap.default;
+  for (const item of strategy) {
+    if (item === 'cheap') {
+      addChatCandidate(candidates, {
+        source: 'dashscope-cheap',
+        baseUrl: config.baseUrl,
+        apiKey: config.apiKey,
+        model: config.textModelCheap,
+      });
+    }
+    if (item === 'primary') {
+      addChatCandidate(candidates, {
+        source: 'dashscope-primary',
+        baseUrl: config.baseUrl,
+        apiKey: config.apiKey,
+        model: config.textModelPrimary,
+      });
+    }
+    if (item === 'dashFallback') {
+      addChatCandidate(candidates, {
+        source: 'dashscope-fallback',
+        baseUrl: config.baseUrl,
+        apiKey: config.apiKey,
+        model: config.textModelFallback,
+      });
+    }
+    if (item === 'externalFallback') {
+      addChatCandidate(candidates, {
+        source: 'external-fallback',
+        baseUrl: config.externalFallbackBaseUrl,
+        apiKey: config.externalFallbackApiKey,
+        model: config.externalFallbackModel,
+      });
+    }
+  }
+  return candidates;
+}
+
+async function chatCompletions({ model, messages, temperature = 0.2, maxTokens = 800, route = 'default' }) {
+  const config = getConfig();
+  const candidates = model
+    ? [
+        {
+          source: 'explicit-model',
+          baseUrl: config.baseUrl,
+          apiKey: config.apiKey,
+          model,
+        },
+      ]
+    : buildTextRouteCandidates(config, route);
+
+  if (!candidates.length) {
+    throw new Error('No available chat model candidates. Check model/API env settings.');
+  }
+
+  const errors = [];
+  for (const candidate of candidates) {
+    try {
+      return await callChatCompletionOnce({
+        baseUrl: candidate.baseUrl,
+        apiKey: candidate.apiKey,
+        model: candidate.model,
+        messages,
+        temperature,
+        maxTokens,
+      });
+    } catch (error) {
+      errors.push(`${candidate.source}:${candidate.model} => ${error.message}`);
+    }
+  }
+
+  throw new Error(`chat failed after routing attempts: ${errors.join(' | ')}`);
 }
 
 async function speechToText(audioBuffer, mimeType = 'audio/webm') {
@@ -281,7 +397,7 @@ async function classifyComplaint(chiefComplaint, scenarios) {
   ].join('\n');
 
   const raw = await chatCompletions({
-    model: getConfig().textModel,
+    route: 'classify',
     messages: [{ role: 'user', content: prompt }],
     temperature: 0,
     maxTokens: 140,
@@ -314,7 +430,7 @@ async function analyzeInitialTurn(userMessage, scenarios) {
   ].join('\n');
 
   const raw = await chatCompletions({
-    model: getConfig().textModel,
+    route: 'intake',
     messages: [{ role: 'user', content: prompt }],
     temperature: 0,
     maxTokens: 260,
@@ -358,7 +474,7 @@ async function classifyConversationTurn(session, userMessage) {
   ].join('\n');
 
   const raw = await chatCompletions({
-    model: getConfig().textModel,
+    route: 'intent',
     messages: [{ role: 'user', content: prompt }],
     temperature: 0,
     maxTokens: 220,
@@ -517,7 +633,7 @@ async function rewriteTriageResult(session, fallbackResult) {
   ].join('\n');
 
   const raw = await chatCompletions({
-    model: getConfig().textModel,
+    route: 'rewrite',
     messages: [{ role: 'user', content: prompt }],
     temperature: 0.2,
     maxTokens: 900,
@@ -554,7 +670,7 @@ async function personalizeTriageResult(session, fallbackResult) {
   ].join('\n');
 
   const raw = await chatCompletions({
-    model: getConfig().textModel,
+    route: 'summary',
     messages: [{ role: 'user', content: prompt }],
     temperature: 0.1,
     maxTokens: 260,
@@ -601,7 +717,7 @@ async function buildGuidanceDecision(session, fallbackResult) {
   ].join('\n');
 
   const raw = await chatCompletions({
-    model: getConfig().textModel,
+    route: 'decision',
     messages: [{ role: 'user', content: prompt }],
     temperature: 0.15,
     maxTokens: 500,
@@ -657,7 +773,7 @@ async function answerFollowUpTurn(session, userMessage, intentType = 'medical_fo
   ].join('\n');
 
   const raw = await chatCompletions({
-    model: getConfig().textModel,
+    route: 'followup',
     messages: [{ role: 'user', content: prompt }],
     temperature: 0.2,
     maxTokens: 260,
@@ -722,7 +838,7 @@ async function chooseNextFollowUp(session, candidates, meta = {}) {
   ].join('\n');
 
   const raw = await chatCompletions({
-    model: getConfig().textModel,
+    route: 'questionPlanning',
     messages: [{ role: 'user', content: prompt }],
     temperature: 0,
     maxTokens: 180,
@@ -773,7 +889,7 @@ async function planOpenInterviewTurn(session, latestUserMessage, candidates = []
   ].join('\n');
 
   const raw = await chatCompletions({
-    model: getConfig().textModel,
+    route: 'openInterview',
     messages: [{ role: 'user', content: prompt }],
     temperature: 0.1,
     maxTokens: 260,
@@ -811,7 +927,7 @@ async function interpretSupplement(session, supplementText, slotCatalog = []) {
   ].join('\n');
 
   const raw = await chatCompletions({
-    model: getConfig().textModel,
+    route: 'supplement',
     messages: [{ role: 'user', content: prompt }],
     temperature: 0,
     maxTokens: 220,
