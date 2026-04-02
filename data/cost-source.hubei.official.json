@@ -546,22 +546,34 @@
       "status": "linked_official_documents",
       "preferredSources": [
         {
+          "type": "地市医保局公示公告栏目",
+          "name": "潜江市医保局公示公告",
+          "url": "https://www.hbqj.gov.cn/xxgk/xxgkml/szfbmxxgkml/sylbzj/xwzx/gsgg/",
+          "note": "用于月更抓取本市价格监测与公示信息"
+        },
+        {
+          "type": "地市医保局价格通知",
+          "name": "市医疗保障局 市卫生健康委员会关于做好中医针法类、中医外治类、中医类及放射检查类医疗服务项目整合和价格调整的通知",
+          "url": "https://www.hbqj.gov.cn/xxgk/xxgkml/szfbmxxgkml/sylbzj/zfxxgk/zc/bbmwj/202508/t20250822_5753341.html",
+          "note": "地市级医疗服务价格调整通知（栏目级直链）"
+        },
+        {
           "type": "医保局",
-          "name": "潜江市医疗保障局",
-          "url": "http://ybj.qianjiang.gov.cn/",
-          "note": "按地市域名规则补齐，待人工核验可达性与具体价格栏目"
+          "name": "潜江市医疗保障局（部门公开）",
+          "url": "https://www.hbqj.gov.cn/xxgk/xxgkml/szfbmxxgkml/sylbzj/",
+          "note": "已核验可访问，使用市医保局部门公开页作为主入口"
         },
         {
           "type": "卫健委",
-          "name": "潜江市卫生健康委员会",
-          "url": "http://wjw.qianjiang.gov.cn/",
-          "note": "按地市域名规则补齐，待人工核验可达性与具体价格栏目"
+          "name": "潜江市卫生健康委员会（市政府公开）",
+          "url": "https://www.hbqj.gov.cn/xxgk/xxgkml/szfbmxxgkml/swsjkw/",
+          "note": "按市政府部门公开目录维护，待补价格专题页"
         },
         {
           "type": "市政府门户",
-          "name": "潜江市人民政府",
-          "url": "http://www.qianjiang.gov.cn/",
-          "note": "作为官方检索入口，待补医疗服务价格栏目的直链"
+          "name": "潜江市人民政府（湖北）",
+          "url": "https://www.hbqj.gov.cn/",
+          "note": "湖北潜江市政府门户"
         },
         {
           "type": "省级医保局价格目录",
@@ -581,22 +593,34 @@
       "status": "linked_official_documents",
       "preferredSources": [
         {
+          "type": "地市医保局通知公告栏目",
+          "name": "天门市医保局通知公告",
+          "url": "http://www.tianmen.gov.cn/zwgk/bmhxzxxgkml/bm/sylbzj/zfxxgk/zc/tzgg/",
+          "note": "用于月更抓取本市医保公告信息"
+        },
+        {
+          "type": "地市医保局价格通知",
+          "name": "市医疗保障局 市卫生健康委员会关于肺弥散功能检查等部分医疗服务项目价格的通知",
+          "url": "http://www.tianmen.gov.cn/zwgk/bmhxzxxgkml/bm/sylbzj/zfxxgk/zc/bmwj/202405/t20240513_5188366.shtml",
+          "note": "地市级医疗服务价格调整通知（栏目级直链）"
+        },
+        {
           "type": "医保局",
-          "name": "天门市医疗保障局",
-          "url": "http://ybj.tianmen.gov.cn/",
-          "note": "按地市域名规则补齐，待人工核验可达性与具体价格栏目"
+          "name": "天门市医疗保障局（部门公开）",
+          "url": "http://www.tianmen.gov.cn/zwgk/bmhxzxxgkml/bm/sylbzj/",
+          "note": "已核验可访问，使用市医保局部门公开页作为主入口"
         },
         {
           "type": "卫健委",
-          "name": "天门市卫生健康委员会",
-          "url": "http://wjw.tianmen.gov.cn/",
-          "note": "按地市域名规则补齐，待人工核验可达性与具体价格栏目"
+          "name": "天门市卫生健康委员会（市政府公开）",
+          "url": "http://www.tianmen.gov.cn/zwgk/bmhxzxxgkml/bm/swsjkw/",
+          "note": "按市政府部门公开目录维护，待补价格专题页"
         },
         {
           "type": "市政府门户",
           "name": "天门市人民政府",
-          "url": "http://www.tianmen.gov.cn/",
-          "note": "作为官方检索入口，待补医疗服务价格栏目的直链"
+          "url": "https://www.tianmen.gov.cn/",
+          "note": "市政府门户"
         },
         {
           "type": "省级医保局价格目录",
