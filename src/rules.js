@@ -48,6 +48,22 @@ const RED_FLAG_KEYWORDS = [
   '大量出血',
   '外伤后意识不清',
   '持续抽搐',
+  '停经后出血',
+  '阴道大出血',
+  '剧烈下腹痛伴停经',
+  '胎动明显减少',
+  '破水',
+  '产后大出血',
+  '高热惊厥',
+  '婴幼儿呼吸急促',
+  '儿童持续抽搐',
+  '意识淡漠',
+  '自杀',
+  '轻生',
+  '自残',
+  '伤人',
+  '幻觉',
+  '妄想',
 ];
 
 const SCENARIOS = {
@@ -500,6 +516,46 @@ const URGENT_CHECK_PLANS = {
     ],
     examAdvice: ['明显外伤伴意识改变/持续出血时，优先急诊影像评估并现场止血处理。'],
   },
+  obstetricEmergency: {
+    possibleTypes: ['当前存在妇产急症风险', '应尽快妇产科急诊评估，避免延误'],
+    baseChecks: [
+      { name: '急诊挂号/诊察', min: 20, max: 60 },
+      { name: '血常规', min: 18, max: 35 },
+      { name: '凝血功能（按需）', min: 45, max: 95 },
+      { name: '生化+肾功能', min: 45, max: 85 },
+      { name: '腹部B超', min: 95, max: 170 },
+    ],
+    secondRoundChecks: [
+      { name: '腹部CT', trigger: '医生评估需进一步排查并发症时' },
+    ],
+    examAdvice: ['停经后腹痛出血、孕期异常出血或产后大出血需立即急诊妇产科评估。'],
+  },
+  pediatricCritical: {
+    possibleTypes: ['当前存在儿科危重风险', '应尽快儿科急诊评估，不建议继续等待'],
+    baseChecks: [
+      { name: '急诊挂号/诊察', min: 20, max: 60 },
+      { name: '体温/血氧测量', min: 0, max: 10 },
+      { name: '血常规', min: 18, max: 35 },
+      { name: 'CRP（按需）', min: 25, max: 55 },
+      { name: '胸片', min: 60, max: 120 },
+    ],
+    secondRoundChecks: [
+      { name: '胸部CT', trigger: '呼吸异常明显或胸片异常时' },
+      { name: '头颅CT', trigger: '抽搐或意识异常需进一步排查时' },
+    ],
+    examAdvice: ['儿童高热惊厥、持续抽搐、精神差或呼吸急促应立即儿科急诊。'],
+  },
+  psychiatricCrisis: {
+    possibleTypes: ['当前存在精神危机风险', '应尽快急诊精神科或综合急诊处理，确保人身安全'],
+    baseChecks: [
+      { name: '急诊挂号/诊察', min: 20, max: 60 },
+      { name: '血常规', min: 18, max: 35 },
+      { name: '生化+肾功能', min: 45, max: 85 },
+      { name: '头颅CT', min: 230, max: 420 },
+    ],
+    secondRoundChecks: [],
+    examAdvice: ['出现自伤/伤人念头、明显精神错乱或幻觉妄想时，应立即就医并优先保证安全。'],
+  },
   urinaryComplicated: {
     possibleTypes: ['当前更像泌尿系统急性风险', '需尽快线下评估，排查感染上行或梗阻'],
     baseChecks: [
@@ -551,6 +607,18 @@ const URGENT_CATEGORY_PATTERNS = [
   {
     category: 'severeTrauma',
     patterns: [/(大量出血|外伤后意识不清|开放性伤口|高处坠落|严重车祸伤|伤口喷射出血)/],
+  },
+  {
+    category: 'obstetricEmergency',
+    patterns: [/(停经后.*(出血|腹痛)|阴道大出血|孕期出血|胎动.*(减少|消失)|破水|产后大出血|宫外孕|先兆流产)/],
+  },
+  {
+    category: 'pediatricCritical',
+    patterns: [/(高热惊厥|儿童.*持续抽搐|婴幼儿.*(呼吸急促|发紫|精神差|嗜睡|拒食)|小孩.*(抽搐|高热不退))/],
+  },
+  {
+    category: 'psychiatricCrisis',
+    patterns: [/(自杀|轻生|不想活|自残|伤人|幻觉|妄想|躁狂失控|精神错乱)/],
   },
 ];
 

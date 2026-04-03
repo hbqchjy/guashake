@@ -253,6 +253,23 @@ function getTextRiskSignal(session) {
     '刀割样腹痛',
     '反跳痛',
     '大量出血',
+    '停经后出血',
+    '阴道大出血',
+    '剧烈下腹痛伴停经',
+    '胎动减少',
+    '破水',
+    '产后大出血',
+    '高热惊厥',
+    '儿童持续抽搐',
+    '婴幼儿呼吸急促',
+    '意识淡漠',
+    '自杀',
+    '轻生',
+    '不想活',
+    '自残',
+    '伤人',
+    '幻觉',
+    '妄想',
   ];
   const hasUrgent = urgentKeywords.some((k) => text.includes(k));
   if (!hasUrgent) return null;
@@ -424,7 +441,7 @@ function looksMedicalFollowup(text = '') {
 function hasEscalationSignal(text = '') {
   const value = String(text || '').trim();
   if (!value) return false;
-  return /(加重|越来越|持续.*(痛|疼|闷|慌)|夜间憋醒|走路都喘|呼吸困难|胸痛|黑便|便血|高烧|39|40|意识|说话不清|口角歪斜|偏瘫|肢体无力|抽搐|晕倒|剧烈头痛|喉咙紧|喉头水肿|全身风团|大量出血|刀割样腹痛|反跳痛)/.test(value);
+  return /(加重|越来越|持续.*(痛|疼|闷|慌)|夜间憋醒|走路都喘|呼吸困难|胸痛|黑便|便血|高烧|39|40|意识|说话不清|口角歪斜|偏瘫|肢体无力|抽搐|晕倒|剧烈头痛|喉咙紧|喉头水肿|全身风团|大量出血|刀割样腹痛|反跳痛|停经后出血|阴道大出血|胎动减少|破水|产后大出血|高热惊厥|自杀|轻生|不想活|自残|伤人|幻觉|妄想)/.test(value);
 }
 
 function buildTopicChips(session, triageResult) {
