@@ -19,6 +19,14 @@ const RED_FLAG_KEYWORDS = [
   '呕血',
   '血便',
   '上消化道出血',
+  '说话不清',
+  '口角歪斜',
+  '单侧肢体无力',
+  '一侧肢体无力',
+  '突发言语不清',
+  '突发偏瘫',
+  '突发剧烈头痛',
+  '持续高热',
 ];
 
 const SCENARIOS = {
@@ -327,6 +335,83 @@ const MEDICATION_PRICE_RANGES = {
   ],
 };
 
+const URGENT_CHECK_PLANS = {
+  generic: {
+    possibleTypes: ['当前更像急性高风险问题', '优先线下急诊评估，不建议继续等待'],
+    baseChecks: [
+      { name: '急诊挂号/诊察', min: 20, max: 60 },
+      { name: '血常规', min: 18, max: 35 },
+      { name: '生化+肾功能', min: 45, max: 85 },
+      { name: '心电图', min: 28, max: 55 },
+    ],
+    secondRoundChecks: [
+      { name: '胸部CT', trigger: '医生判断需进一步排查时' },
+      { name: '腹部CT', trigger: '症状持续或出现腹部急症体征时' },
+    ],
+    examAdvice: ['先做急诊基础化验和生命体征评估，再由医生决定是否做影像检查。'],
+  },
+  digestiveBleed: {
+    possibleTypes: ['当前更像上消化道出血风险', '应尽快线下评估，不建议在家继续观察'],
+    baseChecks: [
+      { name: '急诊挂号/诊察', min: 20, max: 60 },
+      { name: '血常规', min: 18, max: 35 },
+      { name: '凝血功能（按需）', min: 45, max: 95 },
+      { name: '生化+肾功能', min: 45, max: 85 },
+      { name: '粪便常规/隐血（按需）', min: 18, max: 38 },
+    ],
+    secondRoundChecks: [
+      { name: '胃镜', trigger: '医生评估后常作为关键排查项目' },
+      { name: '腹部CT', trigger: '必要时用于进一步排查并发问题' },
+    ],
+    examAdvice: ['到院后优先做血常规、凝血功能、粪便隐血检查；必要时尽快安排胃镜评估。'],
+  },
+  cardioNeuro: {
+    possibleTypes: ['当前更像心脑血管急性风险', '需尽快线下急诊排查（含脑卒中/急性心血管事件）'],
+    baseChecks: [
+      { name: '急诊挂号/诊察', min: 20, max: 60 },
+      { name: '血常规', min: 18, max: 35 },
+      { name: '生化+肾功能', min: 45, max: 85 },
+      { name: '凝血功能（按需）', min: 45, max: 95 },
+      { name: '心电图', min: 28, max: 55 },
+      { name: '头颅CT', min: 230, max: 420 },
+    ],
+    secondRoundChecks: [
+      { name: '心脏彩超', trigger: '医生评估疑似心功能异常时' },
+      { name: '胸部CT', trigger: '伴胸痛/气促且需进一步排查时' },
+    ],
+    examAdvice: ['优先做生命体征、心电图与头颅CT等急诊排查，避免延误脑卒中/心血管急症。'],
+  },
+  respiratoryAcute: {
+    possibleTypes: ['当前更像呼吸系统急性风险', '需尽快线下评估，先排查肺部/缺氧等问题'],
+    baseChecks: [
+      { name: '急诊挂号/诊察', min: 20, max: 60 },
+      { name: '体温/血氧测量', min: 0, max: 10 },
+      { name: '血常规', min: 18, max: 35 },
+      { name: 'CRP（按需）', min: 25, max: 55 },
+      { name: '胸片', min: 60, max: 120 },
+    ],
+    secondRoundChecks: [
+      { name: '胸部CT', trigger: '胸片异常或气促明显时' },
+    ],
+    examAdvice: ['先做血氧、血常规和胸部影像，必要时尽快升级到胸部CT。'],
+  },
+  urinaryComplicated: {
+    possibleTypes: ['当前更像泌尿系统急性风险', '需尽快线下评估，排查感染上行或梗阻'],
+    baseChecks: [
+      { name: '急诊挂号/诊察', min: 20, max: 60 },
+      { name: '尿常规', min: 12, max: 25 },
+      { name: '血常规', min: 18, max: 35 },
+      { name: '肾功能/炎症指标', min: 40, max: 75 },
+      { name: '泌尿系B超（按需）', min: 110, max: 180 },
+    ],
+    secondRoundChecks: [
+      { name: '腹部CT', trigger: '怀疑结石梗阻或血尿持续时' },
+      { name: '尿培养', trigger: '反复感染或治疗效果不佳时' },
+    ],
+    examAdvice: ['优先做尿检、炎症指标和泌尿系影像，必要时尽快做CT排查梗阻。'],
+  },
+};
+
 function normalizeText(v) {
   return String(v || '').trim().toLowerCase();
 }
@@ -395,6 +480,27 @@ function getScenarioSlotCatalog(scenario = {}) {
 function hasRedFlag({ chiefComplaint = '', answers = {}, supplements = [] }) {
   const text = `${chiefComplaint} ${Object.values(answers).join(' ')} ${(supplements || []).join(' ')}`;
   return RED_FLAG_KEYWORDS.some((k) => text.includes(k));
+}
+
+function isDigestiveBleedRisk(session = {}) {
+  const text = `${session.chiefComplaint || ''} ${Object.values(session.answers || {}).join(' ')} ${(session.supplements || []).join(' ')}`;
+  return /(黑便|柏油样便|柏油便|呕血|上消化道出血|消化道出血|便血)/.test(text);
+}
+
+function buildUrgentPlan(session = {}, scenario = {}) {
+  if ((scenario.id === 'digestive') || isDigestiveBleedRisk(session)) {
+    return URGENT_CHECK_PLANS.digestiveBleed;
+  }
+  if (scenario.id === 'cardio') {
+    return URGENT_CHECK_PLANS.cardioNeuro;
+  }
+  if (scenario.id === 'respiratory') {
+    return URGENT_CHECK_PLANS.respiratoryAcute;
+  }
+  if (scenario.id === 'urinary') {
+    return URGENT_CHECK_PLANS.urinaryComplicated;
+  }
+  return URGENT_CHECK_PLANS.generic;
 }
 
 function calcBaseCost(baseChecks) {
@@ -711,18 +817,24 @@ function buildFallbackGuidance(session) {
 
 function buildTriageResult(session) {
   const scenario = session.scenario;
-  const normalizedBaseChecks = normalizeBaseChecksByRegion(scenario.baseChecks, session);
+  let normalizedBaseChecks = normalizeBaseChecksByRegion(scenario.baseChecks, session);
   const redFlag = hasRedFlag({
     chiefComplaint: session.chiefComplaint,
     answers: session.answers,
     supplements: session.supplements,
   });
+  const urgentPlan = redFlag ? buildUrgentPlan(session, scenario) : null;
+  if (urgentPlan?.baseChecks?.length) {
+    normalizedBaseChecks = normalizeNamedItems(urgentPlan.baseChecks, session);
+  }
   const answerCount = Object.keys(session.answers || {}).length;
   const confidence = confidenceLevel(answerCount, redFlag);
   const baseCost = calcBaseCost(normalizedBaseChecks);
   const schema = buildGenericSymptomSchema(session);
   const schemaHighlights = buildSchemaHighlights(schema);
-  const possibleTypes = buildPossibleTypes(session, schema);
+  const possibleTypes = redFlag
+    ? (urgentPlan?.possibleTypes || ['存在需要急诊先排查的风险', '建议尽快线下就医'])
+    : buildPossibleTypes(session, schema);
   const supplementInsightSummaries = (session.supplementInsights || [])
     .map((item) => item.summary)
     .filter(Boolean)
@@ -741,7 +853,9 @@ function buildTriageResult(session) {
         selfCareAdvice: [],
         medicationAdvice: [],
         visitAdvice: ['请尽快到急诊或消化内科线下评估，不建议继续观察。'],
-        examAdvice: ['到院后优先做血常规、粪便潜血及医生建议的止血相关检查。'],
+        examAdvice: urgentPlan?.examAdvice?.length
+          ? urgentPlan.examAdvice
+          : ['到院后优先做血常规、粪便潜血及医生建议的止血相关检查。'],
         needsBooking: true,
         needsCost: true,
       }
@@ -797,7 +911,13 @@ function buildTriageResult(session) {
 
 function buildCostEstimate(session) {
   const scenario = session.scenario;
-  const normalizedBaseChecks = normalizeBaseChecksByRegion(scenario.baseChecks, session);
+  const triageResult = session.triageResult || buildTriageResult(session);
+  const recommendationLevel = triageResult?.layeredOutput?.core?.recommendationLevel || '';
+  const urgentMode = recommendationLevel === 'hospital_priority_high';
+  const urgentPlan = urgentMode ? buildUrgentPlan(session, scenario) : null;
+  const normalizedBaseChecks = urgentPlan?.baseChecks?.length
+    ? normalizeNamedItems(urgentPlan.baseChecks, session)
+    : normalizeBaseChecksByRegion(scenario.baseChecks, session);
   const region = {
     province: session.province || '',
     city: session.city || '',
@@ -809,7 +929,10 @@ function buildCostEstimate(session) {
   const costFactor = getHospitalCostFactor(primaryHospital?.level || scenario.hospitalLevel);
   const range = buildNarrowCostRange(normalizedBaseChecks, costFactor);
   const feeItems = estimateFeeItems(normalizedBaseChecks, costFactor);
-  const secondRoundBase = normalizeNamedItems(SECOND_ROUND_CHECKS[scenario.id] || [], session);
+  const secondRoundBase = normalizeNamedItems(
+    urgentPlan?.secondRoundChecks?.length ? urgentPlan.secondRoundChecks : (SECOND_ROUND_CHECKS[scenario.id] || []),
+    session
+  );
   const secondRound = estimateSecondRoundItems(secondRoundBase, costFactor);
   const medicationRefs = MEDICATION_PRICE_RANGES[scenario.id] || [];
 
@@ -817,7 +940,9 @@ function buildCostEstimate(session) {
     simple: {
       costRange: `${range.min}~${range.max}元`,
       basedOn: primaryHospital ? `${primaryHospital.name}（${primaryHospital.level}）` : scenario.hospitalLevel,
-      pricingRule: '按首选医院级别 + 常规门诊基础检查项目估算',
+      pricingRule: urgentMode
+        ? '按急诊优先排查路径 + 当前地区价格样板估算'
+        : '按首选医院级别 + 常规门诊基础检查项目估算',
       needMoreChecks: '视首轮检查结果决定是否追加检查',
     },
     expanded: {
