@@ -1132,6 +1132,13 @@ async function startSymptomSession(symptomText) {
     setComposerState('symptom');
     return;
   }
+  if (data.immediateResult) {
+    if (data.assistantReply) {
+      await addBotText(data.assistantReply);
+    }
+    await directResult();
+    return;
+  }
   if (data.nextPrompt?.type === 'text') {
     state.currentPrompt = data.nextPrompt;
     setComposerState('symptom');
@@ -1182,6 +1189,14 @@ async function appendContextMessage(value) {
     state.supplementStats.text += 1;
     state.supplementCount = data.supplements.length;
     addStatusPill(getSupplementStatusText());
+  }
+
+  if (data.forceImmediateResult) {
+    if (data.reply) {
+      await addBotText(data.reply);
+    }
+    await directResult();
+    return;
   }
 
   if (state.triageResult && data.refreshSummary) {
@@ -1244,6 +1259,19 @@ async function continueOpenConversation(value) {
       await addBotText(data.assistantReply);
     }
     await showGenerationConfirmCard('如果你愿意，还可以再补充一点；如果没有，现在可以直接生成分析。');
+    return;
+  }
+
+  if (data.mode === 'immediate_result') {
+    state.currentPrompt = null;
+    state.currentQuestion = null;
+    state.conversationStage = 'structured';
+    state.followUpProgress = null;
+    state.generationReady = false;
+    if (data.assistantReply) {
+      await addBotText(data.assistantReply);
+    }
+    await directResult();
     return;
   }
 
@@ -1888,7 +1916,7 @@ function buildCostHtml(cost, recommendedChecks = [], options = {}) {
   const medicationRefs = Array.isArray(cost?.expanded?.medicationPriceRefs) ? cost.expanded.medicationPriceRefs : [];
   const showMedicationPrices = Boolean(options.showMedicationPrices);
   const checkSum = sumRange(recommendedChecks);
-  const checkRangeText = recommendedChecks.length ? `${checkSum.min}~${checkSum.max}元` : '当前不需要优先做检查';
+  const checkRangeText = recommendedChecks.length ? `${checkSum.min}~${checkSum.max}元` : '';
   const medicationHtml = showMedicationPrices && medicationRefs.length
     ? [
         '<div class="detail-section">',
@@ -1899,14 +1927,16 @@ function buildCostHtml(cost, recommendedChecks = [], options = {}) {
         '</div>',
       ].join('')
     : '';
-  return [
-    '<div class="result-kv-grid">',
-    `<div class="result-kv"><span>建议检查合计费用</span><strong>${escapeHtml(checkRangeText)}</strong></div>`,
-    `<div class="result-kv"><span>参考医院级别</span><strong>${escapeHtml(cost?.simple?.basedOn || '-')}</strong></div>`,
-    '</div>',
-    buildCheckListHtml(recommendedChecks, '本次建议检查项目与价格'),
-    medicationHtml,
-  ].join('');
+  const checkHtml = recommendedChecks.length
+    ? [
+        '<div class="result-kv-grid">',
+        `<div class="result-kv"><span>建议检查合计费用</span><strong>${escapeHtml(checkRangeText)}</strong></div>`,
+        `<div class="result-kv"><span>参考医院级别</span><strong>${escapeHtml(cost?.simple?.basedOn || '-')}</strong></div>`,
+        '</div>',
+        buildCheckListHtml(recommendedChecks, '本次建议检查项目与价格'),
+      ].join('')
+    : '';
+  return [checkHtml, medicationHtml].filter(Boolean).join('');
 }
 
 function buildAdviceListHtml(items = [], subtitle = '') {
@@ -2015,7 +2045,9 @@ async function renderResultCards() {
     min: item?.min || 0,
     max: item?.max || 0,
   }));
-  const recommendedChecks = pickRecommendedChecks(examAdvice, pricedCheckCatalog, dedupeChecksByName(baseChecksFallback));
+  const recommendedChecks = needsInPerson
+    ? pickRecommendedChecks(examAdvice, pricedCheckCatalog, dedupeChecksByName(baseChecksFallback))
+    : [];
   const costItems = buildCostHtml(cost, recommendedChecks, { showMedicationPrices: medicationAdvice.length > 0 });
   const prepItems = (booking.preparation || []).filter((item) => !String(item).includes('医保')).map((item) => `<li>${escapeHtml(item)}</li>`).join('');
   const riskItems = (triage.riskReminder || []).map((item) => `<li>${escapeHtml(item)}</li>`).join('');
@@ -2026,7 +2058,7 @@ async function renderResultCards() {
     care: true,
     medication: medicationAdvice.length > 0,
     checks: needsInPerson && (examAdvice.length > 0 || recommendedChecks.length > 0),
-    cost: needsCost && (recommendedChecks.length > 0 || (cost?.expanded?.medicationPriceRefs || []).length > 0),
+    cost: needsCost && (needsInPerson ? recommendedChecks.length > 0 : (cost?.expanded?.medicationPriceRefs || []).length > 0),
     booking: needsInPerson,
   };
   const order = needsInPerson
@@ -2236,6 +2268,13 @@ async function handlePickedFile(file, label) {
       setComposerState('symptom');
       return;
     }
+    if (data.immediateResult) {
+      if (data.assistantReply) {
+        await addBotText(data.assistantReply);
+      }
+      await directResult();
+      return;
+    }
     if (data.nextPrompt?.type === 'text') {
       state.currentPrompt = data.nextPrompt;
       setComposerState('symptom');
@@ -2273,6 +2312,14 @@ async function handlePickedFile(file, label) {
   state.awaitingContext = null;
   addStatusPill(getSupplementStatusText());
   buildReportSummaryCard(uploadResult.file.summary, uploadResult.file.path);
+
+  if (uploadResult.forceImmediateResult) {
+    if (uploadResult.reply) {
+      await addBotText(uploadResult.reply);
+    }
+    await directResult();
+    return;
+  }
 
   if (state.currentQuestion) {
     await addBotText('这份材料我已经并到当前咨询里了。咱们继续把上面的问题答完，我会一起参考这份报告。');
@@ -2489,6 +2536,11 @@ async function sendRecordAsContext(record) {
   await addBotText(
     supplementResult.reply || `这条历史记录已经并到当前咨询里了：${buildRecordContextPreview(record) || '已补充历史记录'}`
   );
+
+  if (supplementResult.forceImmediateResult) {
+    await directResult();
+    return;
+  }
 
   if (state.triageResult && supplementResult.refreshSummary) {
     if (supplementResult.affectsSummary) {

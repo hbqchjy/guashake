@@ -337,6 +337,25 @@ function applyImageRiskGuidance(triageResult, session) {
   };
 }
 
+function hasHighImageRisk(session) {
+  const signal = getImageRiskSignal(session);
+  return Boolean(signal && signal.level === 'high');
+}
+
+function shouldImmediateUrgent(session, latestText = '') {
+  if (hasEscalationSignal(latestText)) return true;
+  if (getTextRiskSignal(session)) return true;
+  if (hasHighImageRisk(session)) return true;
+  return false;
+}
+
+function buildUrgentShortcutResult(session) {
+  let triageResult = buildTriageResult(session);
+  triageResult = applyTextRiskGuidance(triageResult, session);
+  triageResult = applyImageRiskGuidance(triageResult, session);
+  return triageResult;
+}
+
 function getFollowUpConfig(session) {
   const totalQuestions = session?.scenario?.questions?.length || 0;
   return {
@@ -791,6 +810,34 @@ async function createTriageSession(payload = {}) {
     createdAt: new Date().toISOString(),
   });
 
+  if (shouldImmediateUrgent(session, chiefComplaint)) {
+    const triageResult = buildUrgentShortcutResult(session);
+    upsertSession(sessionId, {
+      triageResult,
+      conversationStage: 'structured',
+      followUp: {
+        ...(session.followUp || {}),
+        completed: true,
+        currentQuestionId: '',
+      },
+    });
+    return {
+      sessionId,
+      taskType,
+      conversationStage: 'structured',
+      immediateResult: true,
+      assistantReply: '你这次描述里有高风险信号，我先直接给你分析结果，优先判断是否需要尽快线下就医。',
+      progress: null,
+      scenario: scenario.label,
+      routeMeta,
+      followUpMeta: {
+        mode: 'urgent-shortcut',
+        reason: '检测到高风险信号，跳过后续追问直接出分析',
+      },
+      currentFocus: initialFocus,
+    };
+  }
+
   if (taskType === 'out_of_scope') {
     return {
       sessionId,
@@ -1240,6 +1287,24 @@ app.post('/triage/answer', async (req, res) => {
     },
   });
 
+  if (shouldImmediateUrgent(updatedSession, String(answer || ''))) {
+    const triageResult = buildUrgentShortcutResult(updatedSession);
+    upsertSession(sessionId, {
+      triageResult,
+      conversationStage: 'structured',
+      followUp: {
+        ...(updatedSession.followUp || {}),
+        completed: true,
+        currentQuestionId: '',
+      },
+    });
+    return res.json({
+      done: true,
+      triageResult,
+      urgentShortcut: true,
+    });
+  }
+
   const nextQuestionState = await resolveNextQuestion(updatedSession);
   upsertSession(sessionId, {
     followUp: nextQuestionState.followUpPatch,
@@ -1364,6 +1429,31 @@ app.post('/triage/message', async (req, res) => {
     openTurns,
     triageResult: null,
   });
+
+  if (shouldImmediateUrgent(updatedSession, text)) {
+    const triageResult = buildUrgentShortcutResult(updatedSession);
+    upsertSession(sessionId, {
+      triageResult,
+      conversationStage: 'structured',
+      followUp: {
+        ...(updatedSession.followUp || {}),
+        completed: true,
+        currentQuestionId: '',
+      },
+      followUpMeta: {
+        mode: 'urgent-shortcut',
+        reason: '检测到高风险信号，跳过后续追问直接出分析',
+      },
+    });
+    return res.json({
+      ok: true,
+      intentType,
+      mode: 'immediate_result',
+      assistantReply: '你这条补充提示风险偏高，我先直接给你更新分析结果。',
+      insight,
+      currentFocus,
+    });
+  }
 
   if (updatedSession.conversationStage !== 'open') {
     return res.json({
@@ -1601,6 +1691,35 @@ app.post('/triage/supplement', async (req, res) => {
     },
     triageResult: null,
   });
+
+  if (shouldImmediateUrgent(updated, text)) {
+    const triageResult = buildUrgentShortcutResult(updated);
+    upsertSession(sessionId, {
+      triageResult,
+      conversationStage: 'structured',
+      followUp: {
+        ...(updated.followUp || {}),
+        completed: true,
+        currentQuestionId: '',
+      },
+      followUpMeta: {
+        mode: 'urgent-shortcut',
+        reason: '检测到高风险信号，跳过后续追问直接出分析',
+      },
+    });
+    return res.json({
+      ok: true,
+      intentType,
+      currentFocus,
+      supplements: updated.supplements || [],
+      insight,
+      reply: '你这条补充提示风险偏高，我先直接更新分析结果。',
+      affectsSummary: true,
+      impactLevel: 'major',
+      refreshSummary: true,
+      forceImmediateResult: true,
+    });
+  }
   let followUpAnswer = null;
   if (session.triageResult && ['medical_followup', 'medication_question', 'booking_question', 'cost_question'].includes(intentType)) {
     try {
@@ -1675,7 +1794,7 @@ app.post('/triage/supplement-file', upload.single('file'), async (req, res) => {
 
   const supplementFiles = [...(session.supplementFiles || []), fileRecord];
   const nextSlotState = mergeSlotHintsIntoState(session.followUp?.slotState || {}, summarySlotHints, 'file');
-  upsertSession(sessionId, {
+  const updated = upsertSession(sessionId, {
     supplementFiles,
     currentFocus: 'report',
     currentFocusLabel: '报告解读',
@@ -1685,6 +1804,32 @@ app.post('/triage/supplement-file', upload.single('file'), async (req, res) => {
       slotState: nextSlotState,
     },
   });
+
+  if (shouldImmediateUrgent(updated, '')) {
+    const triageResult = buildUrgentShortcutResult(updated);
+    upsertSession(sessionId, {
+      triageResult,
+      conversationStage: 'structured',
+      followUp: {
+        ...(updated.followUp || {}),
+        completed: true,
+        currentQuestionId: '',
+      },
+      followUpMeta: {
+        mode: 'urgent-shortcut',
+        reason: '图片提示高风险，跳过后续追问直接出分析',
+      },
+    });
+    return res.json({
+      ok: true,
+      file: fileRecord,
+      total: supplementFiles.length,
+      slotHints: summarySlotHints,
+      currentFocus: { key: 'report', label: '报告解读' },
+      forceImmediateResult: true,
+      reply: '这份材料提示风险偏高，我先直接更新分析结果。',
+    });
+  }
 
   return res.json({
     ok: true,
