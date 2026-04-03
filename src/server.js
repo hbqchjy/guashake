@@ -238,6 +238,21 @@ function getTextRiskSignal(session) {
     '胸痛加重',
     '意识模糊',
     '肢体无力',
+    '说话不清',
+    '口角歪斜',
+    '偏瘫',
+    '单侧肢体无力',
+    '胸痛',
+    '濒死感',
+    '冷汗',
+    '喉头水肿',
+    '咽喉紧缩',
+    '全身风团',
+    '高热不退',
+    '神志改变',
+    '刀割样腹痛',
+    '反跳痛',
+    '大量出血',
   ];
   const hasUrgent = urgentKeywords.some((k) => text.includes(k));
   if (!hasUrgent) return null;
@@ -409,7 +424,7 @@ function looksMedicalFollowup(text = '') {
 function hasEscalationSignal(text = '') {
   const value = String(text || '').trim();
   if (!value) return false;
-  return /(加重|越来越|持续.*(痛|疼|闷|慌)|夜间憋醒|走路都喘|呼吸困难|胸痛|黑便|便血|高烧|39|40|意识|说话不清|肢体无力|抽搐|晕倒|剧烈头痛)/.test(value);
+  return /(加重|越来越|持续.*(痛|疼|闷|慌)|夜间憋醒|走路都喘|呼吸困难|胸痛|黑便|便血|高烧|39|40|意识|说话不清|口角歪斜|偏瘫|肢体无力|抽搐|晕倒|剧烈头痛|喉咙紧|喉头水肿|全身风团|大量出血|刀割样腹痛|反跳痛)/.test(value);
 }
 
 function buildTopicChips(session, triageResult) {

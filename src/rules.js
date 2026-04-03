@@ -27,6 +27,27 @@ const RED_FLAG_KEYWORDS = [
   '突发偏瘫',
   '突发剧烈头痛',
   '持续高热',
+  '面口歪斜',
+  '偏瘫',
+  '单侧麻木',
+  '胸闷胸痛',
+  '冷汗',
+  '濒死感',
+  '喘不过气',
+  '嘴唇发紫',
+  '低血压',
+  '休克',
+  '喉头水肿',
+  '咽喉紧缩',
+  '全身风团',
+  '高热不退',
+  '神志改变',
+  '反跳痛',
+  '腹膜刺激征',
+  '刀割样腹痛',
+  '大量出血',
+  '外伤后意识不清',
+  '持续抽搐',
 ];
 
 const SCENARIOS = {
@@ -381,6 +402,36 @@ const URGENT_CHECK_PLANS = {
     ],
     examAdvice: ['优先做生命体征、心电图与头颅CT等急诊排查，避免延误脑卒中/心血管急症。'],
   },
+  stroke: {
+    possibleTypes: ['当前高度怀疑脑卒中风险', '应立即急诊完成卒中通道相关评估'],
+    baseChecks: [
+      { name: '急诊挂号/诊察', min: 20, max: 60 },
+      { name: '血常规', min: 18, max: 35 },
+      { name: '生化+肾功能', min: 45, max: 85 },
+      { name: '凝血功能（按需）', min: 45, max: 95 },
+      { name: '心电图', min: 28, max: 55 },
+      { name: '头颅CT', min: 230, max: 420 },
+    ],
+    secondRoundChecks: [
+      { name: '胸部CT', trigger: '医生评估需排查并发症时' },
+    ],
+    examAdvice: ['优先完成卒中急诊评估，先做头颅CT和基础化验，不建议继续观察。'],
+  },
+  acs: {
+    possibleTypes: ['当前更像急性冠脉综合征风险', '应尽快急诊排查心肌缺血/心梗'],
+    baseChecks: [
+      { name: '急诊挂号/诊察', min: 20, max: 60 },
+      { name: '心电图', min: 28, max: 55 },
+      { name: '血常规', min: 18, max: 35 },
+      { name: '生化+肾功能', min: 45, max: 85 },
+      { name: '凝血功能（按需）', min: 45, max: 95 },
+    ],
+    secondRoundChecks: [
+      { name: '心脏彩超', trigger: '心电图或临床评估提示异常时' },
+      { name: '胸部CT', trigger: '需进一步排查胸痛相关病因时' },
+    ],
+    examAdvice: ['先做心电图和急诊化验，必要时尽快完善心脏超声/进一步影像。'],
+  },
   respiratoryAcute: {
     possibleTypes: ['当前更像呼吸系统急性风险', '需尽快线下评估，先排查肺部/缺氧等问题'],
     baseChecks: [
@@ -394,6 +445,60 @@ const URGENT_CHECK_PLANS = {
       { name: '胸部CT', trigger: '胸片异常或气促明显时' },
     ],
     examAdvice: ['先做血氧、血常规和胸部影像，必要时尽快升级到胸部CT。'],
+  },
+  sepsis: {
+    possibleTypes: ['当前存在全身感染重症风险', '应尽快急诊评估并尽早控制感染'],
+    baseChecks: [
+      { name: '急诊挂号/诊察', min: 20, max: 60 },
+      { name: '血常规', min: 18, max: 35 },
+      { name: 'CRP（按需）', min: 25, max: 55 },
+      { name: '生化+肾功能', min: 45, max: 85 },
+      { name: '凝血功能（按需）', min: 45, max: 95 },
+    ],
+    secondRoundChecks: [
+      { name: '胸部CT', trigger: '需寻找感染灶时' },
+      { name: '腹部CT', trigger: '腹部感染灶或并发症排查时' },
+    ],
+    examAdvice: ['高热伴意识改变/呼吸快等需急诊评估，先做感染和器官功能相关检查。'],
+  },
+  anaphylaxis: {
+    possibleTypes: ['当前存在严重过敏反应风险', '应立即急诊处理并严密观察'],
+    baseChecks: [
+      { name: '急诊挂号/诊察', min: 20, max: 60 },
+      { name: '体温/血氧测量', min: 0, max: 10 },
+      { name: '血常规', min: 18, max: 35 },
+      { name: '生化+肾功能', min: 45, max: 85 },
+      { name: '心电图', min: 28, max: 55 },
+    ],
+    secondRoundChecks: [],
+    examAdvice: ['出现呼吸困难、喉头紧缩、口唇舌咽肿胀时应立即急诊，不建议等待。'],
+  },
+  acuteAbdomen: {
+    possibleTypes: ['当前存在急腹症风险', '应尽快线下急诊评估，避免延误手术时机'],
+    baseChecks: [
+      { name: '急诊挂号/诊察', min: 20, max: 60 },
+      { name: '血常规', min: 18, max: 35 },
+      { name: '生化+肾功能', min: 45, max: 85 },
+      { name: '腹部B超', min: 95, max: 170 },
+    ],
+    secondRoundChecks: [
+      { name: '腹部CT', trigger: '需进一步明确急腹症病因时' },
+    ],
+    examAdvice: ['持续剧烈腹痛、反跳痛或黑便呕血时，优先急诊完善腹部影像与化验。'],
+  },
+  severeTrauma: {
+    possibleTypes: ['当前存在严重外伤风险', '应尽快急诊评估并排除内出血/骨折/颅脑损伤'],
+    baseChecks: [
+      { name: '急诊挂号/诊察', min: 20, max: 60 },
+      { name: '血常规', min: 18, max: 35 },
+      { name: '生化+肾功能', min: 45, max: 85 },
+      { name: '胸片', min: 60, max: 120 },
+    ],
+    secondRoundChecks: [
+      { name: '头颅CT', trigger: '头部受伤或意识改变时' },
+      { name: '腹部CT', trigger: '腹部外伤或内出血疑似时' },
+    ],
+    examAdvice: ['明显外伤伴意识改变/持续出血时，优先急诊影像评估并现场止血处理。'],
   },
   urinaryComplicated: {
     possibleTypes: ['当前更像泌尿系统急性风险', '需尽快线下评估，排查感染上行或梗阻'],
@@ -409,6 +514,95 @@ const URGENT_CHECK_PLANS = {
       { name: '尿培养', trigger: '反复感染或治疗效果不佳时' },
     ],
     examAdvice: ['优先做尿检、炎症指标和泌尿系影像，必要时尽快做CT排查梗阻。'],
+  },
+};
+
+const URGENT_CATEGORY_PATTERNS = [
+  {
+    category: 'stroke',
+    patterns: [
+      /(说话不清|言语不清|失语|口角歪|面口歪斜|偏瘫|单侧肢体无力|一侧肢体无力|单侧麻木|突发.*(头痛|头晕))/,
+    ],
+  },
+  {
+    category: 'digestiveBleed',
+    patterns: [/(黑便|柏油样便|柏油便|呕血|上消化道出血|消化道出血|便血)/],
+  },
+  {
+    category: 'acs',
+    patterns: [/(胸痛|胸口压榨|胸闷胸痛|后背放射痛|左臂痛|下颌痛|冷汗|濒死感|心梗)/],
+  },
+  {
+    category: 'anaphylaxis',
+    patterns: [/(喉头水肿|喉咙紧|咽喉紧缩|口唇舌肿|呼吸道过敏|过敏性休克|全身风团.*呼吸困难)/],
+  },
+  {
+    category: 'sepsis',
+    patterns: [/(高热不退|持续高热|寒战高热|神志改变|意识改变|感染性休克|败血症)/],
+  },
+  {
+    category: 'respiratoryAcute',
+    patterns: [/(呼吸困难|喘不过气|嘴唇发紫|血氧低|端坐呼吸|严重气促)/],
+  },
+  {
+    category: 'acuteAbdomen',
+    patterns: [/(刀割样腹痛|反跳痛|腹膜刺激征|持续剧烈腹痛|急腹症)/],
+  },
+  {
+    category: 'severeTrauma',
+    patterns: [/(大量出血|外伤后意识不清|开放性伤口|高处坠落|严重车祸伤|伤口喷射出血)/],
+  },
+];
+
+const SELF_CARE_PLAYBOOK = {
+  digestive: {
+    severityText: '目前更像轻中度胃肠不适，可先短期自我处理并观察。',
+    actionSummary: '先清淡饮食和规律作息，短期观察1-2天；若加重再去消化内科。',
+    selfCareAdvice: ['少油少辣、少酒，先吃易消化食物', '先观察1-2天症状变化'],
+    medicationAdvice: ['可短期考虑抑酸/护胃或止泻类非处方药，按说明书使用'],
+    visitAdvice: ['若出现黑便、呕血、持续加重，立即线下就医'],
+  },
+  respiratory: {
+    severityText: '目前更像上呼吸道轻中度不适，可先对症处理。',
+    actionSummary: '先休息补液和对症处理，若发热/咳喘持续不缓解再去门诊。',
+    selfCareAdvice: ['多喝温水，保持休息', '避免烟酒和熬夜'],
+    medicationAdvice: ['发热可考虑退热药；咳嗽可短期对症用药'],
+    visitAdvice: ['发热超过3天、气促明显或症状加重时就医'],
+  },
+  lumbar: {
+    severityText: '目前更像轻中度腰背劳损，可先居家处理。',
+    actionSummary: '先减少负重与久坐，配合热敷和适度活动，观察1-3天。',
+    selfCareAdvice: ['避免搬重物和久坐', '可热敷并做轻度拉伸'],
+    medicationAdvice: ['可短期外用止痛药物；口服药需结合胃病/慢病情况'],
+    visitAdvice: ['若腿麻无力加重或出现大小便异常，及时就医'],
+  },
+  skinTrauma: {
+    severityText: '目前更像轻中度皮肤/外伤问题，可先规范局部处理。',
+    actionSummary: '先清洁消毒并观察创面变化，若感染加重再线下处理。',
+    selfCareAdvice: ['保持伤口清洁干燥', '避免反复摩擦和抓挠'],
+    medicationAdvice: ['可短期使用外用消毒/抗炎药物'],
+    visitAdvice: ['若红肿扩散、渗液或发热，尽快就医'],
+  },
+  urinary: {
+    severityText: '目前更像轻中度尿路刺激问题，可先短期处理并观察。',
+    actionSummary: '先补充水分、避免憋尿；若持续不缓解再去门诊检查。',
+    selfCareAdvice: ['增加饮水，避免久憋尿', '避免辛辣和酒精刺激'],
+    medicationAdvice: ['如需抗感染药物，建议线下评估后再使用'],
+    visitAdvice: ['出现发热、腰痛或血尿时应尽快就医'],
+  },
+  cardio: {
+    severityText: '当前仍建议尽快门诊评估，不建议长期自行处理。',
+    actionSummary: '心血管相关不适风险波动较大，建议尽快到门诊完善评估。',
+    selfCareAdvice: ['避免熬夜和情绪激动', '暂时避免剧烈活动'],
+    medicationAdvice: ['已有心血管用药请按既往医嘱使用，不要自行停药'],
+    visitAdvice: ['胸痛、气促、晕厥等出现时立即急诊'],
+  },
+  maleHealth: {
+    severityText: '目前更像非急症问题，可先生活方式干预并观察。',
+    actionSummary: '先调整作息和压力，若持续影响生活再到男科/泌尿外科评估。',
+    selfCareAdvice: ['先改善睡眠和压力管理', '减少酒精和熬夜'],
+    medicationAdvice: ['药物方案建议在线下医生评估后确定'],
+    visitAdvice: ['若持续数月影响明显，建议门诊系统评估'],
   },
 };
 
@@ -488,6 +682,11 @@ function isDigestiveBleedRisk(session = {}) {
 }
 
 function buildUrgentPlan(session = {}, scenario = {}) {
+  const fullText = `${session.chiefComplaint || ''} ${Object.values(session.answers || {}).join(' ')} ${(session.supplements || []).join(' ')}`;
+  const matchedCategory = URGENT_CATEGORY_PATTERNS.find((item) => item.patterns.some((pattern) => pattern.test(fullText)))?.category || '';
+  if (matchedCategory && URGENT_CHECK_PLANS[matchedCategory]) {
+    return URGENT_CHECK_PLANS[matchedCategory];
+  }
   if ((scenario.id === 'digestive') || isDigestiveBleedRisk(session)) {
     return URGENT_CHECK_PLANS.digestiveBleed;
   }
@@ -501,6 +700,20 @@ function buildUrgentPlan(session = {}, scenario = {}) {
     return URGENT_CHECK_PLANS.urinaryComplicated;
   }
   return URGENT_CHECK_PLANS.generic;
+}
+
+function hasModerateOrWorseSignal(text = '') {
+  return /(加重|持续|明显|反复|发热|高烧|呼吸困难|胸痛|出血|剧痛|晕倒|呕吐不止|血尿|黑便)/.test(String(text || ''));
+}
+
+function shouldSelfCareFirst(session = {}, schema = {}) {
+  const fullText = `${session.chiefComplaint || ''} ${Object.values(session.answers || {}).join(' ')} ${(session.supplements || []).join(' ')}`;
+  if (hasModerateOrWorseSignal(fullText)) return false;
+  const scenarioId = session.scenario?.id || '';
+  if (scenarioId === 'cardio') return false;
+  const answerCount = Object.keys(session.answers || {}).length;
+  const hasStrongSchemaSignal = (schema.severity || []).length + (schema.accompanying || []).length >= 3;
+  return answerCount <= 2 && !hasStrongSchemaSignal;
 }
 
 function calcBaseCost(baseChecks) {
@@ -752,6 +965,22 @@ function buildPossibleTypes(session, schema = {}) {
 function buildFallbackGuidance(session) {
   const scenarioId = session.scenario?.id;
 
+  if (scenarioId === 'cardio') {
+    return {
+      recommendationLevel: 'routine_clinic',
+      severityLevel: 'moderate',
+      severityText: '当前更像心血管方向问题，建议尽快门诊评估，不要长期拖着。',
+      userGoal: '先判断风险级别，再决定检查路径和就诊时机',
+      actionSummary: '先按心血管方向评估更稳妥；建议尽快去门诊，必要时做心电图和基础化验。',
+      selfCareAdvice: ['最近先减少熬夜和情绪波动', '避免浓茶咖啡和剧烈运动刺激'],
+      medicationAdvice: ['如已在用降压或心血管药物，不要自行停药或加量'],
+      visitAdvice: ['建议先挂心血管内科普通号', '若胸痛明显加重或呼吸困难，立即急诊'],
+      examAdvice: ['首轮通常先做血压、心电图、血常规和基础生化检查'],
+      needsBooking: true,
+      needsCost: true,
+    };
+  }
+
   if (scenarioId === 'digestive') {
     return {
       recommendationLevel: 'self_care',
@@ -781,6 +1010,54 @@ function buildFallbackGuidance(session) {
       examAdvice: ['必要时先做血常规、CRP、胸片'],
       needsBooking: false,
       needsCost: false,
+    };
+  }
+
+  if (scenarioId === 'lumbar') {
+    return {
+      recommendationLevel: 'otc_guidance',
+      severityLevel: 'moderate',
+      severityText: '当前更像肌肉劳损或腰椎相关不适，可先短期对症处理并观察。',
+      userGoal: '先缓解疼痛，再判断是否需要影像检查',
+      actionSummary: '先按腰背部劳损方向处理，若1-3天不缓解或腿麻加重，再去骨科就诊。',
+      selfCareAdvice: ['先避免搬重物和久坐', '可热敷、轻度活动，不建议完全卧床'],
+      medicationAdvice: ['可短期考虑外用止痛类药物；胃病或慢病人群用口服药前先问医生'],
+      visitAdvice: ['若出现进行性腿无力、大小便异常，尽快急诊或骨科就诊'],
+      examAdvice: ['门诊通常先做体格评估；必要时再做腰椎X线/MRI'],
+      needsBooking: false,
+      needsCost: true,
+    };
+  }
+
+  if (scenarioId === 'urinary') {
+    return {
+      recommendationLevel: 'routine_clinic',
+      severityLevel: 'moderate',
+      severityText: '当前更像泌尿系统刺激或感染相关问题，建议门诊尽快评估。',
+      userGoal: '先判断是否感染及是否需要抗感染治疗',
+      actionSummary: '建议先去泌尿外科或内科门诊做尿检，明确后再定治疗方案。',
+      selfCareAdvice: ['先保证饮水量，避免憋尿', '近期避免辛辣和酒精刺激'],
+      medicationAdvice: ['抗感染用药建议在线下医生评估后使用，避免自行长期用药'],
+      visitAdvice: ['若发热、腰痛或血尿明显，建议尽快线下就诊'],
+      examAdvice: ['首轮优先尿常规和炎症指标，必要时补做泌尿系B超'],
+      needsBooking: true,
+      needsCost: true,
+    };
+  }
+
+  if (scenarioId === 'skinTrauma') {
+    return {
+      recommendationLevel: 'otc_guidance',
+      severityLevel: 'moderate',
+      severityText: '当前更像局部皮肤/外伤问题，先规范处理并短期观察通常可行。',
+      userGoal: '先控制局部症状，判断是否需要线下清创或抗感染处理',
+      actionSummary: '先做清洁消毒和局部护理，若红肿扩大、渗液或发热，尽快线下处理。',
+      selfCareAdvice: ['保持局部清洁干燥，避免反复摩擦', '不要自行挤压或频繁更换刺激性药物'],
+      medicationAdvice: ['可短期考虑外用消毒/抗炎药物，出现感染迹象时及时就医'],
+      visitAdvice: ['若深伤口、持续出血或范围明显扩大，建议尽快外科/皮肤科就诊'],
+      examAdvice: ['门诊先做创面评估，必要时换药或进一步影像检查'],
+      needsBooking: false,
+      needsCost: true,
     };
   }
 
@@ -843,6 +1120,8 @@ function buildTriageResult(session) {
     ? `已参考你补充的 ${session.supplements.length} 条信息。`
     : '';
   const fallbackGuidance = buildFallbackGuidance(session);
+  const selfCarePlay = SELF_CARE_PLAYBOOK[scenario.id] || null;
+  const preferSelfCare = !redFlag && selfCarePlay && shouldSelfCareFirst(session, schema);
   const guidance = redFlag
     ? {
         recommendationLevel: 'hospital_priority_high',
@@ -859,7 +1138,21 @@ function buildTriageResult(session) {
         needsBooking: true,
         needsCost: true,
       }
-    : fallbackGuidance;
+    : (preferSelfCare
+        ? {
+            recommendationLevel: 'self_care',
+            severityLevel: 'mild',
+            severityText: selfCarePlay.severityText,
+            userGoal: '先判断是否能先自我处理，以及何时需要就医',
+            actionSummary: selfCarePlay.actionSummary,
+            selfCareAdvice: selfCarePlay.selfCareAdvice || [],
+            medicationAdvice: selfCarePlay.medicationAdvice ? [selfCarePlay.medicationAdvice] : [],
+            visitAdvice: selfCarePlay.visitAdvice ? [selfCarePlay.visitAdvice] : [],
+            examAdvice: [],
+            needsBooking: false,
+            needsCost: false,
+          }
+        : fallbackGuidance);
 
   const coreConclusion = guidance.actionSummary;
 
