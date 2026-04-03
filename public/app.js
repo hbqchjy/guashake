@@ -1382,6 +1382,7 @@ async function directResult() {
   state.generationReady = false;
   state.currentPrompt = null;
   state.showBookingPanel = false;
+  state.resultAnchor = 'summary';
   clearSummaryDirty();
   saveRuntimeState();
   await ensureContextAndRenderResult();
@@ -1986,6 +1987,10 @@ async function renderResultCards() {
   const imageRiskLevel = String(triage.core.imageRiskLevel || '').toLowerCase();
   const imageHighRisk = imageRiskLevel === 'high';
   const recommendationLevel = triage.core.recommendationLevel || 'routine_clinic';
+  if (recommendationLevel === 'hospital_priority_high') {
+    state.resultAnchor = 'summary';
+  }
+
   const needsInPerson = ['routine_clinic', 'specialist_clinic', 'hospital_priority_high'].includes(recommendationLevel);
   const needsBooking = Boolean(triage.core.needsBooking || needsInPerson);
   const selfCareAdvice = triage.detail.selfCareAdvice || [];
