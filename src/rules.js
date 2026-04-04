@@ -2003,11 +2003,55 @@ function buildBookingSuggestion(session) {
   };
 }
 
+function getSessionTextForSemanticSkip(session = {}) {
+  return [
+    session.chiefComplaint || '',
+    ...Object.values(session.answers || {}).map((item) => String(item || '')),
+    ...(session.supplements || []).map((item) => String(item || '')),
+    ...(session.supplementInsights || []).map((item) => String(item.summary || '')),
+  ]
+    .join(' ')
+    .toLowerCase();
+}
+
+const SEMANTIC_SKIP_PATTERNS = {
+  duration: /(多久|几天|几周|几个月|持续|反复|一直|最近.*天)/,
+  frequency: /(频繁|一天几次|每天|偶尔|反复发作|次数)/,
+  location: /(左|右|上腹|下腹|胸口|喉咙|耳朵|眼睛|膝盖|腰|颈|部位)/,
+  history: /(既往|以前|病史|慢病|长期用药|家族史)/,
+  trend: /(加重|缓解|好转|变化|进展|越来越|减轻)/,
+  riskSignal: /(胸痛|呼吸困难|黑便|便血|呕血|说话不清|肢体无力|晕倒|高热)/,
+  problemType: /(主要是|最困扰|哪种感觉|哪方面)/,
+  triggerTime: /(活动后|进食后|夜间|熬夜|诱因|冷热刺激)/,
+  cause: /(扭伤|外伤|搬重物|诱因|原因)/,
+  infectionSigns: /(发热|发烧|化脓|渗液|感染|寒战)/,
+  bowelChange: /(大便|便秘|腹泻|排便|便血|黑便)/,
+  urinationPain: /(尿频|尿急|尿痛|尿液|小便)/,
+  nightPattern: /(夜间|晚上|夜里)/,
+  lifeImpact: /(影响生活|工作|睡眠|情绪|功能)/,
+};
+
+function shouldSkipQuestionByContext(session = {}, question = {}) {
+  const slot = String(question.slot || '').trim();
+  if (!slot) return false;
+  if (session.followUp?.slotState?.[slot]?.answer) return true;
+  const text = getSessionTextForSemanticSkip(session);
+  if (!text) return false;
+  const pattern = SEMANTIC_SKIP_PATTERNS[slot];
+  if (!pattern) return false;
+  if (!pattern.test(text)) return false;
+  const questionText = String(question.text || '');
+  const strictSlots = new Set(['duration', 'frequency', 'location', 'history', 'trend', 'riskSignal']);
+  if (strictSlots.has(slot)) return true;
+  return questionText.length > 0;
+}
+
 module.exports = {
   SCENARIOS,
   detectScenarioDetailed,
   detectScenario,
   getScenarioSlotCatalog,
+  shouldSkipQuestionByContext,
   buildGenericSymptomSchema,
   buildTriageResult,
   buildCostEstimate,

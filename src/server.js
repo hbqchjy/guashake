@@ -9,6 +9,7 @@ const {
   detectScenarioDetailed,
   detectScenario,
   getScenarioSlotCatalog,
+  shouldSkipQuestionByContext,
   buildTriageResult,
   buildCostEstimate,
   buildBookingSuggestion,
@@ -415,7 +416,17 @@ function getAskedQuestionIds(session) {
 
 function getFallbackNextQuestion(session) {
   const asked = new Set(getAskedQuestionIds(session));
-  return (session.scenario?.questions || []).find((question) => !asked.has(question.id)) || null;
+  const slotCatalog = getScenarioSlotCatalog(session.scenario || {});
+  return (session.scenario?.questions || [])
+    .map((question) => {
+      const slotMeta = slotCatalog.find((item) => item.questionId === question.id) || {};
+      return {
+        ...question,
+        slot: slotMeta.slot || question.id,
+        slotLabel: slotMeta.slotLabel || slotMeta.slot || question.id,
+      };
+    })
+    .find((question) => !asked.has(question.id) && !shouldSkipQuestionByContext(session, question)) || null;
 }
 
 function isSlotFilled(session, slot) {
@@ -563,7 +574,8 @@ async function resolveNextQuestion(session, options = {}) {
     })
     .filter(Boolean)
     .filter((question) => !asked.includes(question.id))
-    .filter((question) => !isSlotFilled(session, question.slot));
+    .filter((question) => !isSlotFilled(session, question.slot))
+    .filter((question) => !shouldSkipQuestionByContext(session, question));
   const config = getFollowUpConfig(session);
   const stepCount = Number(session.followUp?.stepCount || 0);
 
@@ -1602,7 +1614,8 @@ app.post('/triage/message', async (req, res) => {
     })
     .filter(Boolean)
     .filter((item) => !asked.includes(item.id))
-    .filter((item) => !isSlotFilled(updatedSession, item.slot));
+    .filter((item) => !isSlotFilled(updatedSession, item.slot))
+    .filter((item) => !shouldSkipQuestionByContext(updatedSession, item));
 
   const openPlan = await planOpenInterviewTurn(updatedSession, text, candidates, {
     openTurns,
