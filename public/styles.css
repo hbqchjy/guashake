@@ -1147,7 +1147,7 @@ body {
 .quick-chip {
   display: inline-flex;
   align-items: center;
-  gap: 0;
+  gap: 6px;
   flex: 0 0 auto;
   min-height: 36px;
   padding: 8px 12px;
@@ -1159,6 +1159,22 @@ body {
   font-weight: 600;
   box-shadow: 0 6px 16px rgba(18, 28, 24, 0.04);
   transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
+}
+
+.quick-chip-risk {
+  border-color: rgba(224, 86, 33, 0.3);
+  background: linear-gradient(180deg, #fff8f5 0%, #fff5ef 100%);
+  color: #7a2f11;
+}
+
+.quick-risk-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  font-size: 12px;
+  line-height: 1;
 }
 
 .quick-chip:hover {

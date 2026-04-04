@@ -36,6 +36,16 @@ function getQuickSymptoms() {
 
 const QUICK_SYMPTOM_PRIMARY_COUNT = 16;
 const QUICK_SYMPTOM_REORDER_THRESHOLD = 200;
+const QUICK_RISK_SYMPTOMS = new Set([
+  '胸痛',
+  '呼吸困难',
+  '说话不清',
+  '一侧肢体无力',
+  '黑便',
+  '便血',
+  '呕血',
+  '高热不退',
+]);
 
 const state = {
   sessionId: null,
@@ -1008,7 +1018,12 @@ function renderQuickSymptoms() {
   primary.forEach((symptom) => {
     const button = document.createElement('button');
     button.className = 'quick-chip';
-    button.textContent = symptom;
+    if (QUICK_RISK_SYMPTOMS.has(symptom)) {
+      button.classList.add('quick-chip-risk');
+      button.innerHTML = `<span class="quick-risk-icon">⚠</span><span>${escapeHtml(symptom)}</span>`;
+    } else {
+      button.textContent = symptom;
+    }
     button.onclick = async () => {
       await trackSymptomClick(symptom);
       submitText(symptom).catch((err) => alert(err.message));
@@ -1033,7 +1048,12 @@ function renderQuickSymptoms() {
       if (primary.includes(symptom)) return;
       const button = document.createElement('button');
       button.className = 'quick-chip';
-      button.textContent = symptom;
+      if (QUICK_RISK_SYMPTOMS.has(symptom)) {
+        button.classList.add('quick-chip-risk');
+        button.innerHTML = `<span class="quick-risk-icon">⚠</span><span>${escapeHtml(symptom)}</span>`;
+      } else {
+        button.textContent = symptom;
+      }
       button.onclick = async () => {
         await trackSymptomClick(symptom);
         submitText(symptom).catch((err) => alert(err.message));
