@@ -3,6 +3,24 @@ const costReference = require('../data/cost-reference.common.json');
 const hubeiCityOverrides = require('../data/cost-reference.hubei.city-overrides.json');
 const hubeiCityFactors = require('../data/cost-reference.hubei.city-factors.json');
 
+const GENERIC_TRIAGE_QUESTIONS = [
+  { id: 'g_duration', text: '这种不舒服大概持续多久了？', options: ['不到1天', '1-3天', '超过1周', '反复超过1个月'] },
+  { id: 'g_location', text: '最不舒服主要在什么部位？', options: ['头/眼', '胸口/心口', '肚子/胃', '腰背/四肢', '说不清'] },
+  { id: 'g_trend', text: '最近是越来越重，还是差不多？', options: ['在加重', '差不多', '在减轻'] },
+  { id: 'g_frequency', text: '出现频率大概怎样？', options: ['偶尔', '一天几次', '几乎每天', '持续不缓解'] },
+  { id: 'g_accompany', text: '有没有明显伴随情况？', options: ['发热', '呕吐/腹泻', '胸闷/气短', '头晕/无力', '没有明显伴随'] },
+  { id: 'g_history', text: '你有长期慢性病或长期用药吗？', options: ['没有', '高血压/糖尿病', '心脑血管病', '其他慢病/长期用药'] },
+  { id: 'g_trigger', text: '症状和什么有关会更明显？', options: ['活动后', '进食后', '夜间', '压力/熬夜后', '说不清'] },
+  { id: 'g_redflag', text: '有没有出现明显危险信号？', options: ['没有', '胸痛或呼吸困难', '黑便/便血/呕血', '说话不清/肢体无力'] },
+];
+
+const COMMON_BASE_CHECKS = [
+  { name: '挂号费', min: 10, max: 40 },
+  { name: '基础问诊/查体', min: 0, max: 30 },
+  { name: '血常规', min: 20, max: 40 },
+  { name: '基础生化', min: 40, max: 90 },
+];
+
 const RED_FLAG_KEYWORDS = [
   '胸痛加重',
   '呼吸困难',
@@ -284,6 +302,193 @@ const SCENARIOS = {
       { id: 'maleHistory', text: '以前看过男科、泌尿外科，或者有高血压糖尿病这类慢病吗？', options: ['没有', '看过男科/泌尿外科', '有慢病', '两者都有'] },
     ],
   },
+  ent: {
+    id: 'ent',
+    label: '耳鼻喉不适',
+    keywords: ['咽痛', '喉咙痛', '鼻塞', '流鼻涕', '耳痛', '耳鸣', '声音嘶哑'],
+    department: '耳鼻喉科',
+    hospitalLevel: '先县医院耳鼻喉科门诊，重症再转市级医院',
+    preparation: ['身份证', '医保卡', '既往耳鼻喉检查报告', '近期用药信息'],
+    baseChecks: COMMON_BASE_CHECKS,
+    nextStepRules: ['症状持续超过1周可做喉镜/鼻内镜进一步判断。', '高热或吞咽困难明显加重时尽快线下就医。'],
+    questions: GENERIC_TRIAGE_QUESTIONS,
+  },
+  neurology: {
+    id: 'neurology',
+    label: '神经系统不适',
+    keywords: ['头痛', '偏头痛', '头晕', '麻木', '说话不清', '手脚无力', '眩晕'],
+    department: '神经内科',
+    hospitalLevel: '先县医院神经内科，急性神经症状优先急诊',
+    preparation: ['身份证', '医保卡', '既往影像报告', '慢病与用药记录'],
+    baseChecks: COMMON_BASE_CHECKS,
+    nextStepRules: ['若出现持续加重的神经体征，优先做头颅CT/MRI。', '急性发作时不要拖延，尽快线下评估。'],
+    questions: GENERIC_TRIAGE_QUESTIONS,
+  },
+  endocrinology: {
+    id: 'endocrinology',
+    label: '内分泌/代谢问题',
+    keywords: ['血糖', '糖尿病', '甲状腺', '乏力', '多饮', '多尿', '体重变化'],
+    department: '内分泌科',
+    hospitalLevel: '先县医院内分泌或内科门诊',
+    preparation: ['身份证', '医保卡', '既往血糖/甲功报告', '长期用药清单'],
+    baseChecks: COMMON_BASE_CHECKS,
+    nextStepRules: ['先做血糖和基础代谢检查，再决定是否追加专项激素检查。', '若血糖极高伴不适，尽快线下就医。'],
+    questions: GENERIC_TRIAGE_QUESTIONS,
+  },
+  gynecology: {
+    id: 'gynecology',
+    label: '妇科相关问题',
+    keywords: ['月经异常', '阴道出血', '白带异常', '下腹痛', '痛经', '妇科'],
+    department: '妇科',
+    hospitalLevel: '先县医院妇科门诊，异常出血明显时优先急诊',
+    preparation: ['身份证', '医保卡', '月经记录', '既往妇科检查报告'],
+    baseChecks: COMMON_BASE_CHECKS,
+    nextStepRules: ['先做妇科查体与基础检验，再决定是否做超声或激素检查。', '出血量大或疼痛剧烈时尽快就医。'],
+    questions: GENERIC_TRIAGE_QUESTIONS,
+  },
+  obstetrics: {
+    id: 'obstetrics',
+    label: '孕产相关问题',
+    keywords: ['怀孕', '孕期', '胎动', '见红', '破水', '产后'],
+    department: '产科',
+    hospitalLevel: '优先有产科能力的综合医院',
+    preparation: ['身份证', '医保卡', '产检手册', '近期产检报告'],
+    baseChecks: COMMON_BASE_CHECKS,
+    nextStepRules: ['孕期异常应优先产科评估，不建议自行拖延。', '出现见红、腹痛、胎动异常时立即线下就医。'],
+    questions: GENERIC_TRIAGE_QUESTIONS,
+  },
+  pediatrics: {
+    id: 'pediatrics',
+    label: '儿科问题',
+    keywords: ['小孩', '孩子', '婴儿', '发烧', '咳嗽', '腹泻', '哭闹'],
+    department: '儿科',
+    hospitalLevel: '先儿科门诊，婴幼儿高热或精神差优先急诊',
+    preparation: ['身份证', '医保卡', '体温记录', '既往儿科病历'],
+    baseChecks: COMMON_BASE_CHECKS,
+    nextStepRules: ['儿童症状变化快，建议短时间复评。', '高热不退、精神差、进食差时尽快线下就医。'],
+    questions: GENERIC_TRIAGE_QUESTIONS,
+  },
+  nephrology: {
+    id: 'nephrology',
+    label: '肾脏相关问题',
+    keywords: ['水肿', '肾功能', '蛋白尿', '尿少', '肌酐', '肾病'],
+    department: '肾内科',
+    hospitalLevel: '先县医院肾内科/内科门诊',
+    preparation: ['身份证', '医保卡', '既往肾功能报告', '血压记录'],
+    baseChecks: COMMON_BASE_CHECKS,
+    nextStepRules: ['先做尿检和肾功能，再决定是否追加肾脏超声。', '水肿明显或尿量骤减时尽快就医。'],
+    questions: GENERIC_TRIAGE_QUESTIONS,
+  },
+  hepatobiliary: {
+    id: 'hepatobiliary',
+    label: '肝胆胰相关问题',
+    keywords: ['肝区痛', '黄疸', '转氨酶', '胆囊', '胆结石', '胰腺'],
+    department: '消化内科/肝胆外科',
+    hospitalLevel: '先县医院消化内科，疑胆胰急症转上级医院',
+    preparation: ['身份证', '医保卡', '肝功/腹部超声报告', '用药与饮酒史'],
+    baseChecks: COMMON_BASE_CHECKS,
+    nextStepRules: ['先做肝功能和腹部超声，再评估是否需专项影像。', '黄疸加重或腹痛剧烈时尽快就医。'],
+    questions: GENERIC_TRIAGE_QUESTIONS,
+  },
+  orthopedics: {
+    id: 'orthopedics',
+    label: '骨关节问题',
+    keywords: ['膝盖痛', '关节痛', '骨头痛', '活动受限', '扭伤', '骨科'],
+    department: '骨科',
+    hospitalLevel: '先县医院骨科门诊，明显外伤可急诊',
+    preparation: ['身份证', '医保卡', '既往影像片', '受伤经过'],
+    baseChecks: COMMON_BASE_CHECKS,
+    nextStepRules: ['先体格评估，必要时做X线/超声。', '不能负重或畸形明显时尽快线下处理。'],
+    questions: GENERIC_TRIAGE_QUESTIONS,
+  },
+  rheumatology: {
+    id: 'rheumatology',
+    label: '风湿免疫相关',
+    keywords: ['晨僵', '关节肿痛', '风湿', '免疫', '红斑', '反复发作'],
+    department: '风湿免疫科',
+    hospitalLevel: '先内科门诊分诊，条件允许可直接风湿免疫科',
+    preparation: ['身份证', '医保卡', '既往免疫化验报告', '长期用药信息'],
+    baseChecks: COMMON_BASE_CHECKS,
+    nextStepRules: ['先做基础炎症指标与相关抗体筛查。', '症状反复迁延建议尽早专科评估。'],
+    questions: GENERIC_TRIAGE_QUESTIONS,
+  },
+  psychiatry: {
+    id: 'psychiatry',
+    label: '心理/精神相关',
+    keywords: ['焦虑', '抑郁', '睡不好', '情绪低落', '惊恐', '心烦'],
+    department: '精神心理科',
+    hospitalLevel: '先心理门诊，危机信号优先急诊',
+    preparation: ['身份证', '医保卡', '既往心理就诊记录', '当前用药信息'],
+    baseChecks: COMMON_BASE_CHECKS,
+    nextStepRules: ['优先评估睡眠、情绪与压力因素。', '若出现自伤他伤风险，立即线下急诊。'],
+    questions: GENERIC_TRIAGE_QUESTIONS,
+  },
+  oncology: {
+    id: 'oncology',
+    label: '肿瘤相关担忧',
+    keywords: ['肿块', '消瘦', '肿瘤', '癌', '淋巴结肿大', '长期低热'],
+    department: '肿瘤科/相关专科',
+    hospitalLevel: '先综合医院门诊分诊，再转肿瘤专科',
+    preparation: ['身份证', '医保卡', '既往影像和病理报告', '近期体检结果'],
+    baseChecks: COMMON_BASE_CHECKS,
+    nextStepRules: ['先做基础评估，不直接下结论。', '按医生建议完善影像和病理相关检查。'],
+    questions: GENERIC_TRIAGE_QUESTIONS,
+  },
+  hematology: {
+    id: 'hematology',
+    label: '血液系统问题',
+    keywords: ['贫血', '出血点', '白细胞', '血小板', '淤青', '血液病'],
+    department: '血液内科',
+    hospitalLevel: '先综合医院内科门诊，必要时转血液科',
+    preparation: ['身份证', '医保卡', '血常规报告', '既往血液检查结果'],
+    baseChecks: COMMON_BASE_CHECKS,
+    nextStepRules: ['先复核血常规和凝血相关指标。', '异常持续时建议专科进一步排查。'],
+    questions: GENERIC_TRIAGE_QUESTIONS,
+  },
+  anorectal: {
+    id: 'anorectal',
+    label: '肛肠相关问题',
+    keywords: ['痔疮', '肛门痛', '便血', '肛裂', '便后滴血', '肛门坠胀'],
+    department: '肛肠外科/普外科',
+    hospitalLevel: '先县医院外科门诊',
+    preparation: ['身份证', '医保卡', '排便情况记录', '既往肠镜报告'],
+    baseChecks: COMMON_BASE_CHECKS,
+    nextStepRules: ['先做基础查体，再决定是否肠镜评估。', '出血量大或持续不缓解需尽快线下。'],
+    questions: GENERIC_TRIAGE_QUESTIONS,
+  },
+  dentistry: {
+    id: 'dentistry',
+    label: '口腔牙科问题',
+    keywords: ['牙痛', '牙龈肿', '口腔溃疡', '牙周', '智齿', '口臭'],
+    department: '口腔科',
+    hospitalLevel: '先县医院口腔门诊',
+    preparation: ['身份证', '医保卡', '既往口腔片', '近期用药信息'],
+    baseChecks: COMMON_BASE_CHECKS,
+    nextStepRules: ['先口腔查体，必要时牙片评估。', '面部肿胀发热或张口困难时尽快线下。'],
+    questions: GENERIC_TRIAGE_QUESTIONS,
+  },
+  dermatology: {
+    id: 'dermatology',
+    label: '皮肤科问题',
+    keywords: ['皮疹', '瘙痒', '湿疹', '荨麻疹', '脱皮', '色斑'],
+    department: '皮肤科',
+    hospitalLevel: '先县医院皮肤科门诊',
+    preparation: ['身份证', '医保卡', '皮损照片', '近期外用药记录'],
+    baseChecks: COMMON_BASE_CHECKS,
+    nextStepRules: ['先识别过敏/感染/炎症方向，再决定是否加做化验。', '范围快速扩大或伴发热尽快线下。'],
+    questions: GENERIC_TRIAGE_QUESTIONS,
+  },
+  breastThyroid: {
+    id: 'breastThyroid',
+    label: '乳腺/甲状腺问题',
+    keywords: ['乳房肿块', '乳房疼', '甲状腺结节', '颈前肿块', '甲状腺肿大'],
+    department: '甲乳外科/内分泌科',
+    hospitalLevel: '先综合医院门诊分诊',
+    preparation: ['身份证', '医保卡', '既往彩超报告', '甲功检查结果'],
+    baseChecks: COMMON_BASE_CHECKS,
+    nextStepRules: ['先做超声和基础检验，再定是否追加专项检查。', '肿块短期增大或疼痛加重时尽快就诊。'],
+    questions: GENERIC_TRIAGE_QUESTIONS,
+  },
   general: {
     id: 'general',
     label: '未明确单一方向（需继续补充）',
@@ -291,26 +496,12 @@ const SCENARIOS = {
     department: '全科医学科/内科门诊',
     hospitalLevel: '先到县医院全科/内科分诊，再按医生建议转专科',
     preparation: ['身份证', '医保卡', '既往病历/检查单', '正在服用药物清单'],
-    baseChecks: [
-      { name: '挂号费', min: 10, max: 40 },
-      { name: '基础问诊/查体', min: 0, max: 30 },
-      { name: '血常规', min: 20, max: 40 },
-      { name: '基础生化', min: 40, max: 90 },
-    ],
+    baseChecks: COMMON_BASE_CHECKS,
     nextStepRules: [
       '先做基础检查，避免一开始就做大检查。',
       '根据首诊医生分诊，再决定是否转消化/呼吸/神经/泌尿等专科。',
     ],
-    questions: [
-      { id: 'g_duration', text: '这种不舒服大概持续多久了？', options: ['不到1天', '1-3天', '超过1周', '反复超过1个月'] },
-      { id: 'g_location', text: '最不舒服主要在什么部位？', options: ['头/眼', '胸口/心口', '肚子/胃', '腰背/四肢', '说不清'] },
-      { id: 'g_trend', text: '最近是越来越重，还是差不多？', options: ['在加重', '差不多', '在减轻'] },
-      { id: 'g_frequency', text: '出现频率大概怎样？', options: ['偶尔', '一天几次', '几乎每天', '持续不缓解'] },
-      { id: 'g_accompany', text: '有没有明显伴随情况？', options: ['发热', '呕吐/腹泻', '胸闷/气短', '头晕/无力', '没有明显伴随'] },
-      { id: 'g_history', text: '你有长期慢性病或长期用药吗？', options: ['没有', '高血压/糖尿病', '心脑血管病', '其他慢病/长期用药'] },
-      { id: 'g_trigger', text: '症状和什么有关会更明显？', options: ['活动后', '进食后', '夜间', '压力/熬夜后', '说不清'] },
-      { id: 'g_redflag', text: '有没有出现明显危险信号？', options: ['没有', '胸痛或呼吸困难', '黑便/便血/呕血', '说话不清/肢体无力'] },
-    ],
+    questions: GENERIC_TRIAGE_QUESTIONS,
   },
 };
 
@@ -1159,6 +1350,7 @@ function calcInfoCoverage(schema = {}, session = {}) {
 }
 
 function buildPossibleTypes(session, schema = {}, scenarioId = session.scenario?.id) {
+  const scenarioLabel = session.scenario?.label || '相关科室';
   const findings = (schema.testFindings || []).join('；');
   const history = (schema.history || []).join('；');
 
@@ -1192,7 +1384,7 @@ function buildPossibleTypes(session, schema = {}, scenarioId = session.scenario?
   if (scenarioId === 'general') {
     return ['目前信息还不足以归到单一方向', '建议继续补充或到全科/内科先做分诊'];
   }
-  return ['当前更像常见内科问题', '还需要结合线下检查进一步确认'];
+  return [`更像${scenarioLabel}相关问题`, '还需要结合线下检查进一步确认'];
 }
 
 function buildFallbackGuidance(session, scenarioId = session.scenario?.id) {
@@ -1527,11 +1719,11 @@ function buildCostEstimate(session) {
   const range = buildNarrowCostRange(normalizedBaseChecks, costFactor);
   const feeItems = estimateFeeItems(normalizedBaseChecks, costFactor);
   const secondRoundBase = normalizeNamedItems(
-    urgentPlan?.secondRoundChecks?.length ? urgentPlan.secondRoundChecks : (SECOND_ROUND_CHECKS[scenario.id] || []),
+    urgentPlan?.secondRoundChecks?.length ? urgentPlan.secondRoundChecks : (SECOND_ROUND_CHECKS[scenario.id] || SECOND_ROUND_CHECKS.general || []),
     session
   );
   const secondRound = estimateSecondRoundItems(secondRoundBase, costFactor);
-  const medicationRefs = MEDICATION_PRICE_RANGES[scenario.id] || [];
+  const medicationRefs = MEDICATION_PRICE_RANGES[scenario.id] || MEDICATION_PRICE_RANGES.general || [];
 
   return {
     simple: {
