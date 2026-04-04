@@ -5,7 +5,7 @@ const QUICK_SYMPTOM_GROUPS_BASE = [
   },
   {
     label: '消化与排泄',
-    items: ['胃不舒服', '腹泻', '便秘', '反酸烧心', '恶心想吐', '尿频尿急', '尿痛', '血尿'],
+    items: ['胃不舒服', '腹泻', '便秘', '反酸烧心', '恶心想吐', '黑便', '便血', '呕血', '尿频尿急', '尿痛', '血尿'],
   },
   {
     label: '呼吸与五官',
@@ -13,7 +13,7 @@ const QUICK_SYMPTOM_GROUPS_BASE = [
   },
   {
     label: '骨骼与外伤',
-    items: ['腿麻', '扭伤', '皮肤红疹', '皮肤/外伤', '黑便', '便血', '呕血'],
+    items: ['腿麻', '扭伤', '皮肤红疹', '皮肤/外伤'],
   },
   {
     label: '神经与循环',
@@ -34,7 +34,7 @@ function getQuickSymptoms() {
   return Array.from(new Set(quickSymptomGroups.flatMap((group) => group.items)));
 }
 
-const QUICK_SYMPTOM_PRIMARY_COUNT = 16;
+const QUICK_SYMPTOM_PRIMARY_COUNT = 15;
 const QUICK_SYMPTOM_REORDER_THRESHOLD = 200;
 const QUICK_RISK_SYMPTOMS = new Set([
   '胸痛',
