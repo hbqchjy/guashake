@@ -21,6 +21,128 @@ const COMMON_BASE_CHECKS = [
   { name: '基础生化', min: 40, max: 90 },
 ];
 
+const SPECIALTY_QUESTION_SETS = {
+  ent: [
+    { id: 'ent_main', text: '你现在最困扰的是鼻子、喉咙还是耳朵？', options: ['鼻子为主', '喉咙为主', '耳朵为主', '都有'] },
+    { id: 'ent_days', text: '这个问题持续多久了？', options: ['不到3天', '3-7天', '超过1周', '反复发作'] },
+    { id: 'ent_fever', text: '有没有发热或吞咽明显困难？', options: ['没有', '有发热', '吞咽困难', '两者都有'] },
+    { id: 'ent_discharge', text: '有没有明显鼻涕、痰或耳部分泌物？', options: ['没有', '清涕/白痰', '黄稠分泌物', '带血丝'] },
+    { id: 'ent_voice', text: '声音嘶哑或耳鸣有没有加重趋势？', options: ['没有', '有一点', '明显加重'] },
+  ],
+  neurology: [
+    { id: 'neuro_main', text: '主要是头痛头晕，还是麻木无力更明显？', options: ['头痛头晕', '麻木无力', '都明显', '说不清'] },
+    { id: 'neuro_onset', text: '这次是突然发作还是慢慢出现？', options: ['突然发作', '慢慢出现', '反复发作'] },
+    { id: 'neuro_side', text: '症状有没有偏一侧（单侧）？', options: ['没有', '左侧明显', '右侧明显', '不确定'] },
+    { id: 'neuro_speech', text: '有没有说话不清、走路不稳或视物旋转？', options: ['没有', '偶尔有', '比较明显'] },
+    { id: 'neuro_progress', text: '最近是在加重还是缓解？', options: ['在加重', '差不多', '在缓解'] },
+  ],
+  endocrinology: [
+    { id: 'endo_main', text: '更像血糖问题还是甲状腺相关不适？', options: ['血糖方向', '甲状腺方向', '两者都有', '不确定'] },
+    { id: 'endo_drink', text: '最近有没有明显口渴、多尿、体重变化？', options: ['没有', '有1项', '有2项及以上'] },
+    { id: 'endo_fatigue', text: '乏力、心慌、怕冷/怕热是否明显？', options: ['不明显', '有一点', '比较明显'] },
+    { id: 'endo_duration', text: '这种状态持续多久了？', options: ['不到1周', '1-4周', '超过1个月', '反复'] },
+    { id: 'endo_history', text: '以前有糖尿病、甲状腺病或长期用药吗？', options: ['没有', '有其一', '两者/多项都有'] },
+  ],
+  gynecology: [
+    { id: 'gyn_main', text: '这次主要是月经异常、白带异常还是下腹痛？', options: ['月经异常', '白带异常', '下腹痛', '不止一种'] },
+    { id: 'gyn_cycle', text: '月经周期和经量和以前比变化大吗？', options: ['变化不大', '有些变化', '变化很明显'] },
+    { id: 'gyn_bleed', text: '有没有非经期出血或同房后出血？', options: ['没有', '偶尔有', '比较明显'] },
+    { id: 'gyn_pain', text: '腹痛是偶发还是持续加重？', options: ['偶发', '持续但不重', '持续加重'] },
+    { id: 'gyn_fever', text: '有没有发热、异味分泌物或明显不适？', options: ['没有', '有一项', '有多项'] },
+  ],
+  obstetrics: [
+    { id: 'obs_week', text: '目前大概在孕期哪个阶段？', options: ['早孕期', '中孕期', '晚孕期', '产后'] },
+    { id: 'obs_bleed', text: '有没有见红、流水（破水）或腹痛？', options: ['没有', '有其一', '有两项及以上'] },
+    { id: 'obs_move', text: '胎动和以前比有没有明显减少？', options: ['无变化', '有点少', '明显减少', '不适用'] },
+    { id: 'obs_pressure', text: '有没有头痛眼花、血压高或下肢明显水肿？', options: ['没有', '有一点', '比较明显'] },
+    { id: 'obs_progress', text: '症状是稳定、加重还是缓解？', options: ['稳定', '加重', '缓解'] },
+  ],
+  pediatrics: [
+    { id: 'ped_age', text: '孩子大概年龄段是？', options: ['0-1岁', '1-3岁', '3-12岁', '12岁以上'] },
+    { id: 'ped_main', text: '主要问题是发热、咳嗽还是胃肠道不适？', options: ['发热', '咳嗽', '呕吐/腹泻', '不止一种'] },
+    { id: 'ped_temp', text: '体温大概到多少？', options: ['不发热', '38度以下', '38-39度', '39度以上'] },
+    { id: 'ped_state', text: '精神状态和进食情况怎么样？', options: ['基本正常', '有点差', '明显差'] },
+    { id: 'ped_duration', text: '症状持续多久了？', options: ['不到1天', '1-3天', '超过3天', '反复发作'] },
+  ],
+  nephrology: [
+    { id: 'neph_main', text: '现在更明显的是水肿、尿量变化还是化验异常？', options: ['水肿', '尿量变化', '化验异常', '都有'] },
+    { id: 'neph_urine', text: '小便有没有泡沫多、颜色异常或明显变少？', options: ['没有', '有其一', '有多项'] },
+    { id: 'neph_bp', text: '近期血压有没有偏高或波动明显？', options: ['没有', '偶尔高', '经常偏高'] },
+    { id: 'neph_edema', text: '眼睑/下肢水肿是偶发还是持续？', options: ['没有', '偶发', '持续明显'] },
+    { id: 'neph_history', text: '既往有肾病、糖尿病或长期止痛药使用吗？', options: ['没有', '有其一', '有多项'] },
+  ],
+  hepatobiliary: [
+    { id: 'hb_main', text: '主要是上腹痛、黄疸，还是体检肝功异常？', options: ['上腹痛', '黄疸', '肝功异常', '不止一种'] },
+    { id: 'hb_trigger', text: '和油腻饮食或饮酒后关系明显吗？', options: ['不明显', '有一点', '比较明显'] },
+    { id: 'hb_digest', text: '有没有恶心、呕吐、食欲差或腹胀？', options: ['没有', '有1项', '有2项及以上'] },
+    { id: 'hb_fever', text: '有没有发热或疼痛明显加重？', options: ['没有', '有一点', '比较明显'] },
+    { id: 'hb_history', text: '既往有肝胆胰疾病或结石病史吗？', options: ['没有', '有其一', '有多项'] },
+  ],
+  orthopedics: [
+    { id: 'ortho_site', text: '主要是哪个部位疼痛或不舒服？', options: ['颈肩', '腰背', '膝/踝', '手臂/手腕'] },
+    { id: 'ortho_cause', text: '和外伤、扭伤或负重劳累有关吗？', options: ['没有', '有一点关系', '关系明显'] },
+    { id: 'ortho_move', text: '活动时会更痛还是休息也痛？', options: ['活动更痛', '休息也痛', '都差不多'] },
+    { id: 'ortho_swelling', text: '有没有肿胀、发热或活动受限？', options: ['没有', '有一项', '有多项'] },
+    { id: 'ortho_duration', text: '持续多久了？', options: ['不到3天', '3-7天', '超过1周', '反复'] },
+  ],
+  rheumatology: [
+    { id: 'rheum_joint', text: '主要是哪些关节不舒服？', options: ['手指/手腕', '膝踝', '多关节', '说不清'] },
+    { id: 'rheum_morning', text: '早晨僵硬持续时间大概多久？', options: ['没有晨僵', '30分钟内', '30-60分钟', '超过1小时'] },
+    { id: 'rheum_swelling', text: '有没有关节肿胀、发热或压痛？', options: ['没有', '有一点', '比较明显'] },
+    { id: 'rheum_repeat', text: '这种情况是偶发还是反复发作？', options: ['偶发', '间断反复', '持续存在'] },
+    { id: 'rheum_other', text: '是否伴皮疹、口腔溃疡或乏力？', options: ['没有', '有1项', '有2项及以上'] },
+  ],
+  psychiatry: [
+    { id: 'psy_main', text: '目前更困扰的是焦虑、情绪低落还是睡眠问题？', options: ['焦虑为主', '情绪低落为主', '睡眠问题为主', '都有'] },
+    { id: 'psy_duration', text: '这种状态持续多久了？', options: ['不到1周', '1-4周', '超过1个月', '反复发作'] },
+    { id: 'psy_impact', text: '对工作生活影响大吗？', options: ['影响不大', '有一定影响', '影响很明显'] },
+    { id: 'psy_body', text: '是否伴心慌、胸闷、食欲或精力变化？', options: ['没有', '有一项', '有多项'] },
+    { id: 'psy_safety', text: '有没有出现伤害自己或他人的想法？', options: ['没有', '偶尔出现', '比较明显'] },
+  ],
+  oncology: [
+    { id: 'onco_main', text: '这次最担心的是肿块、消瘦还是持续不明原因不适？', options: ['肿块', '消瘦', '长期不适', '不止一种'] },
+    { id: 'onco_growth', text: '相关症状是稳定还是在进展？', options: ['基本稳定', '缓慢进展', '明显进展'] },
+    { id: 'onco_systemic', text: '有没有低热、盗汗、乏力等全身表现？', options: ['没有', '有1项', '有多项'] },
+    { id: 'onco_family', text: '家族里有类似肿瘤病史吗？', options: ['没有', '有其一', '不清楚'] },
+    { id: 'onco_history', text: '既往体检或影像提示异常吗？', options: ['没有', '有但未复查', '有且在随访'] },
+  ],
+  hematology: [
+    { id: 'hema_main', text: '主要是贫血乏力、出血倾向还是化验异常？', options: ['贫血乏力', '出血倾向', '化验异常', '不止一种'] },
+    { id: 'hema_bleed', text: '有没有鼻出血、牙龈出血或皮下淤青？', options: ['没有', '偶尔有', '比较明显'] },
+    { id: 'hema_infect', text: '近期是否反复发热或感染？', options: ['没有', '偶尔', '反复明显'] },
+    { id: 'hema_duration', text: '症状持续多久了？', options: ['不到1周', '1-4周', '超过1个月', '反复'] },
+    { id: 'hema_report', text: '有没有既往血常规异常记录？', options: ['没有', '有一次', '多次异常'] },
+  ],
+  anorectal: [
+    { id: 'ano_main', text: '主要是不适是疼痛、出血还是坠胀？', options: ['疼痛', '出血', '坠胀', '都有'] },
+    { id: 'ano_stool', text: '和排便关系明显吗？', options: ['关系不大', '排便时明显', '排便后仍明显'] },
+    { id: 'ano_bleed', text: '出血量大概如何？', options: ['没有出血', '纸上带血', '滴血较多', '不确定'] },
+    { id: 'ano_constipation', text: '近期有便秘或排便费力吗？', options: ['没有', '有一点', '比较明显'] },
+    { id: 'ano_duration', text: '这种情况持续多久？', options: ['不到3天', '3-7天', '超过1周', '反复发作'] },
+  ],
+  dentistry: [
+    { id: 'den_main', text: '主要是牙痛、牙龈肿还是口腔溃疡？', options: ['牙痛', '牙龈肿', '口腔溃疡', '不止一种'] },
+    { id: 'den_hotcold', text: '遇冷热是否会明显加重？', options: ['不会', '有一点', '非常明显'] },
+    { id: 'den_night', text: '夜间疼痛是否更明显影响睡眠？', options: ['没有', '有一点', '比较明显'] },
+    { id: 'den_swallow', text: '有没有面部肿胀、发热或张口困难？', options: ['没有', '有一项', '有多项'] },
+    { id: 'den_duration', text: '这次持续多久了？', options: ['不到3天', '3-7天', '超过1周', '反复'] },
+  ],
+  dermatology: [
+    { id: 'derm_main', text: '主要是痒、痛，还是皮疹扩散更明显？', options: ['痒为主', '痛为主', '扩散为主', '都有'] },
+    { id: 'derm_area', text: '受累范围大概怎样？', options: ['局部小范围', '多处散在', '范围较大'] },
+    { id: 'derm_trigger', text: '近期有换护肤品、药物或可疑过敏接触吗？', options: ['没有', '有可疑因素', '不确定'] },
+    { id: 'derm_fluid', text: '有没有渗液、结痂或化脓？', options: ['没有', '有一点', '比较明显'] },
+    { id: 'derm_duration', text: '这种皮肤问题持续多久了？', options: ['不到3天', '3-7天', '超过1周', '反复'] },
+  ],
+  breastThyroid: [
+    { id: 'bt_main', text: '主要是乳房问题还是甲状腺/颈前肿块问题？', options: ['乳房为主', '甲状腺为主', '两者都有'] },
+    { id: 'bt_lump', text: '肿块大小或硬度最近有变化吗？', options: ['没有明显变化', '有一点变化', '变化明显'] },
+    { id: 'bt_pain', text: '是否伴疼痛、压痛或不适加重？', options: ['没有', '有一点', '比较明显'] },
+    { id: 'bt_cycle', text: '乳房不适与月经周期相关吗？', options: ['相关明显', '关系不大', '不适用/不确定'] },
+    { id: 'bt_report', text: '有没有做过彩超或甲功检查？', options: ['没有', '做过一次', '已多次复查'] },
+  ],
+};
+
 const RED_FLAG_KEYWORDS = [
   '胸痛加重',
   '呼吸困难',
@@ -143,7 +265,7 @@ const SCENARIOS = {
   digestive: {
     id: 'digestive',
     label: '肚子痛/胃不舒服/消化问题',
-    keywords: ['肚子痛', '胃不舒服', '胃痛', '反酸', '拉肚子', '恶心'],
+    keywords: ['肚子痛', '胃不舒服', '胃痛', '反酸', '拉肚子', '恶心', '黑便', '柏油样便', '便血', '呕血'],
     department: '消化内科',
     hospitalLevel: '先县医院，持续加重可转市医院消化专科',
     preparation: ['身份证', '医保卡', '近期饮食和用药情况', '既往胃镜/幽门螺杆菌结果'],
@@ -305,13 +427,13 @@ const SCENARIOS = {
   ent: {
     id: 'ent',
     label: '耳鼻喉不适',
-    keywords: ['咽痛', '喉咙痛', '鼻塞', '流鼻涕', '耳痛', '耳鸣', '声音嘶哑'],
+    keywords: ['咽痛', '喉咙痛', '鼻塞', '流鼻涕', '耳痛', '耳鸣', '声音嘶哑', '吞咽痛', '扁桃体'],
     department: '耳鼻喉科',
     hospitalLevel: '先县医院耳鼻喉科门诊，重症再转市级医院',
     preparation: ['身份证', '医保卡', '既往耳鼻喉检查报告', '近期用药信息'],
     baseChecks: COMMON_BASE_CHECKS,
     nextStepRules: ['症状持续超过1周可做喉镜/鼻内镜进一步判断。', '高热或吞咽困难明显加重时尽快线下就医。'],
-    questions: GENERIC_TRIAGE_QUESTIONS,
+    questions: SPECIALTY_QUESTION_SETS.ent,
   },
   neurology: {
     id: 'neurology',
@@ -322,18 +444,18 @@ const SCENARIOS = {
     preparation: ['身份证', '医保卡', '既往影像报告', '慢病与用药记录'],
     baseChecks: COMMON_BASE_CHECKS,
     nextStepRules: ['若出现持续加重的神经体征，优先做头颅CT/MRI。', '急性发作时不要拖延，尽快线下评估。'],
-    questions: GENERIC_TRIAGE_QUESTIONS,
+    questions: SPECIALTY_QUESTION_SETS.neurology,
   },
   endocrinology: {
     id: 'endocrinology',
     label: '内分泌/代谢问题',
-    keywords: ['血糖', '糖尿病', '甲状腺', '乏力', '多饮', '多尿', '体重变化'],
+    keywords: ['血糖', '糖尿病', '甲状腺功能', '乏力', '多饮', '多尿', '体重变化', '甲功'],
     department: '内分泌科',
     hospitalLevel: '先县医院内分泌或内科门诊',
     preparation: ['身份证', '医保卡', '既往血糖/甲功报告', '长期用药清单'],
     baseChecks: COMMON_BASE_CHECKS,
     nextStepRules: ['先做血糖和基础代谢检查，再决定是否追加专项激素检查。', '若血糖极高伴不适，尽快线下就医。'],
-    questions: GENERIC_TRIAGE_QUESTIONS,
+    questions: SPECIALTY_QUESTION_SETS.endocrinology,
   },
   gynecology: {
     id: 'gynecology',
@@ -344,7 +466,7 @@ const SCENARIOS = {
     preparation: ['身份证', '医保卡', '月经记录', '既往妇科检查报告'],
     baseChecks: COMMON_BASE_CHECKS,
     nextStepRules: ['先做妇科查体与基础检验，再决定是否做超声或激素检查。', '出血量大或疼痛剧烈时尽快就医。'],
-    questions: GENERIC_TRIAGE_QUESTIONS,
+    questions: SPECIALTY_QUESTION_SETS.gynecology,
   },
   obstetrics: {
     id: 'obstetrics',
@@ -355,7 +477,7 @@ const SCENARIOS = {
     preparation: ['身份证', '医保卡', '产检手册', '近期产检报告'],
     baseChecks: COMMON_BASE_CHECKS,
     nextStepRules: ['孕期异常应优先产科评估，不建议自行拖延。', '出现见红、腹痛、胎动异常时立即线下就医。'],
-    questions: GENERIC_TRIAGE_QUESTIONS,
+    questions: SPECIALTY_QUESTION_SETS.obstetrics,
   },
   pediatrics: {
     id: 'pediatrics',
@@ -366,7 +488,7 @@ const SCENARIOS = {
     preparation: ['身份证', '医保卡', '体温记录', '既往儿科病历'],
     baseChecks: COMMON_BASE_CHECKS,
     nextStepRules: ['儿童症状变化快，建议短时间复评。', '高热不退、精神差、进食差时尽快线下就医。'],
-    questions: GENERIC_TRIAGE_QUESTIONS,
+    questions: SPECIALTY_QUESTION_SETS.pediatrics,
   },
   nephrology: {
     id: 'nephrology',
@@ -377,7 +499,7 @@ const SCENARIOS = {
     preparation: ['身份证', '医保卡', '既往肾功能报告', '血压记录'],
     baseChecks: COMMON_BASE_CHECKS,
     nextStepRules: ['先做尿检和肾功能，再决定是否追加肾脏超声。', '水肿明显或尿量骤减时尽快就医。'],
-    questions: GENERIC_TRIAGE_QUESTIONS,
+    questions: SPECIALTY_QUESTION_SETS.nephrology,
   },
   hepatobiliary: {
     id: 'hepatobiliary',
@@ -388,7 +510,7 @@ const SCENARIOS = {
     preparation: ['身份证', '医保卡', '肝功/腹部超声报告', '用药与饮酒史'],
     baseChecks: COMMON_BASE_CHECKS,
     nextStepRules: ['先做肝功能和腹部超声，再评估是否需专项影像。', '黄疸加重或腹痛剧烈时尽快就医。'],
-    questions: GENERIC_TRIAGE_QUESTIONS,
+    questions: SPECIALTY_QUESTION_SETS.hepatobiliary,
   },
   orthopedics: {
     id: 'orthopedics',
@@ -399,7 +521,7 @@ const SCENARIOS = {
     preparation: ['身份证', '医保卡', '既往影像片', '受伤经过'],
     baseChecks: COMMON_BASE_CHECKS,
     nextStepRules: ['先体格评估，必要时做X线/超声。', '不能负重或畸形明显时尽快线下处理。'],
-    questions: GENERIC_TRIAGE_QUESTIONS,
+    questions: SPECIALTY_QUESTION_SETS.orthopedics,
   },
   rheumatology: {
     id: 'rheumatology',
@@ -410,7 +532,7 @@ const SCENARIOS = {
     preparation: ['身份证', '医保卡', '既往免疫化验报告', '长期用药信息'],
     baseChecks: COMMON_BASE_CHECKS,
     nextStepRules: ['先做基础炎症指标与相关抗体筛查。', '症状反复迁延建议尽早专科评估。'],
-    questions: GENERIC_TRIAGE_QUESTIONS,
+    questions: SPECIALTY_QUESTION_SETS.rheumatology,
   },
   psychiatry: {
     id: 'psychiatry',
@@ -421,7 +543,7 @@ const SCENARIOS = {
     preparation: ['身份证', '医保卡', '既往心理就诊记录', '当前用药信息'],
     baseChecks: COMMON_BASE_CHECKS,
     nextStepRules: ['优先评估睡眠、情绪与压力因素。', '若出现自伤他伤风险，立即线下急诊。'],
-    questions: GENERIC_TRIAGE_QUESTIONS,
+    questions: SPECIALTY_QUESTION_SETS.psychiatry,
   },
   oncology: {
     id: 'oncology',
@@ -432,7 +554,7 @@ const SCENARIOS = {
     preparation: ['身份证', '医保卡', '既往影像和病理报告', '近期体检结果'],
     baseChecks: COMMON_BASE_CHECKS,
     nextStepRules: ['先做基础评估，不直接下结论。', '按医生建议完善影像和病理相关检查。'],
-    questions: GENERIC_TRIAGE_QUESTIONS,
+    questions: SPECIALTY_QUESTION_SETS.oncology,
   },
   hematology: {
     id: 'hematology',
@@ -443,7 +565,7 @@ const SCENARIOS = {
     preparation: ['身份证', '医保卡', '血常规报告', '既往血液检查结果'],
     baseChecks: COMMON_BASE_CHECKS,
     nextStepRules: ['先复核血常规和凝血相关指标。', '异常持续时建议专科进一步排查。'],
-    questions: GENERIC_TRIAGE_QUESTIONS,
+    questions: SPECIALTY_QUESTION_SETS.hematology,
   },
   anorectal: {
     id: 'anorectal',
@@ -454,7 +576,7 @@ const SCENARIOS = {
     preparation: ['身份证', '医保卡', '排便情况记录', '既往肠镜报告'],
     baseChecks: COMMON_BASE_CHECKS,
     nextStepRules: ['先做基础查体，再决定是否肠镜评估。', '出血量大或持续不缓解需尽快线下。'],
-    questions: GENERIC_TRIAGE_QUESTIONS,
+    questions: SPECIALTY_QUESTION_SETS.anorectal,
   },
   dentistry: {
     id: 'dentistry',
@@ -465,7 +587,7 @@ const SCENARIOS = {
     preparation: ['身份证', '医保卡', '既往口腔片', '近期用药信息'],
     baseChecks: COMMON_BASE_CHECKS,
     nextStepRules: ['先口腔查体，必要时牙片评估。', '面部肿胀发热或张口困难时尽快线下。'],
-    questions: GENERIC_TRIAGE_QUESTIONS,
+    questions: SPECIALTY_QUESTION_SETS.dentistry,
   },
   dermatology: {
     id: 'dermatology',
@@ -476,18 +598,18 @@ const SCENARIOS = {
     preparation: ['身份证', '医保卡', '皮损照片', '近期外用药记录'],
     baseChecks: COMMON_BASE_CHECKS,
     nextStepRules: ['先识别过敏/感染/炎症方向，再决定是否加做化验。', '范围快速扩大或伴发热尽快线下。'],
-    questions: GENERIC_TRIAGE_QUESTIONS,
+    questions: SPECIALTY_QUESTION_SETS.dermatology,
   },
   breastThyroid: {
     id: 'breastThyroid',
     label: '乳腺/甲状腺问题',
-    keywords: ['乳房肿块', '乳房疼', '甲状腺结节', '颈前肿块', '甲状腺肿大'],
+    keywords: ['乳房肿块', '乳房疼', '甲状腺结节', '甲状腺结节复查', '颈前肿块', '甲状腺肿大', '乳腺结节'],
     department: '甲乳外科/内分泌科',
     hospitalLevel: '先综合医院门诊分诊',
     preparation: ['身份证', '医保卡', '既往彩超报告', '甲功检查结果'],
     baseChecks: COMMON_BASE_CHECKS,
     nextStepRules: ['先做超声和基础检验，再定是否追加专项检查。', '肿块短期增大或疼痛加重时尽快就诊。'],
-    questions: GENERIC_TRIAGE_QUESTIONS,
+    questions: SPECIALTY_QUESTION_SETS.breastThyroid,
   },
   general: {
     id: 'general',
@@ -565,6 +687,91 @@ const QUESTION_SLOT_META = {
   g_history: { slot: 'history', slotLabel: '慢病/用药史' },
   g_trigger: { slot: 'triggerTime', slotLabel: '诱因' },
   g_redflag: { slot: 'riskSignal', slotLabel: '风险信号' },
+  ent_main: { slot: 'problemType', slotLabel: '耳鼻喉主症状' },
+  ent_days: { slot: 'duration', slotLabel: '持续时间' },
+  ent_fever: { slot: 'infectionSigns', slotLabel: '发热/吞咽困难' },
+  ent_discharge: { slot: 'accompanying', slotLabel: '分泌物情况' },
+  ent_voice: { slot: 'trend', slotLabel: '加重趋势' },
+  neuro_main: { slot: 'problemType', slotLabel: '神经主症状' },
+  neuro_onset: { slot: 'timeline', slotLabel: '起病方式' },
+  neuro_side: { slot: 'location', slotLabel: '单侧表现' },
+  neuro_speech: { slot: 'neurologic', slotLabel: '神经体征' },
+  neuro_progress: { slot: 'trend', slotLabel: '变化趋势' },
+  endo_main: { slot: 'problemType', slotLabel: '内分泌方向' },
+  endo_drink: { slot: 'accompanying', slotLabel: '代谢表现' },
+  endo_fatigue: { slot: 'severity', slotLabel: '全身不适' },
+  endo_duration: { slot: 'duration', slotLabel: '持续时间' },
+  endo_history: { slot: 'history', slotLabel: '慢病病史' },
+  gyn_main: { slot: 'problemType', slotLabel: '妇科主症状' },
+  gyn_cycle: { slot: 'timeline', slotLabel: '周期变化' },
+  gyn_bleed: { slot: 'riskSignal', slotLabel: '异常出血' },
+  gyn_pain: { slot: 'severity', slotLabel: '疼痛变化' },
+  gyn_fever: { slot: 'infectionSigns', slotLabel: '感染征象' },
+  obs_week: { slot: 'timeline', slotLabel: '孕周阶段' },
+  obs_bleed: { slot: 'riskSignal', slotLabel: '孕产危险信号' },
+  obs_move: { slot: 'fetalMove', slotLabel: '胎动变化' },
+  obs_pressure: { slot: 'severity', slotLabel: '并发风险' },
+  obs_progress: { slot: 'trend', slotLabel: '变化趋势' },
+  ped_age: { slot: 'ageBand', slotLabel: '年龄段' },
+  ped_main: { slot: 'problemType', slotLabel: '儿科主症状' },
+  ped_temp: { slot: 'feverDuration', slotLabel: '发热程度' },
+  ped_state: { slot: 'severity', slotLabel: '精神进食状态' },
+  ped_duration: { slot: 'duration', slotLabel: '持续时间' },
+  neph_main: { slot: 'problemType', slotLabel: '肾脏主诉' },
+  neph_urine: { slot: 'urinationPain', slotLabel: '尿液变化' },
+  neph_bp: { slot: 'bloodPressure', slotLabel: '血压变化' },
+  neph_edema: { slot: 'severity', slotLabel: '水肿程度' },
+  neph_history: { slot: 'history', slotLabel: '慢病/用药史' },
+  hb_main: { slot: 'problemType', slotLabel: '肝胆胰主诉' },
+  hb_trigger: { slot: 'foodTrigger', slotLabel: '饮食诱因' },
+  hb_digest: { slot: 'accompanying', slotLabel: '消化伴随症状' },
+  hb_fever: { slot: 'severity', slotLabel: '加重信号' },
+  hb_history: { slot: 'history', slotLabel: '既往病史' },
+  ortho_site: { slot: 'location', slotLabel: '部位' },
+  ortho_cause: { slot: 'cause', slotLabel: '诱因' },
+  ortho_move: { slot: 'activityRelation', slotLabel: '活动关系' },
+  ortho_swelling: { slot: 'accompanying', slotLabel: '伴随体征' },
+  ortho_duration: { slot: 'duration', slotLabel: '持续时间' },
+  rheum_joint: { slot: 'location', slotLabel: '关节部位' },
+  rheum_morning: { slot: 'morningStiffness', slotLabel: '晨僵' },
+  rheum_swelling: { slot: 'accompanying', slotLabel: '肿痛体征' },
+  rheum_repeat: { slot: 'repeatHistory', slotLabel: '反复情况' },
+  rheum_other: { slot: 'accompanying', slotLabel: '系统症状' },
+  psy_main: { slot: 'problemType', slotLabel: '心理主诉' },
+  psy_duration: { slot: 'duration', slotLabel: '持续时间' },
+  psy_impact: { slot: 'lifeImpact', slotLabel: '生活影响' },
+  psy_body: { slot: 'accompanying', slotLabel: '躯体伴随' },
+  psy_safety: { slot: 'riskSignal', slotLabel: '安全风险' },
+  onco_main: { slot: 'problemType', slotLabel: '肿瘤担忧点' },
+  onco_growth: { slot: 'trend', slotLabel: '进展趋势' },
+  onco_systemic: { slot: 'accompanying', slotLabel: '全身症状' },
+  onco_family: { slot: 'history', slotLabel: '家族史' },
+  onco_history: { slot: 'testFindings', slotLabel: '既往检查' },
+  hema_main: { slot: 'problemType', slotLabel: '血液主诉' },
+  hema_bleed: { slot: 'riskSignal', slotLabel: '出血倾向' },
+  hema_infect: { slot: 'infectionSigns', slotLabel: '感染情况' },
+  hema_duration: { slot: 'duration', slotLabel: '持续时间' },
+  hema_report: { slot: 'testFindings', slotLabel: '化验记录' },
+  ano_main: { slot: 'problemType', slotLabel: '肛肠主诉' },
+  ano_stool: { slot: 'bowelChange', slotLabel: '排便关系' },
+  ano_bleed: { slot: 'riskSignal', slotLabel: '出血程度' },
+  ano_constipation: { slot: 'bowelChange', slotLabel: '便秘情况' },
+  ano_duration: { slot: 'duration', slotLabel: '持续时间' },
+  den_main: { slot: 'problemType', slotLabel: '口腔主诉' },
+  den_hotcold: { slot: 'triggerTime', slotLabel: '冷热刺激' },
+  den_night: { slot: 'nightPattern', slotLabel: '夜间加重' },
+  den_swallow: { slot: 'riskSignal', slotLabel: '急性危险信号' },
+  den_duration: { slot: 'duration', slotLabel: '持续时间' },
+  derm_main: { slot: 'problemType', slotLabel: '皮肤主诉' },
+  derm_area: { slot: 'spread', slotLabel: '范围' },
+  derm_trigger: { slot: 'exposureHistory', slotLabel: '接触诱因' },
+  derm_fluid: { slot: 'infectionSigns', slotLabel: '渗液化脓' },
+  derm_duration: { slot: 'duration', slotLabel: '持续时间' },
+  bt_main: { slot: 'problemType', slotLabel: '甲乳方向' },
+  bt_lump: { slot: 'trend', slotLabel: '肿块变化' },
+  bt_pain: { slot: 'severity', slotLabel: '疼痛程度' },
+  bt_cycle: { slot: 'timeline', slotLabel: '周期关系' },
+  bt_report: { slot: 'testFindings', slotLabel: '既往检查' },
 };
 
 const SECOND_ROUND_CHECKS = {
@@ -849,6 +1056,23 @@ const URGENT_CHECK_PLANS = {
   },
 };
 
+const URGENT_PLAN_DEPARTMENTS = {
+  generic: '急诊医学科',
+  digestiveBleed: '急诊医学科/消化内科',
+  cardioNeuro: '急诊医学科/心血管内科/神经内科',
+  stroke: '急诊医学科/神经内科',
+  acs: '急诊医学科/心血管内科',
+  respiratoryAcute: '急诊医学科/呼吸内科',
+  sepsis: '急诊医学科/感染科',
+  anaphylaxis: '急诊医学科',
+  acuteAbdomen: '急诊医学科/普外科',
+  severeTrauma: '急诊医学科/创伤外科',
+  obstetricEmergency: '急诊医学科/妇产科',
+  pediatricCritical: '急诊医学科/儿科',
+  psychiatricCrisis: '急诊医学科/精神心理科',
+  urinaryComplicated: '急诊医学科/泌尿外科',
+};
+
 const URGENT_CATEGORY_PATTERNS = [
   {
     category: 'stroke',
@@ -971,7 +1195,8 @@ function expandComplaintText(input = '') {
     [/拉稀|腹泻/g, '拉肚子'],
     [/小便频繁|尿得多|憋不住尿/g, '尿频'],
     [/小便痛|尿尿疼/g, '尿痛'],
-    [/咽痛|嗓子疼|感冒咳嗽/g, '咳嗽'],
+    [/咽痛|嗓子疼/g, '咽痛'],
+    [/感冒咳嗽/g, '咳嗽'],
     [/起疹子|过敏|皮肤发痒/g, '皮肤'],
     [/摔伤|碰伤|伤口/g, '外伤'],
   ];
@@ -1016,7 +1241,9 @@ function scoreScenario(text = '', scenario = {}) {
   const normalized = expandComplaintText(text);
   const keywords = Array.isArray(scenario.keywords) ? scenario.keywords : [];
   return keywords.reduce((acc, kw) => {
-    return hasPositiveKeyword(normalized, kw) ? acc + 1 : acc;
+    if (!hasPositiveKeyword(normalized, kw)) return acc;
+    const weight = String(kw || '').length >= 4 ? 2 : 1;
+    return acc + weight;
   }, 0);
 }
 
@@ -1037,7 +1264,7 @@ function detectScenarioDetailed(chiefComplaint = '') {
   const best = ranked[0] || { scenario: SCENARIOS.general, score: 0 };
   const second = ranked[1] || { scenario: SCENARIOS.general, score: 0 };
   const gap = Number(best.score || 0) - Number(second.score || 0);
-  const ambiguous = best.score <= 0 || gap <= 0;
+  const ambiguous = best.score <= 0 || (gap <= 0 && best.score < 2);
   const pickedScenario = ambiguous ? SCENARIOS.general : best.scenario;
 
   return {
@@ -1078,28 +1305,33 @@ function hasRedFlag({ chiefComplaint = '', answers = {}, supplements = [] }) {
 
 function isDigestiveBleedRisk(session = {}) {
   const text = `${session.chiefComplaint || ''} ${Object.values(session.answers || {}).join(' ')} ${(session.supplements || []).join(' ')}`;
-  return /(黑便|柏油样便|柏油便|呕血|上消化道出血|消化道出血|便血)/.test(text);
+  const keywords = ['黑便', '柏油样便', '柏油便', '呕血', '上消化道出血', '消化道出血', '便血'];
+  return keywords.some((keyword) => hasPositiveKeyword(text, keyword));
 }
 
 function buildUrgentPlan(session = {}, scenario = {}) {
   const fullText = `${session.chiefComplaint || ''} ${Object.values(session.answers || {}).join(' ')} ${(session.supplements || []).join(' ')}`;
   const matchedCategory = URGENT_CATEGORY_PATTERNS.find((item) => item.patterns.some((pattern) => pattern.test(fullText)))?.category || '';
+  const withDept = (planKey, plan) => ({
+    ...plan,
+    department: URGENT_PLAN_DEPARTMENTS[planKey] || scenario.department || '急诊医学科',
+  });
   if (matchedCategory && URGENT_CHECK_PLANS[matchedCategory]) {
-    return URGENT_CHECK_PLANS[matchedCategory];
+    return withDept(matchedCategory, URGENT_CHECK_PLANS[matchedCategory]);
   }
   if ((scenario.id === 'digestive') || isDigestiveBleedRisk(session)) {
-    return URGENT_CHECK_PLANS.digestiveBleed;
+    return withDept('digestiveBleed', URGENT_CHECK_PLANS.digestiveBleed);
   }
   if (scenario.id === 'cardio') {
-    return URGENT_CHECK_PLANS.cardioNeuro;
+    return withDept('cardioNeuro', URGENT_CHECK_PLANS.cardioNeuro);
   }
   if (scenario.id === 'respiratory') {
-    return URGENT_CHECK_PLANS.respiratoryAcute;
+    return withDept('respiratoryAcute', URGENT_CHECK_PLANS.respiratoryAcute);
   }
   if (scenario.id === 'urinary') {
-    return URGENT_CHECK_PLANS.urinaryComplicated;
+    return withDept('urinaryComplicated', URGENT_CHECK_PLANS.urinaryComplicated);
   }
-  return URGENT_CHECK_PLANS.generic;
+  return withDept('generic', URGENT_CHECK_PLANS.generic);
 }
 
 function hasModerateOrWorseSignal(text = '') {
@@ -1595,17 +1827,17 @@ function buildTriageResult(session) {
     : '全科医学科 / 内科门诊';
   const guidance = redFlag
     ? {
-        recommendationLevel: 'hospital_priority_high',
-        severityLevel: 'high',
-        severityText: '当前有高风险信号，建议立即线下就医，必要时急诊。',
-        userGoal: '先快速排查高风险原因，避免延误',
-        actionSummary: '你现在有紧急风险信号，建议尽快去急诊，不要继续等待。',
-        selfCareAdvice: [],
-        medicationAdvice: [],
-        visitAdvice: ['请尽快到急诊或消化内科线下评估，不建议继续观察。'],
-        examAdvice: urgentPlan?.examAdvice?.length
-          ? urgentPlan.examAdvice
-          : ['到院后优先做血常规、粪便潜血及医生建议的止血相关检查。'],
+      recommendationLevel: 'hospital_priority_high',
+      severityLevel: 'high',
+      severityText: '当前有高风险信号，建议立即线下就医，必要时急诊。',
+      userGoal: '先快速排查高风险原因，避免延误',
+      actionSummary: '你现在有紧急风险信号，建议尽快去急诊，不要继续等待。',
+      selfCareAdvice: [],
+      medicationAdvice: [],
+      visitAdvice: [`请尽快到${urgentPlan?.department || '急诊医学科'}线下评估，不建议继续观察。`],
+      examAdvice: urgentPlan?.examAdvice?.length
+        ? urgentPlan.examAdvice
+        : ['到院后优先做血常规、粪便潜血及医生建议的止血相关检查。'],
         needsBooking: true,
         needsCost: true,
       }
@@ -1653,9 +1885,11 @@ function buildTriageResult(session) {
         suggestHospital: guidance.recommendationLevel === 'routine_clinic' && scenario.id === 'general'
           ? '先就近医院全科/内科分诊，再转专科'
           : scenario.hospitalLevel,
-        suggestDepartment: guidance.recommendationLevel === 'routine_clinic' && unresolvedAfterEnoughTurns
+        suggestDepartment: guidance.recommendationLevel === 'hospital_priority_high'
+          ? (urgentPlan?.department || '急诊医学科')
+          : (guidance.recommendationLevel === 'routine_clinic' && unresolvedAfterEnoughTurns
           ? mergedDepartments
-          : scenario.department,
+          : scenario.department),
         firstChecks: normalizedBaseChecks,
         firstCostRange: `${baseCost.min}~${baseCost.max}元`,
         recommendationLevel: guidance.recommendationLevel,
@@ -1666,9 +1900,11 @@ function buildTriageResult(session) {
         needsCost: guidance.needsCost,
       },
       detail: {
-        whyDepartment: unresolvedAfterEnoughTurns
+        whyDepartment: guidance.recommendationLevel === 'hospital_priority_high'
+          ? `当前存在高风险信号，建议优先到${urgentPlan?.department || '急诊医学科'}线下评估。`
+          : (unresolvedAfterEnoughTurns
           ? `当前信息在多个方向上都有线索（信息覆盖 ${coverage.hit}/${coverage.total}），先分诊比硬判单科更稳妥。`
-          : `根据你的主诉、追问答案和补充材料，当前更匹配 ${scenario.department} 的初筛路径。`,
+          : `根据你的主诉、追问答案和补充材料，当前更匹配 ${scenario.department} 的初筛路径。`),
         suspectedDirections: redFlag
           ? ['存在需要急诊先排查的风险']
           : (unresolvedAfterEnoughTurns
