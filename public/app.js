@@ -34,7 +34,7 @@ function getQuickSymptoms() {
   return Array.from(new Set(quickSymptomGroups.flatMap((group) => group.items)));
 }
 
-const QUICK_SYMPTOM_PRIMARY_COUNT = 15;
+const QUICK_SYMPTOM_PRIMARY_COUNT = 14;
 const QUICK_SYMPTOM_REORDER_THRESHOLD = 200;
 const QUICK_RISK_SYMPTOMS = new Set([
   '胸痛',
@@ -1033,8 +1033,9 @@ function renderQuickSymptoms() {
   panel.appendChild(primaryWrap);
 
   const details = document.createElement('details');
-  details.className = 'intro-symptom-more';
-  details.innerHTML = `<summary>更多症状（${allSymptoms.length - primary.length}）</summary>`;
+  details.className = 'intro-symptom-more hidden';
+  details.open = false;
+  details.innerHTML = '<summary class="hidden">更多症状</summary>';
   const moreBody = document.createElement('div');
   moreBody.className = 'intro-symptom-groups';
 
@@ -1066,6 +1067,17 @@ function renderQuickSymptoms() {
     }
   });
   details.appendChild(moreBody);
+
+  const moreToggle = document.createElement('button');
+  moreToggle.type = 'button';
+  moreToggle.className = 'quick-chip quick-chip-more';
+  moreToggle.innerHTML = '<span class="quick-risk-icon">＋</span><span>更多症状</span>';
+  moreToggle.onclick = () => {
+    details.classList.toggle('hidden');
+    details.open = !details.classList.contains('hidden');
+    moreToggle.classList.toggle('active', details.open);
+  };
+  primaryWrap.appendChild(moreToggle);
   panel.appendChild(details);
 }
 

@@ -188,18 +188,6 @@ body {
   padding: 8px 10px;
 }
 
-.intro-symptom-more > summary {
-  cursor: pointer;
-  font-size: 13px;
-  color: var(--muted);
-  font-weight: 600;
-  list-style: none;
-}
-
-.intro-symptom-more > summary::-webkit-details-marker {
-  display: none;
-}
-
 .intro-symptom-groups {
   margin-top: 8px;
   display: flex;
@@ -1175,6 +1163,17 @@ body {
   height: 16px;
   font-size: 12px;
   line-height: 1;
+}
+
+.quick-chip-more {
+  border-style: dashed;
+  color: #2f6e52;
+  background: linear-gradient(180deg, #f8fffb 0%, #f1faf5 100%);
+}
+
+.quick-chip-more.active {
+  border-color: rgba(7, 193, 96, 0.45);
+  background: linear-gradient(180deg, #eefdf5 0%, #e8f9f1 100%);
 }
 
 .quick-chip:hover {
