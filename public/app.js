@@ -1,4 +1,32 @@
-const QUICK_SYMPTOMS = ['心慌', '胸闷', '头晕', '腰酸', '肚子痛', '咳嗽', '尿频尿急', '皮肤/外伤'];
+const QUICK_SYMPTOM_GROUPS = [
+  {
+    label: '高风险优先',
+    items: ['胸痛', '呼吸困难', '说话不清', '一侧肢体无力', '黑便', '便血', '呕血', '高热不退'],
+  },
+  {
+    label: '常见不适',
+    items: ['头晕', '头痛', '胸闷', '心慌', '腹痛', '胃不舒服', '咳嗽', '发热'],
+  },
+  {
+    label: '消化与排泄',
+    items: ['腹泻', '便秘', '反酸烧心', '恶心想吐', '尿频尿急', '尿痛', '血尿', '肛门坠胀'],
+  },
+  {
+    label: '呼吸与五官',
+    items: ['咽喉痛', '咳痰', '气短', '声音嘶哑', '鼻塞流涕', '耳痛耳鸣'],
+  },
+  {
+    label: '骨骼与外伤',
+    items: ['腰酸腰痛', '颈肩痛', '关节痛', '腿麻', '扭伤', '皮肤红疹', '皮肤/外伤'],
+  },
+  {
+    label: '其他咨询',
+    items: ['失眠', '焦虑心烦', '月经异常', '男科问题', '检查报告解读', '慢病复查'],
+  },
+];
+
+const QUICK_SYMPTOMS = Array.from(new Set(QUICK_SYMPTOM_GROUPS.flatMap((group) => group.items)));
+const QUICK_SYMPTOM_PRIMARY_COUNT = 16;
 
 const state = {
   sessionId: null,
@@ -84,12 +112,32 @@ const ICONS = {
 
 const QUICK_SYMPTOM_ICONS = {
   心慌: 'heartbeat',
+  胸痛: 'chest',
   胸闷: 'chest',
   头晕: 'head',
+  头痛: 'head',
   腰酸: 'waist',
+  腰酸腰痛: 'waist',
   肚子痛: 'stomach',
+  腹痛: 'stomach',
+  胃不舒服: 'stomach',
   咳嗽: 'lung',
+  气短: 'lung',
+  呼吸困难: 'lung',
+  发热: 'alert',
+  高热不退: 'alert',
+  说话不清: 'alert',
+  '一侧肢体无力': 'alert',
+  黑便: 'alert',
+  便血: 'alert',
+  呕血: 'alert',
+  腹泻: 'stomach',
+  便秘: 'stomach',
+  恶心想吐: 'stomach',
   尿频尿急: 'drop',
+  尿痛: 'drop',
+  血尿: 'drop',
+  皮肤红疹: 'bandage',
   '皮肤/外伤': 'bandage',
 };
 
@@ -911,6 +959,7 @@ function addIntroCard() {
     [
       '<div class="intro-card-inner">',
       '<p class="intro-copy"><strong class="intro-accent">我是小科</strong>，帮您分析症状、推荐医院和科室、预估看病费用，还能解读检查报告。直接告诉我哪里不舒服，或发送检查报告即可。</p>',
+      '<div id="introSymptomPanel" class="intro-symptom-panel"></div>',
       '</div>',
     ].join(''),
     'intro-card'
@@ -919,18 +968,64 @@ function addIntroCard() {
 }
 
 function renderQuickSymptoms() {
-  const row = $('quickRow');
-  row.innerHTML = '';
-  row.classList.remove('hidden');
+  const panel = $('introSymptomPanel');
+  const legacyRow = $('quickRow');
+  if (legacyRow) {
+    legacyRow.innerHTML = '';
+    legacyRow.classList.add('hidden');
+  }
+  if (!panel) return;
+  panel.innerHTML = '';
 
-  QUICK_SYMPTOMS.forEach((symptom) => {
+  const primary = QUICK_SYMPTOMS.slice(0, QUICK_SYMPTOM_PRIMARY_COUNT);
+  const primaryWrap = document.createElement('div');
+  primaryWrap.className = 'intro-symptom-primary';
+
+  primary.forEach((symptom) => {
     const button = document.createElement('button');
     button.className = 'quick-chip';
     const iconName = QUICK_SYMPTOM_ICONS[symptom] || 'spark';
     button.innerHTML = `<span class="quick-chip-icon">${getInlineIcon(iconName)}</span><span>${escapeHtml(symptom)}</span>`;
     button.onclick = () => submitText(symptom).catch((err) => alert(err.message));
-    row.appendChild(button);
+    primaryWrap.appendChild(button);
   });
+  panel.appendChild(primaryWrap);
+
+  const details = document.createElement('details');
+  details.className = 'intro-symptom-more';
+  details.innerHTML = `<summary>更多症状（${QUICK_SYMPTOMS.length - primary.length}）</summary>`;
+  const moreBody = document.createElement('div');
+  moreBody.className = 'intro-symptom-groups';
+
+  QUICK_SYMPTOM_GROUPS.forEach((group) => {
+    const groupWrap = document.createElement('section');
+    groupWrap.className = 'intro-symptom-group';
+    groupWrap.innerHTML = `<h4>${escapeHtml(group.label)}</h4>`;
+    const groupRow = document.createElement('div');
+    groupRow.className = 'intro-symptom-group-row';
+    group.items.forEach((symptom) => {
+      if (primary.includes(symptom)) return;
+      const button = document.createElement('button');
+      button.className = 'quick-chip';
+      const iconName = QUICK_SYMPTOM_ICONS[symptom] || 'spark';
+      button.innerHTML = `<span class="quick-chip-icon">${getInlineIcon(iconName)}</span><span>${escapeHtml(symptom)}</span>`;
+      button.onclick = () => submitText(symptom).catch((err) => alert(err.message));
+      groupRow.appendChild(button);
+    });
+    if (groupRow.childElementCount > 0) {
+      groupWrap.appendChild(groupRow);
+      moreBody.appendChild(groupWrap);
+    }
+  });
+  details.appendChild(moreBody);
+  panel.appendChild(details);
+}
+
+function hideIntroSymptoms() {
+  const panel = $('introSymptomPanel');
+  if (panel) {
+    panel.classList.add('hidden');
+  }
 }
 
 function getInlineIcon(name) {
@@ -1120,7 +1215,7 @@ async function startSymptomSession(symptomText) {
   if (data.currentFocus) {
     setCurrentFocus(data.currentFocus);
   }
-  $('quickRow').classList.add('hidden');
+  hideIntroSymptoms();
   saveRuntimeState();
 
   if (data.conversationStage === 'closed') {
@@ -2262,7 +2357,7 @@ async function handlePickedFile(file, label) {
     if (data.currentFocus) {
       setCurrentFocus(data.currentFocus);
     }
-    $('quickRow').classList.add('hidden');
+    hideIntroSymptoms();
     buildReportSummaryCard(data.file.summary, data.file.path);
     if (data.conversationStage === 'closed') {
       if (data.assistantReply) {
@@ -2491,7 +2586,7 @@ async function sendRecordAsContext(record) {
     if (data.currentFocus) {
       setCurrentFocus(data.currentFocus);
     }
-    $('quickRow').classList.add('hidden');
+    hideIntroSymptoms();
     saveRuntimeState();
     if (data.assistantReply) {
       await addBotText(data.assistantReply);
@@ -2808,7 +2903,7 @@ async function loadSharedSession(sessionId) {
   state.sharedView = true;
   state.sessionId = sessionId;
   $('chatFeed').innerHTML = '';
-  $('quickRow').classList.add('hidden');
+  hideIntroSymptoms();
   document.querySelector('.composer-wrap').classList.add('hidden');
   addRow('bot', '<div class="intro-card-inner"><p class="intro-copy"><strong class="intro-accent">这是小科分享给家属的分析页</strong>，你可以直接查看这次建议、费用和挂号信息。</p></div>', 'intro-card');
   const result = await api(`/triage/result/${encodeURIComponent(sessionId)}`);
@@ -2865,7 +2960,7 @@ async function bootstrap() {
       if (cachedRuntime.profile) {
         state.profile = { ...state.profile, ...cachedRuntime.profile };
       }
-      $('quickRow').classList.add('hidden');
+      hideIntroSymptoms();
       const restored = await api(`/triage/session/${encodeURIComponent(cachedRuntime.sessionId)}/state`);
       state.conversationStage = restored.conversationStage || 'idle';
       if (restored.profile) {
@@ -2883,7 +2978,7 @@ async function bootstrap() {
       }
       resetConversation();
       state.sessionId = cachedRuntime.sessionId;
-      $('quickRow').classList.add('hidden');
+      hideIntroSymptoms();
       if (restored.currentPrompt?.type === 'text') {
         state.currentPrompt = restored.currentPrompt;
         state.conversationStage = restored.conversationStage || 'open';
