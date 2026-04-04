@@ -505,6 +505,7 @@ async function classifyConversationTurn(session, userMessage) {
 function detectMedicalDomainText(text = '') {
   const normalized = String(text || '').toLowerCase();
   const domains = [
+    ['eye', /(眼睛|眼痛|视力|看不清|模糊|畏光|红眼|流泪|飞蚊)/],
     ['sleep', /(失眠|睡不着|入睡难|易醒|早醒|睡眠|睡不好)/],
     ['sexual', /(做爱|同房|早泄|勃起|射精|性功能|性欲|性生活)/],
     ['digestive', /(胃|肚子|腹|胀|反酸|烧心|恶心|呕吐|拉肚子|腹泻|便秘|消化)/],

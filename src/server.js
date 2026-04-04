@@ -230,6 +230,16 @@ function getTextRiskSignal(session) {
     .trim();
   if (!text) return null;
 
+  const hasPositiveKeyword = (source = '', keyword = '') => {
+    const value = String(source || '').toLowerCase();
+    const token = String(keyword || '').toLowerCase();
+    if (!value || !token) return false;
+    const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const deniedPattern = new RegExp(`(没有|无|否认|并无|未见|不是|并非)[^，。；;,.]{0,3}${escaped}`);
+    if (deniedPattern.test(value)) return false;
+    return value.includes(token);
+  };
+
   const urgentKeywords = [
     '柏油样便',
     '柏油便',
@@ -274,7 +284,7 @@ function getTextRiskSignal(session) {
     '幻觉',
     '妄想',
   ];
-  const hasUrgent = urgentKeywords.some((k) => text.includes(k));
+  const hasUrgent = urgentKeywords.some((k) => hasPositiveKeyword(text, k));
   if (!hasUrgent) return null;
 
   return {
@@ -394,8 +404,8 @@ function buildUrgentShortcutResult(session) {
 function getFollowUpConfig(session) {
   const totalQuestions = session?.scenario?.questions?.length || 0;
   return {
-    minSteps: Math.min(5, Math.max(4, totalQuestions)),
-    maxSteps: Math.min(10, Math.max(6, totalQuestions)),
+    minSteps: Math.min(6, Math.max(4, totalQuestions)),
+    maxSteps: Math.min(12, Math.max(8, totalQuestions)),
   };
 }
 
@@ -444,7 +454,63 @@ function looksMedicalFollowup(text = '') {
 function hasEscalationSignal(text = '') {
   const value = String(text || '').trim();
   if (!value) return false;
-  return /(加重|越来越|持续.*(痛|疼|闷|慌)|夜间憋醒|走路都喘|呼吸困难|胸痛|黑便|便血|高烧|39|40|意识|说话不清|口角歪斜|偏瘫|肢体无力|抽搐|晕倒|剧烈头痛|喉咙紧|喉头水肿|全身风团|大量出血|刀割样腹痛|反跳痛|停经后出血|阴道大出血|胎动减少|破水|产后大出血|高热惊厥|自杀|轻生|不想活|自残|伤人|幻觉|妄想)/.test(value);
+  const hasPositiveKeyword = (source = '', keyword = '') => {
+    const raw = String(source || '').toLowerCase();
+    const token = String(keyword || '').toLowerCase();
+    if (!raw || !token) return false;
+    const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const deniedPattern = new RegExp(`(没有|无|否认|并无|未见|不是|并非)[^，。；;,.]{0,3}${escaped}`);
+    if (deniedPattern.test(raw)) return false;
+    return raw.includes(token);
+  };
+  const signalKeywords = [
+    '加重', '越来越', '夜间憋醒', '走路都喘', '呼吸困难', '胸痛', '黑便', '便血', '高烧',
+    '意识模糊', '说话不清', '口角歪斜', '偏瘫', '肢体无力', '抽搐', '晕倒', '剧烈头痛',
+    '喉咙紧', '喉头水肿', '全身风团', '大量出血', '刀割样腹痛', '反跳痛', '停经后出血',
+    '阴道大出血', '胎动减少', '破水', '产后大出血', '高热惊厥', '自杀', '轻生', '不想活',
+    '自残', '伤人', '幻觉', '妄想',
+  ];
+  return signalKeywords.some((keyword) => hasPositiveKeyword(value, keyword));
+}
+
+function hasDeescalationSignal(text = '') {
+  const value = String(text || '').trim();
+  if (!value) return false;
+  return /(好转|缓解|减轻|不再|已经没有|否认|排除|没再出现|恢复正常|已经退烧|不疼了|不闷了)/.test(value);
+}
+
+function buildRoutingContextText(session = {}, latestText = '') {
+  return [
+    session.chiefComplaint || '',
+    ...Object.values(session.answers || {}).map((item) => String(item || '')),
+    ...(session.supplements || []).map((item) => String(item || '')),
+    ...(session.supplementInsights || []).map((item) => String(item.summary || '')),
+    ...(session.supplementFiles || []).flatMap((file) => [
+      String(file?.summary?.title || ''),
+      String((file?.summary?.highlights || []).join('；')),
+      String((file?.summary?.keyMetrics || []).join('；')),
+    ]),
+    latestText || '',
+  ]
+    .join(' ')
+    .trim();
+}
+
+async function rerouteSessionByContext(session = {}, latestText = '') {
+  const routingText = buildRoutingContextText(session, latestText);
+  if (!routingText) return session;
+  const route = await buildScenarioRoute(routingText);
+  if (!route?.scenario?.id) return session;
+  return upsertSession(session.id, {
+    scenario: route.scenario,
+    triageResult: null,
+    routeMeta: {
+      ...(session.routeMeta || {}),
+      mode: `reroute-${route.routeMeta?.mode || 'rule'}`,
+      normalizedComplaint: route.routeMeta?.normalizedComplaint || routingText.slice(0, 160),
+      reason: `${route.routeMeta?.reason || '按上下文动态重算分流'}（含补充信息）`,
+    },
+  });
 }
 
 function buildTopicChips(session, triageResult) {
@@ -733,11 +799,13 @@ function buildInsightSlotHints(insight = {}, sourceText = '') {
 
 async function buildScenarioRoute(chiefComplaint = '') {
   const ruleRoute = detectScenarioDetailed(chiefComplaint);
-  let scenario = ruleRoute.scenario;
+  let scenario = ruleRoute.scenario || SCENARIOS.general;
   let routeMeta = {
     mode: 'rule',
     normalizedComplaint: ruleRoute.normalizedText || chiefComplaint,
-    reason: `按规则关键词匹配路由（命中分数：${ruleRoute.score}）`,
+    reason: ruleRoute.ambiguous
+      ? `规则命中不集中，先走通用分流（命中分数：${ruleRoute.score}）`
+      : `按规则关键词匹配路由（命中分数：${ruleRoute.score}）`,
   };
 
   try {
@@ -754,12 +822,13 @@ async function buildScenarioRoute(chiefComplaint = '') {
   } catch (_error) {
   }
 
-  if (ruleRoute.score <= 0) {
+  if (ruleRoute.score <= 0 || ruleRoute.ambiguous) {
     routeMeta = {
       mode: 'rule-fallback',
       normalizedComplaint: chiefComplaint,
-      reason: '模型路由没有返回稳定结果，已回退规则路由',
+      reason: '模型路由没有返回稳定结果，已回退通用分流路由',
     };
+    scenario = SCENARIOS.general;
   }
 
   return { scenario, routeMeta };
@@ -1792,12 +1861,16 @@ app.post('/triage/supplement', async (req, res) => {
     supplements: updated.supplements || [],
     insight,
     reply: followUpAnswer?.answer || turnIntent?.reply || '',
-    affectsSummary: Boolean(followUpAnswer?.affectsSummary) || hasEscalationSignal(text),
-    impactLevel: hasEscalationSignal(text) ? 'major' : (followUpAnswer?.impactLevel || 'none'),
+    affectsSummary: Boolean(followUpAnswer?.affectsSummary) || hasEscalationSignal(text) || hasDeescalationSignal(text),
+    impactLevel: hasEscalationSignal(text)
+      ? 'major'
+      : (hasDeescalationSignal(text) ? 'minor' : (followUpAnswer?.impactLevel || 'none')),
     refreshSummary:
       Boolean(session.triageResult) &&
       ['medical_followup', 'medication_question', 'booking_question', 'cost_question'].includes(intentType) &&
-      ((Boolean(followUpAnswer?.affectsSummary) && (followUpAnswer?.shouldRefreshSummary !== false)) || hasEscalationSignal(text)),
+      ((Boolean(followUpAnswer?.affectsSummary) && (followUpAnswer?.shouldRefreshSummary !== false))
+        || hasEscalationSignal(text)
+        || hasDeescalationSignal(text)),
   });
 });
 
@@ -1939,10 +2012,11 @@ app.post('/triage/start-with-file', upload.single('file'), async (req, res) => {
 });
 
 app.get('/triage/result/:id', async (req, res) => {
-  const session = getSession(req.params.id);
-  if (!session) {
+  const originalSession = getSession(req.params.id);
+  if (!originalSession) {
     return res.status(404).json({ error: 'session not found' });
   }
+  const session = await rerouteSessionByContext(originalSession);
 
   let triageResult = session.triageResult || buildTriageResult(session);
   if (!session.triageResult) {
@@ -2016,10 +2090,10 @@ app.get('/triage/result/:id', async (req, res) => {
   }
   triageResult = applyTextRiskGuidance(triageResult, session);
   triageResult = applyImageRiskGuidance(triageResult, session);
-  upsertSession(req.params.id, { triageResult });
-  const topicChips = buildTopicChips(session, triageResult);
-  const currentFocus = topicChips.find((chip) => chip.key === session.currentFocus)
-    ? { key: session.currentFocus, label: session.currentFocusLabel || topicChips.find((chip) => chip.key === session.currentFocus)?.label || '' }
+  const latest = upsertSession(req.params.id, { triageResult });
+  const topicChips = buildTopicChips(latest, triageResult);
+  const currentFocus = topicChips.find((chip) => chip.key === latest.currentFocus)
+    ? { key: latest.currentFocus, label: latest.currentFocusLabel || topicChips.find((chip) => chip.key === latest.currentFocus)?.label || '' }
     : { key: 'summary', label: '小科分析' };
   return res.json({
     ...triageResult,

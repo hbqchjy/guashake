@@ -205,6 +205,32 @@ const SCENARIOS = {
       { id: 'contact', text: '最近身边有没有人也在发热、咳嗽？', options: ['没有', '有', '不确定'] },
     ],
   },
+  eye: {
+    id: 'eye',
+    label: '眼部不适/视力变化',
+    keywords: ['眼睛', '眼痛', '视力模糊', '看不清', '畏光', '流泪', '红眼', '飞蚊'],
+    department: '眼科',
+    hospitalLevel: '先县医院眼科门诊，出现突发视力下降可直接市医院急诊眼科',
+    preparation: ['身份证', '医保卡', '既往眼科检查单', '正在使用的眼药水/药物'],
+    baseChecks: [
+      { name: '挂号费', min: 10, max: 40 },
+      { name: '视力检查', min: 20, max: 50 },
+      { name: '裂隙灯检查', min: 30, max: 80 },
+      { name: '眼压测量', min: 20, max: 50 },
+    ],
+    nextStepRules: [
+      '若突发视力明显下降、眼前黑影增多或剧烈眼痛，尽快急诊眼科。',
+      '如基础检查异常，再按医生建议做眼底照相/OCT等。',
+    ],
+    questions: [
+      { id: 'eye_duration', text: '眼睛不舒服大概持续多久了？', options: ['不到1天', '1-3天', '超过1周', '反复超过1个月'] },
+      { id: 'eye_side', text: '主要是一只眼还是两只眼都有？', options: ['左眼', '右眼', '两只眼', '说不清'] },
+      { id: 'eye_type', text: '更明显的是哪种感觉？', options: ['疼痛/胀痛', '干涩/异物感', '视物模糊', '红痒流泪'] },
+      { id: 'eye_vision_drop', text: '最近看东西有没有明显变模糊或突然看不清？', options: ['没有', '有一点', '明显变差'] },
+      { id: 'eye_redflag', text: '有没有畏光、剧烈眼痛、恶心头痛这类情况？', options: ['没有', '有一点', '比较明显'] },
+      { id: 'eye_trigger', text: '是否和长时间看屏幕、熬夜或用眼过度有关？', options: ['是', '不是', '不确定'] },
+    ],
+  },
   skinTrauma: {
     id: 'skinTrauma',
     label: '外伤/皮肤问题',
@@ -258,6 +284,34 @@ const SCENARIOS = {
       { id: 'maleHistory', text: '以前看过男科、泌尿外科，或者有高血压糖尿病这类慢病吗？', options: ['没有', '看过男科/泌尿外科', '有慢病', '两者都有'] },
     ],
   },
+  general: {
+    id: 'general',
+    label: '未明确单一方向（需继续补充）',
+    keywords: [],
+    department: '全科医学科/内科门诊',
+    hospitalLevel: '先到县医院全科/内科分诊，再按医生建议转专科',
+    preparation: ['身份证', '医保卡', '既往病历/检查单', '正在服用药物清单'],
+    baseChecks: [
+      { name: '挂号费', min: 10, max: 40 },
+      { name: '基础问诊/查体', min: 0, max: 30 },
+      { name: '血常规', min: 20, max: 40 },
+      { name: '基础生化', min: 40, max: 90 },
+    ],
+    nextStepRules: [
+      '先做基础检查，避免一开始就做大检查。',
+      '根据首诊医生分诊，再决定是否转消化/呼吸/神经/泌尿等专科。',
+    ],
+    questions: [
+      { id: 'g_duration', text: '这种不舒服大概持续多久了？', options: ['不到1天', '1-3天', '超过1周', '反复超过1个月'] },
+      { id: 'g_location', text: '最不舒服主要在什么部位？', options: ['头/眼', '胸口/心口', '肚子/胃', '腰背/四肢', '说不清'] },
+      { id: 'g_trend', text: '最近是越来越重，还是差不多？', options: ['在加重', '差不多', '在减轻'] },
+      { id: 'g_frequency', text: '出现频率大概怎样？', options: ['偶尔', '一天几次', '几乎每天', '持续不缓解'] },
+      { id: 'g_accompany', text: '有没有明显伴随情况？', options: ['发热', '呕吐/腹泻', '胸闷/气短', '头晕/无力', '没有明显伴随'] },
+      { id: 'g_history', text: '你有长期慢性病或长期用药吗？', options: ['没有', '高血压/糖尿病', '心脑血管病', '其他慢病/长期用药'] },
+      { id: 'g_trigger', text: '症状和什么有关会更明显？', options: ['活动后', '进食后', '夜间', '压力/熬夜后', '说不清'] },
+      { id: 'g_redflag', text: '有没有出现明显危险信号？', options: ['没有', '胸痛或呼吸困难', '黑便/便血/呕血', '说话不清/肢体无力'] },
+    ],
+  },
 };
 
 const QUESTION_SLOT_META = {
@@ -306,6 +360,20 @@ const QUESTION_SLOT_META = {
   stress: { slot: 'stressSleep', slotLabel: '压力/睡眠' },
   partner: { slot: 'lifeImpact', slotLabel: '生活影响' },
   maleHistory: { slot: 'history', slotLabel: '既往病史' },
+  eye_duration: { slot: 'duration', slotLabel: '持续时间' },
+  eye_side: { slot: 'location', slotLabel: '患眼侧别' },
+  eye_type: { slot: 'problemType', slotLabel: '主要不适类型' },
+  eye_vision_drop: { slot: 'visionChange', slotLabel: '视力变化' },
+  eye_redflag: { slot: 'riskSignal', slotLabel: '眼部危险信号' },
+  eye_trigger: { slot: 'exposureHistory', slotLabel: '用眼诱因' },
+  g_duration: { slot: 'duration', slotLabel: '持续时间' },
+  g_location: { slot: 'location', slotLabel: '症状位置' },
+  g_trend: { slot: 'trend', slotLabel: '变化趋势' },
+  g_frequency: { slot: 'frequency', slotLabel: '出现频率' },
+  g_accompany: { slot: 'accompanying', slotLabel: '伴随情况' },
+  g_history: { slot: 'history', slotLabel: '慢病/用药史' },
+  g_trigger: { slot: 'triggerTime', slotLabel: '诱因' },
+  g_redflag: { slot: 'riskSignal', slotLabel: '风险信号' },
 };
 
 const SECOND_ROUND_CHECKS = {
@@ -331,6 +399,11 @@ const SECOND_ROUND_CHECKS = {
     { name: '胸部CT', trigger: '胸片异常、气促明显或症状持续加重时' },
     { name: '电子喉镜', trigger: '咽喉不适持续、声音嘶哑或咳嗽迁延时' },
   ],
+  eye: [
+    { name: '眼底照相', trigger: '视力下降或眼底异常提示时' },
+    { name: 'OCT', trigger: '怀疑黄斑/视网膜问题时' },
+    { name: '眼科B超', trigger: '眼底无法看清或需进一步评估时' },
+  ],
   skinTrauma: [
     { name: '伤口细菌培养', trigger: '伤口化脓、反复感染时' },
     { name: '深部软组织超声', trigger: '怀疑深部组织损伤或脓肿时' },
@@ -338,6 +411,11 @@ const SECOND_ROUND_CHECKS = {
   maleHealth: [
     { name: '激素六项', trigger: '持续存在性功能问题且伴慢病/睡眠压力异常时' },
     { name: '前列腺彩超', trigger: '合并排尿异常或医生建议进一步评估时' },
+  ],
+  general: [
+    { name: '心电图', trigger: '伴胸闷心慌或活动后不适时' },
+    { name: '腹部B超', trigger: '以腹痛/胃肠不适为主且持续时' },
+    { name: '胸片', trigger: '咳嗽发热或呼吸道症状持续时' },
   ],
 };
 
@@ -362,6 +440,10 @@ const MEDICATION_PRICE_RANGES = {
     { category: '止咳化痰药', domesticPrice: '18~40元/盒', importedPrice: '60~130元/盒', note: '根据症状选型，短期观察' },
     { category: '退热镇痛药', domesticPrice: '10~25元/盒', importedPrice: '30~80元/盒', note: '按需短期使用' },
   ],
+  eye: [
+    { category: '人工泪液/润眼类', domesticPrice: '20~45元/盒', importedPrice: '70~150元/盒', note: '多用于干涩、异物感等轻症对症' },
+    { category: '抗炎滴眼类', domesticPrice: '25~60元/盒', importedPrice: '90~220元/盒', note: '应结合眼科评估后使用' },
+  ],
   skinTrauma: [
     { category: '外用消毒/抗炎药', domesticPrice: '15~35元/支', importedPrice: '50~100元/支', note: '轻中度皮损常见范围' },
     { category: '口服抗过敏药', domesticPrice: '20~35元/盒', importedPrice: '60~140元/盒', note: '按症状短期使用' },
@@ -369,6 +451,9 @@ const MEDICATION_PRICE_RANGES = {
   maleHealth: [
     { category: '男科常见口服药', domesticPrice: '60~120元/盒', importedPrice: '180~360元/盒', note: '价格差异与品牌和疗程相关' },
     { category: '情绪/睡眠辅助药物', domesticPrice: '20~50元/盒', importedPrice: '80~180元/盒', note: '需按医生建议用药' },
+  ],
+  general: [
+    { category: '对症类常见口服药', domesticPrice: '15~45元/盒', importedPrice: '60~140元/盒', note: '按当前主要症状短期对症使用' },
   ],
 };
 
@@ -637,6 +722,13 @@ const SELF_CARE_PLAYBOOK = {
     medicationAdvice: ['发热可考虑退热药；咳嗽可短期对症用药'],
     visitAdvice: ['发热超过3天、气促明显或症状加重时就医'],
   },
+  eye: {
+    severityText: '目前更像轻中度眼表刺激或用眼相关不适，可先短期对症处理。',
+    actionSummary: '先减少用眼、规律作息和润眼观察；若视力下降或疼痛加重，尽快眼科就诊。',
+    selfCareAdvice: ['减少连续看屏幕时间，增加休息', '避免揉眼，保持眼部清洁'],
+    medicationAdvice: ['可短期考虑人工泪液等对症处理'],
+    visitAdvice: ['若突发视力下降、眼痛明显、畏光加重，尽快线下眼科'],
+  },
   lumbar: {
     severityText: '目前更像轻中度腰背劳损，可先居家处理。',
     actionSummary: '先减少负重与久坐，配合热敷和适度活动，观察1-3天。',
@@ -699,22 +791,71 @@ function expandComplaintText(input = '') {
   return text;
 }
 
+function buildSessionSignalText(session = {}) {
+  return [
+    session.chiefComplaint || '',
+    ...Object.values(session.answers || {}).map((item) => String(item || '')),
+    ...(session.supplements || []).map((item) => String(item || '')),
+    ...(session.supplementInsights || []).map((item) => String(item.summary || '')),
+    ...(session.supplementFiles || []).flatMap((file) => [
+      String(file?.summary?.title || ''),
+      String((file?.summary?.highlights || []).join('；')),
+      String((file?.summary?.keyMetrics || []).join('；')),
+      String(file?.summary?.ocrText || '').slice(0, 200),
+    ]),
+  ]
+    .join(' ')
+    .trim();
+}
+
+function escapeRegExp(value = '') {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function hasPositiveKeyword(text = '', keyword = '') {
+  const normalized = String(text || '').toLowerCase();
+  const token = String(keyword || '').toLowerCase();
+  if (!normalized || !token) return false;
+  const deniedPattern = new RegExp(`(没有|无|否认|并无|未见|不是|并非)[^，。；;,.]{0,3}${escapeRegExp(token)}`);
+  if (deniedPattern.test(normalized)) return false;
+  return normalized.includes(token);
+}
+
+function scoreScenario(text = '', scenario = {}) {
+  const normalized = expandComplaintText(text);
+  const keywords = Array.isArray(scenario.keywords) ? scenario.keywords : [];
+  return keywords.reduce((acc, kw) => {
+    return hasPositiveKeyword(normalized, kw) ? acc + 1 : acc;
+  }, 0);
+}
+
+function rankScenariosByText(text = '') {
+  const list = Object.values(SCENARIOS).filter((item) => item.id !== 'general');
+  const ranked = list
+    .map((scenario) => ({
+      scenario,
+      score: scoreScenario(text, scenario),
+    }))
+    .sort((a, b) => b.score - a.score);
+  return ranked;
+}
+
 function detectScenarioDetailed(chiefComplaint = '') {
   const text = expandComplaintText(chiefComplaint);
-  let best = SCENARIOS.cardio;
-  let bestScore = -1;
-
-  for (const scenario of Object.values(SCENARIOS)) {
-    const score = scenario.keywords.reduce((acc, kw) => (text.includes(kw) ? acc + 1 : acc), 0);
-    if (score > bestScore) {
-      best = scenario;
-      bestScore = score;
-    }
-  }
+  const ranked = rankScenariosByText(text);
+  const best = ranked[0] || { scenario: SCENARIOS.general, score: 0 };
+  const second = ranked[1] || { scenario: SCENARIOS.general, score: 0 };
+  const gap = Number(best.score || 0) - Number(second.score || 0);
+  const ambiguous = best.score <= 0 || gap <= 0;
+  const pickedScenario = ambiguous ? SCENARIOS.general : best.scenario;
 
   return {
-    scenario: best,
-    score: bestScore,
+    scenario: pickedScenario,
+    score: Number(best.score || 0),
+    secondScore: Number(second.score || 0),
+    scoreGap: gap,
+    ambiguous,
+    ranked,
     normalizedText: text,
   };
 }
@@ -741,7 +882,7 @@ function getScenarioSlotCatalog(scenario = {}) {
 
 function hasRedFlag({ chiefComplaint = '', answers = {}, supplements = [] }) {
   const text = `${chiefComplaint} ${Object.values(answers).join(' ')} ${(supplements || []).join(' ')}`;
-  return RED_FLAG_KEYWORDS.some((k) => text.includes(k));
+  return RED_FLAG_KEYWORDS.some((k) => hasPositiveKeyword(text, k));
 }
 
 function isDigestiveBleedRisk(session = {}) {
@@ -922,8 +1063,8 @@ function estimateSecondRoundItems(items = [], factor = 1.15) {
 
 function confidenceLevel(answerCount, redFlag) {
   if (redFlag) return '高风险优先';
-  if (answerCount >= 6) return '高概率方向';
-  if (answerCount >= 3) return '可能方向';
+  if (answerCount >= 8) return '高概率方向';
+  if (answerCount >= 4) return '可能方向';
   return '信息不足，建议线下检查';
 }
 
@@ -998,8 +1139,26 @@ function buildSchemaHighlights(schema = {}) {
   ]).slice(0, 5);
 }
 
-function buildPossibleTypes(session, schema = {}) {
-  const scenarioId = session.scenario?.id;
+function calcInfoCoverage(schema = {}, session = {}) {
+  const checks = [
+    Boolean(session.chiefComplaint),
+    (schema.timeline || []).length > 0,
+    (schema.location || []).length > 0,
+    (schema.severity || []).length > 0 || (schema.accompanying || []).length > 0,
+    (schema.history || []).length > 0,
+    (schema.testFindings || []).length > 0 || (schema.supplementFacts || []).length > 0,
+  ];
+  const hit = checks.filter(Boolean).length;
+  const slotRatio = checks.length ? hit / checks.length : 0;
+  const answerRatio = Math.min(1, Object.keys(session.answers || {}).length / 6);
+  return {
+    hit,
+    total: checks.length,
+    ratio: Math.max(slotRatio, answerRatio),
+  };
+}
+
+function buildPossibleTypes(session, schema = {}, scenarioId = session.scenario?.id) {
   const findings = (schema.testFindings || []).join('；');
   const history = (schema.history || []).join('；');
 
@@ -1021,17 +1180,22 @@ function buildPossibleTypes(session, schema = {}) {
   if (scenarioId === 'respiratory') {
     return ['更像呼吸道感染或支气管问题', '如果咳喘持续不缓解，需要进一步查肺部'];
   }
+  if (scenarioId === 'eye') {
+    return ['更像眼表刺激、干眼或炎症相关问题', '若突发视力下降或剧烈眼痛，要尽快眼科急诊'];
+  }
   if (scenarioId === 'skinTrauma') {
     return ['更像皮肤炎症、过敏或外伤恢复问题', '如果范围扩大或化脓，需要尽快复诊'];
   }
   if (scenarioId === 'maleHealth') {
     return ['更像男科或性功能方面的问题', '常常还需要结合压力、睡眠和慢病情况一起判断'];
   }
+  if (scenarioId === 'general') {
+    return ['目前信息还不足以归到单一方向', '建议继续补充或到全科/内科先做分诊'];
+  }
   return ['当前更像常见内科问题', '还需要结合线下检查进一步确认'];
 }
 
-function buildFallbackGuidance(session) {
-  const scenarioId = session.scenario?.id;
+function buildFallbackGuidance(session, scenarioId = session.scenario?.id) {
 
   if (scenarioId === 'cardio') {
     return {
@@ -1129,6 +1293,22 @@ function buildFallbackGuidance(session) {
     };
   }
 
+  if (scenarioId === 'eye') {
+    return {
+      recommendationLevel: 'otc_guidance',
+      severityLevel: 'moderate',
+      severityText: '目前更像眼部轻中度不适，先对症处理并观察更稳妥。',
+      userGoal: '先缓解不适并识别是否存在眼科急症信号',
+      actionSummary: '先按眼表刺激方向处理，若视力变差或眼痛明显，尽快到眼科面诊。',
+      selfCareAdvice: ['先减少连续用眼，规律休息', '不要揉眼，先做好基础眼部护理'],
+      medicationAdvice: ['可短期考虑人工泪液等对症处理'],
+      visitAdvice: ['若突发视力下降、畏光明显、眼痛加重，尽快眼科就诊'],
+      examAdvice: ['门诊通常先做视力、裂隙灯和眼压检查'],
+      needsBooking: false,
+      needsCost: true,
+    };
+  }
+
   if (scenarioId === 'maleHealth') {
     return {
       recommendationLevel: 'routine_clinic',
@@ -1140,6 +1320,22 @@ function buildFallbackGuidance(session) {
       medicationAdvice: ['如果后续确实需要药物，多半要医生结合年龄和基础病来定'],
       visitAdvice: ['如果反复几个月都在影响性生活，再去男科或泌尿外科', '先挂普通号一般就够了'],
       examAdvice: ['医生可能会先问病史，再决定要不要查血糖、激素或前列腺相关'],
+      needsBooking: true,
+      needsCost: true,
+    };
+  }
+
+  if (scenarioId === 'general') {
+    return {
+      recommendationLevel: 'routine_clinic',
+      severityLevel: 'moderate',
+      severityText: '目前信息还不够集中，先做分诊比盲目猜单一方向更稳妥。',
+      userGoal: '先把方向缩小到1~3个，再决定专科和检查路径',
+      actionSummary: '建议先到全科/内科门诊分诊，带上现有资料，先做基础检查再定专科。',
+      selfCareAdvice: ['继续观察症状变化，尤其是加重/缓解规律', '把持续时间、诱因、伴随症状补充完整'],
+      medicationAdvice: ['若需用药，先按当前最主要症状做短期对症处理'],
+      visitAdvice: ['可先挂全科/内科普通号，再按医生建议转专科', '若出现红旗症状，直接急诊'],
+      examAdvice: ['先做血常规、基础生化等通用检查，避免一开始做过多大检查'],
       needsBooking: true,
       needsCost: true,
     };
@@ -1161,7 +1357,9 @@ function buildFallbackGuidance(session) {
 }
 
 function buildTriageResult(session) {
-  const scenario = session.scenario;
+  const sessionText = buildSessionSignalText(session);
+  const routing = detectScenarioDetailed(sessionText || session.chiefComplaint || '');
+  const scenario = routing.scenario || session.scenario || SCENARIOS.general;
   let normalizedBaseChecks = normalizeBaseChecksByRegion(scenario.baseChecks, session);
   const redFlag = hasRedFlag({
     chiefComplaint: session.chiefComplaint,
@@ -1176,10 +1374,11 @@ function buildTriageResult(session) {
   const confidence = confidenceLevel(answerCount, redFlag);
   const baseCost = calcBaseCost(normalizedBaseChecks);
   const schema = buildGenericSymptomSchema(session);
+  const coverage = calcInfoCoverage(schema, session);
   const schemaHighlights = buildSchemaHighlights(schema);
   const possibleTypes = redFlag
     ? (urgentPlan?.possibleTypes || ['存在需要急诊先排查的风险', '建议尽快线下就医'])
-    : buildPossibleTypes(session, schema);
+    : buildPossibleTypes(session, schema, scenario.id);
   const supplementInsightSummaries = (session.supplementInsights || [])
     .map((item) => item.summary)
     .filter(Boolean)
@@ -1187,9 +1386,21 @@ function buildTriageResult(session) {
   const supplementNote = (session.supplements || []).length
     ? `已参考你补充的 ${session.supplements.length} 条信息。`
     : '';
-  const fallbackGuidance = buildFallbackGuidance(session);
+  const fallbackGuidance = buildFallbackGuidance(session, scenario.id);
   const selfCarePlay = SELF_CARE_PLAYBOOK[scenario.id] || null;
   const preferSelfCare = !redFlag && selfCarePlay && shouldSelfCareFirst(session, schema);
+  const stepCount = Number(session.followUp?.stepCount || 0);
+  const reachedUpperFollowUp = stepCount >= 10;
+  const lowConfidenceRouting = routing.ambiguous || routing.score < 2 || routing.scoreGap < 1;
+  const unresolvedAfterEnoughTurns = !redFlag && reachedUpperFollowUp && (coverage.ratio < 0.7 || lowConfidenceRouting);
+  const topDepartments = (routing.ranked || [])
+    .filter((item) => item.score > 0)
+    .slice(0, 3)
+    .map((item) => item.scenario.department)
+    .filter(Boolean);
+  const mergedDepartments = topDepartments.length
+    ? Array.from(new Set(topDepartments)).join(' / ')
+    : '全科医学科 / 内科门诊';
   const guidance = redFlag
     ? {
         recommendationLevel: 'hospital_priority_high',
@@ -1206,7 +1417,21 @@ function buildTriageResult(session) {
         needsBooking: true,
         needsCost: true,
       }
-    : (preferSelfCare
+    : (unresolvedAfterEnoughTurns
+        ? {
+            recommendationLevel: 'routine_clinic',
+            severityLevel: 'moderate',
+            severityText: '信息仍不够集中，建议先分诊，不强行归到单一科室。',
+            userGoal: '先由门诊分诊缩小方向，再决定专科与检查',
+            actionSummary: '已追问多轮仍存在分歧，建议先挂全科/内科普通号，由医生分诊到更匹配科室。',
+            selfCareAdvice: ['可以继续补充症状变化，后续再更新分析', '若症状明显加重，不要等待，尽快线下就医'],
+            medicationAdvice: ['药物建议以对症短期为主，避免同时叠加多种药物'],
+            visitAdvice: ['优先挂全科/内科普通号', `可备选：${mergedDepartments}`],
+            examAdvice: ['首轮先做通用基础检查，再按分诊结果追加专项检查'],
+            needsBooking: true,
+            needsCost: true,
+          }
+        : (preferSelfCare
         ? {
             recommendationLevel: 'self_care',
             severityLevel: 'mild',
@@ -1220,7 +1445,7 @@ function buildTriageResult(session) {
             needsBooking: false,
             needsCost: false,
           }
-        : fallbackGuidance);
+        : fallbackGuidance));
 
   const coreConclusion = guidance.actionSummary;
 
@@ -1233,8 +1458,12 @@ function buildTriageResult(session) {
         text: coreConclusion,
         personalizedText: schemaHighlights[0] || '',
         possibleTypes,
-        suggestHospital: scenario.hospitalLevel,
-        suggestDepartment: scenario.department,
+        suggestHospital: guidance.recommendationLevel === 'routine_clinic' && scenario.id === 'general'
+          ? '先就近医院全科/内科分诊，再转专科'
+          : scenario.hospitalLevel,
+        suggestDepartment: guidance.recommendationLevel === 'routine_clinic' && unresolvedAfterEnoughTurns
+          ? mergedDepartments
+          : scenario.department,
         firstChecks: normalizedBaseChecks,
         firstCostRange: `${baseCost.min}~${baseCost.max}元`,
         recommendationLevel: guidance.recommendationLevel,
@@ -1245,10 +1474,17 @@ function buildTriageResult(session) {
         needsCost: guidance.needsCost,
       },
       detail: {
-        whyDepartment: `根据你的主诉、追问答案和补充材料，当前更匹配 ${scenario.department} 的初筛路径。`,
+        whyDepartment: unresolvedAfterEnoughTurns
+          ? `当前信息在多个方向上都有线索（信息覆盖 ${coverage.hit}/${coverage.total}），先分诊比硬判单科更稳妥。`
+          : `根据你的主诉、追问答案和补充材料，当前更匹配 ${scenario.department} 的初筛路径。`,
         suspectedDirections: redFlag
           ? ['存在需要急诊先排查的风险']
-          : [`当前最相关：${scenario.label}`, '先做基础检查后再决定是否追加影像检查'],
+          : (unresolvedAfterEnoughTurns
+              ? (routing.ranked || [])
+                .filter((item) => item.score > 0)
+                .slice(0, 3)
+                .map((item) => `可能方向：${item.scenario.label}`)
+              : [`当前最相关：${scenario.label}`, '先做基础检查后再决定是否追加影像检查']),
         slotHighlights: schemaHighlights,
         schema,
         stepByStep: [
