@@ -29,6 +29,9 @@ const {
   consumeAuthRequest,
   createAuthTicket,
   consumeAuthTicket,
+  trackSymptomClick,
+  incrementConsultationCount,
+  getQuickSymptomAnalytics,
 } = require('./store');
 const { summarizeFile, buildSummarySlotHints } = require('./file-summary');
 const {
@@ -841,6 +844,7 @@ async function createTriageSession(payload = {}) {
     answers: {},
     createdAt: new Date().toISOString(),
   });
+  incrementConsultationCount();
 
   if (shouldImmediateUrgent(session, chiefComplaint)) {
     const triageResult = buildUrgentShortcutResult(session);
@@ -925,6 +929,27 @@ async function createTriageSession(payload = {}) {
     currentFocus: initialFocus,
   };
 }
+
+app.post('/analytics/symptom-click', (req, res) => {
+  const symptom = String(req.body?.symptom || '').trim();
+  if (!symptom) {
+    return res.status(400).json({ error: 'symptom is required' });
+  }
+  const analytics = trackSymptomClick(symptom);
+  return res.json({
+    ok: true,
+    analytics,
+  });
+});
+
+app.get('/api/quick-symptom-stats', (_req, res) => {
+  const analytics = getQuickSymptomAnalytics();
+  return res.json({
+    ok: true,
+    threshold: 200,
+    ...analytics,
+  });
+});
 
 app.get('/api/health', (_req, res) => {
   const aiStatus = getAiStatus();

@@ -5,7 +5,7 @@ const DB_PATH = path.join(__dirname, '..', 'data', 'db.json');
 
 function ensureDb() {
   if (!fs.existsSync(DB_PATH)) {
-    const init = { sessions: {}, archives: {}, users: {}, authRequests: {}, authTickets: {} };
+    const init = { sessions: {}, archives: {}, users: {}, authRequests: {}, authTickets: {}, analytics: {} };
     fs.writeFileSync(DB_PATH, JSON.stringify(init, null, 2));
   }
 }
@@ -25,7 +25,20 @@ function ensureCollections(db) {
   db.users ||= {};
   db.authRequests ||= {};
   db.authTickets ||= {};
+  db.analytics ||= {};
   return db;
+}
+
+function ensureQuickSymptomAnalytics(db) {
+  ensureCollections(db);
+  db.analytics.quickSymptoms ||= {
+    totalConsultations: 0,
+    totalClicks: 0,
+    clicks: {},
+    updatedAt: null,
+  };
+  db.analytics.quickSymptoms.clicks ||= {};
+  return db.analytics.quickSymptoms;
 }
 
 function upsertSession(id, patch) {
@@ -139,6 +152,33 @@ function consumeAuthTicket(id) {
   return payload;
 }
 
+function trackSymptomClick(symptom) {
+  const db = ensureCollections(readDb());
+  const analytics = ensureQuickSymptomAnalytics(db);
+  const key = String(symptom || '').trim();
+  if (!key) return analytics;
+  analytics.totalClicks = Number(analytics.totalClicks || 0) + 1;
+  analytics.clicks[key] = Number(analytics.clicks[key] || 0) + 1;
+  analytics.updatedAt = new Date().toISOString();
+  writeDb(db);
+  return analytics;
+}
+
+function incrementConsultationCount() {
+  const db = ensureCollections(readDb());
+  const analytics = ensureQuickSymptomAnalytics(db);
+  analytics.totalConsultations = Number(analytics.totalConsultations || 0) + 1;
+  analytics.updatedAt = new Date().toISOString();
+  writeDb(db);
+  return analytics;
+}
+
+function getQuickSymptomAnalytics() {
+  const db = ensureCollections(readDb());
+  const analytics = ensureQuickSymptomAnalytics(db);
+  return analytics;
+}
+
 module.exports = {
   upsertSession,
   getSession,
@@ -153,4 +193,7 @@ module.exports = {
   consumeAuthRequest,
   createAuthTicket,
   consumeAuthTicket,
+  trackSymptomClick,
+  incrementConsultationCount,
+  getQuickSymptomAnalytics,
 };

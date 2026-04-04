@@ -390,8 +390,7 @@ body {
   gap: 10px;
 }
 
-.result-card-icon,
-.quick-chip-icon {
+.result-card-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -406,8 +405,7 @@ body {
   color: var(--brand-dark);
 }
 
-.result-card-icon svg,
-.quick-chip-icon svg {
+.result-card-icon svg {
   width: 18px;
   height: 18px;
   stroke: currentColor;
@@ -1149,15 +1147,15 @@ body {
 .quick-chip {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 0;
   flex: 0 0 auto;
-  min-height: 38px;
-  padding: 8px 14px;
+  min-height: 36px;
+  padding: 8px 12px;
   border-radius: 999px;
   background: linear-gradient(180deg, #ffffff 0%, #f8faf9 100%);
   border: 1px solid rgba(20, 36, 31, 0.14);
   color: #374047;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
   box-shadow: 0 6px 16px rgba(18, 28, 24, 0.04);
   transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
@@ -1167,14 +1165,6 @@ body {
   transform: translateY(-1px);
   border-color: rgba(7, 193, 96, 0.28);
   box-shadow: 0 10px 20px rgba(7, 193, 96, 0.1);
-}
-
-.quick-chip-icon {
-  width: 24px;
-  height: 24px;
-  border-radius: 999px;
-  background: rgba(7, 193, 96, 0.1);
-  color: var(--brand-dark);
 }
 
 .report-summary-card {

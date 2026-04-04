@@ -1,32 +1,41 @@
-const QUICK_SYMPTOM_GROUPS = [
+const QUICK_SYMPTOM_GROUPS_BASE = [
   {
-    label: '高风险优先',
-    items: ['胸痛', '呼吸困难', '说话不清', '一侧肢体无力', '黑便', '便血', '呕血', '高热不退'],
-  },
-  {
-    label: '常见不适',
-    items: ['头晕', '头痛', '胸闷', '心慌', '腹痛', '胃不舒服', '咳嗽', '发热'],
+    label: '疼痛类',
+    items: ['头痛', '腹痛', '腰酸腰痛', '胸闷', '胸痛', '咽喉痛', '关节痛', '颈肩痛'],
   },
   {
     label: '消化与排泄',
-    items: ['腹泻', '便秘', '反酸烧心', '恶心想吐', '尿频尿急', '尿痛', '血尿', '肛门坠胀'],
+    items: ['胃不舒服', '腹泻', '便秘', '反酸烧心', '恶心想吐', '尿频尿急', '尿痛', '血尿'],
   },
   {
     label: '呼吸与五官',
-    items: ['咽喉痛', '咳痰', '气短', '声音嘶哑', '鼻塞流涕', '耳痛耳鸣'],
+    items: ['咳嗽', '发热', '咳痰', '气短', '呼吸困难', '鼻塞流涕', '声音嘶哑', '耳痛耳鸣'],
   },
   {
     label: '骨骼与外伤',
-    items: ['腰酸腰痛', '颈肩痛', '关节痛', '腿麻', '扭伤', '皮肤红疹', '皮肤/外伤'],
+    items: ['腿麻', '扭伤', '皮肤红疹', '皮肤/外伤', '黑便', '便血', '呕血'],
+  },
+  {
+    label: '神经与循环',
+    items: ['头晕', '心慌', '说话不清', '一侧肢体无力', '高热不退', '失眠', '焦虑心烦'],
   },
   {
     label: '其他咨询',
-    items: ['失眠', '焦虑心烦', '月经异常', '男科问题', '检查报告解读', '慢病复查'],
+    items: ['月经异常', '男科问题', '检查报告解读', '慢病复查', '肛门坠胀'],
   },
 ];
 
-const QUICK_SYMPTOMS = Array.from(new Set(QUICK_SYMPTOM_GROUPS.flatMap((group) => group.items)));
+let quickSymptomGroups = QUICK_SYMPTOM_GROUPS_BASE.map((group) => ({
+  ...group,
+  items: [...group.items],
+}));
+
+function getQuickSymptoms() {
+  return Array.from(new Set(quickSymptomGroups.flatMap((group) => group.items)));
+}
+
 const QUICK_SYMPTOM_PRIMARY_COUNT = 16;
+const QUICK_SYMPTOM_REORDER_THRESHOLD = 200;
 
 const state = {
   sessionId: null,
@@ -108,37 +117,6 @@ const ICONS = {
   mic: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4a3 3 0 0 1 3 3v5a3 3 0 1 1-6 0V7a3 3 0 0 1 3-3Z"></path><path d="M19 11a7 7 0 0 1-14 0"></path><path d="M12 18v3"></path><path d="M8 21h8"></path></svg>',
   keyboard: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2"></rect><path d="M7 10h.01M11 10h.01M15 10h.01M17 10h.01M7 14h.01M10 14h.01M13 14h4"></path></svg>',
   plus: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>',
-};
-
-const QUICK_SYMPTOM_ICONS = {
-  心慌: 'heartbeat',
-  胸痛: 'chest',
-  胸闷: 'chest',
-  头晕: 'head',
-  头痛: 'head',
-  腰酸: 'waist',
-  腰酸腰痛: 'waist',
-  肚子痛: 'stomach',
-  腹痛: 'stomach',
-  胃不舒服: 'stomach',
-  咳嗽: 'lung',
-  气短: 'lung',
-  呼吸困难: 'lung',
-  发热: 'alert',
-  高热不退: 'alert',
-  说话不清: 'alert',
-  '一侧肢体无力': 'alert',
-  黑便: 'alert',
-  便血: 'alert',
-  呕血: 'alert',
-  腹泻: 'stomach',
-  便秘: 'stomach',
-  恶心想吐: 'stomach',
-  尿频尿急: 'drop',
-  尿痛: 'drop',
-  血尿: 'drop',
-  皮肤红疹: 'bandage',
-  '皮肤/外伤': 'bandage',
 };
 
 const SECTION_LABELS = {
@@ -967,6 +945,51 @@ function addIntroCard() {
   return row;
 }
 
+function rankSymptomsByStats(symptoms = [], clicks = {}) {
+  const baseOrder = new Map(symptoms.map((item, index) => [item, index]));
+  return [...symptoms].sort((a, b) => {
+    const countA = Number(clicks[a] || 0);
+    const countB = Number(clicks[b] || 0);
+    if (countA !== countB) return countB - countA;
+    return (baseOrder.get(a) || 0) - (baseOrder.get(b) || 0);
+  });
+}
+
+function applyQuickSymptomRanking(stats = {}) {
+  const totalConsultations = Number(stats.totalConsultations || 0);
+  if (totalConsultations < QUICK_SYMPTOM_REORDER_THRESHOLD) {
+    quickSymptomGroups = QUICK_SYMPTOM_GROUPS_BASE.map((group) => ({
+      ...group,
+      items: [...group.items],
+    }));
+    return;
+  }
+  const clicks = stats.clicks || {};
+  quickSymptomGroups = QUICK_SYMPTOM_GROUPS_BASE.map((group) => ({
+    ...group,
+    items: rankSymptomsByStats(group.items, clicks),
+  }));
+}
+
+async function loadQuickSymptomRanking() {
+  try {
+    const data = await api('/api/quick-symptom-stats');
+    applyQuickSymptomRanking(data || {});
+  } catch (_error) {
+    applyQuickSymptomRanking({});
+  }
+}
+
+async function trackSymptomClick(symptom) {
+  try {
+    await api('/analytics/symptom-click', {
+      method: 'POST',
+      body: JSON.stringify({ symptom }),
+    });
+  } catch (_error) {
+  }
+}
+
 function renderQuickSymptoms() {
   const panel = $('introSymptomPanel');
   const legacyRow = $('quickRow');
@@ -977,27 +1000,30 @@ function renderQuickSymptoms() {
   if (!panel) return;
   panel.innerHTML = '';
 
-  const primary = QUICK_SYMPTOMS.slice(0, QUICK_SYMPTOM_PRIMARY_COUNT);
+  const allSymptoms = getQuickSymptoms();
+  const primary = allSymptoms.slice(0, QUICK_SYMPTOM_PRIMARY_COUNT);
   const primaryWrap = document.createElement('div');
   primaryWrap.className = 'intro-symptom-primary';
 
   primary.forEach((symptom) => {
     const button = document.createElement('button');
     button.className = 'quick-chip';
-    const iconName = QUICK_SYMPTOM_ICONS[symptom] || 'spark';
-    button.innerHTML = `<span class="quick-chip-icon">${getInlineIcon(iconName)}</span><span>${escapeHtml(symptom)}</span>`;
-    button.onclick = () => submitText(symptom).catch((err) => alert(err.message));
+    button.textContent = symptom;
+    button.onclick = async () => {
+      await trackSymptomClick(symptom);
+      submitText(symptom).catch((err) => alert(err.message));
+    };
     primaryWrap.appendChild(button);
   });
   panel.appendChild(primaryWrap);
 
   const details = document.createElement('details');
   details.className = 'intro-symptom-more';
-  details.innerHTML = `<summary>更多症状（${QUICK_SYMPTOMS.length - primary.length}）</summary>`;
+  details.innerHTML = `<summary>更多症状（${allSymptoms.length - primary.length}）</summary>`;
   const moreBody = document.createElement('div');
   moreBody.className = 'intro-symptom-groups';
 
-  QUICK_SYMPTOM_GROUPS.forEach((group) => {
+  quickSymptomGroups.forEach((group) => {
     const groupWrap = document.createElement('section');
     groupWrap.className = 'intro-symptom-group';
     groupWrap.innerHTML = `<h4>${escapeHtml(group.label)}</h4>`;
@@ -1007,9 +1033,11 @@ function renderQuickSymptoms() {
       if (primary.includes(symptom)) return;
       const button = document.createElement('button');
       button.className = 'quick-chip';
-      const iconName = QUICK_SYMPTOM_ICONS[symptom] || 'spark';
-      button.innerHTML = `<span class="quick-chip-icon">${getInlineIcon(iconName)}</span><span>${escapeHtml(symptom)}</span>`;
-      button.onclick = () => submitText(symptom).catch((err) => alert(err.message));
+      button.textContent = symptom;
+      button.onclick = async () => {
+        await trackSymptomClick(symptom);
+        submitText(symptom).catch((err) => alert(err.message));
+      };
       groupRow.appendChild(button);
     });
     if (groupRow.childElementCount > 0) {
@@ -2931,6 +2959,7 @@ async function bootstrap() {
       window.speechSynthesis.getVoices?.();
     };
   }
+  await loadQuickSymptomRanking();
   renderQuickSymptoms();
   syncAuthUi();
   syncMyUi();
