@@ -57,6 +57,8 @@ const {
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const TRIAGE_MIN_STRUCTURED_CONFIRMATIONS = 3;
+const TRIAGE_OPEN_TO_STRUCTURED_TURNS = 2;
 
 app.set('trust proxy', true);
 
@@ -419,12 +421,12 @@ function getStructuredProgressTotal(config = {}, candidateCount = 0, currentStep
   const step = Math.max(1, Number(currentStep || 1));
   const candidates = Math.max(1, Number(candidateCount || 1));
   const estimatedTotal = step + Math.max(0, candidates - 1);
-  return Math.max(3, Math.min(maxSteps, estimatedTotal));
+  return Math.max(TRIAGE_MIN_STRUCTURED_CONFIRMATIONS, Math.min(maxSteps, estimatedTotal));
 }
 
 function shouldDelayResultConfirmation(session, stepCount = 0) {
   const structuredSteps = Number(stepCount || session?.followUp?.stepCount || 0);
-  return structuredSteps < 3;
+  return structuredSteps < TRIAGE_MIN_STRUCTURED_CONFIRMATIONS;
 }
 
 function getConfirmationGuard(session, extra = {}) {
@@ -433,7 +435,7 @@ function getConfirmationGuard(session, extra = {}) {
   return {
     structuredSteps,
     openTurns,
-    blocked: structuredSteps < 3,
+    blocked: structuredSteps < TRIAGE_MIN_STRUCTURED_CONFIRMATIONS,
   };
 }
 
@@ -1751,7 +1753,7 @@ app.post('/triage/message', async (req, res) => {
   const followUpConfig = getFollowUpConfig(updatedSession);
   // 第二轮开放式追问后，仍停留在 open 阶段时优先切到结构化确认。
   // 不再把“是否切换”完全交给模型，避免开放式问题拖得过长。
-  if (openTurns >= 2 && candidates.length >= 1) {
+  if (openTurns >= TRIAGE_OPEN_TO_STRUCTURED_TURNS && candidates.length >= 1) {
     const picked = candidates[0];
     const nextQuestion = {
       ...picked,
@@ -1811,7 +1813,7 @@ app.post('/triage/message', async (req, res) => {
 
   if (openPlan.collectMode === 'summary') {
     const confirmationGuard = getConfirmationGuard(updatedSession, { openTurns });
-    if (candidates.length && openTurns < 3) {
+    if (candidates.length && openTurns < TRIAGE_MIN_STRUCTURED_CONFIRMATIONS) {
       const picked = candidates[0];
       const nextQuestion = {
         ...picked,
@@ -1855,7 +1857,7 @@ app.post('/triage/message', async (req, res) => {
       });
     }
 
-    if (!candidates.length && openTurns < 3) {
+    if (!candidates.length && openTurns < TRIAGE_MIN_STRUCTURED_CONFIRMATIONS) {
       upsertSession(sessionId, {
         conversationStage: 'open',
         openPromptText: '我还想再确认一下：大概持续多久了？最近是在加重、减轻，还是差不多？',

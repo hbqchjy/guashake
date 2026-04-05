@@ -240,6 +240,8 @@ import {
   synthesizeTriageSpeech,
 } from '../api'
 
+const MIN_STRUCTURED_CONFIRMATIONS = 3
+
 const router = useRouter()
 const route = useRoute()
 const chatArea = ref(null)
@@ -588,7 +590,7 @@ async function selectOption(opt) {
     })
 
     if (res.complete || res.done || res.followUp?.completed) {
-      if (!res.urgentShortcut && answeredCount < 3) {
+      if (!res.urgentShortcut && answeredCount < MIN_STRUCTURED_CONFIRMATIONS) {
         stage.value = 'supplement'
         clearDecisionState()
         addBotMessage('现在还不急着出分析，至少再确认几个关键点会更稳妥。')
@@ -613,7 +615,7 @@ async function selectOption(opt) {
     }
 
     if (res.needsConfirmation) {
-      if (answeredCount < 3) {
+      if (answeredCount < MIN_STRUCTURED_CONFIRMATIONS) {
         stage.value = 'supplement'
         clearDecisionState()
         addBotMessage('现在还不急着出分析，至少再确认几个关键点会更稳妥。')
