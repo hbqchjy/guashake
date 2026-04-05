@@ -937,7 +937,7 @@ onBeforeUnmount(() => {
 .plus-icon.report { background: #2d8cf0; }
 .plus-icon.camera { background: #ff9f43; }
 .plus-icon.image { background: #5f6dfc; }
-.plus-icon.records { background: #00b578; }
+.plus-icon.records { background: var(--color-primary); }
 
 .composer {
   display: flex;

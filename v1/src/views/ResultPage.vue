@@ -229,7 +229,7 @@ function goHospital() {
   border-radius: var(--radius-lg);
   color: white;
 }
-.summary-banner.observe { background: linear-gradient(135deg, #11c17d, #00b578); }
+.summary-banner.observe { background: linear-gradient(135deg, var(--color-primary), var(--color-primary-deep)); }
 .summary-banner.self-treat { background: linear-gradient(135deg, #48a7ff, #1890ff); }
 .summary-banner.visit-soon { background: linear-gradient(135deg, #ffcc59, #faad14); }
 .summary-banner.visit-today { background: linear-gradient(135deg, #ff7d6d, #ff4d4f); }

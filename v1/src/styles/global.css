@@ -19,10 +19,10 @@ body {
 
 /* Vant 主题覆盖 */
 :root:root {
-  --van-primary-color: #00B578;
-  --van-success-color: #00B578;
-  --van-button-primary-background: #00B578;
-  --van-button-primary-border-color: #00B578;
+  --van-primary-color: var(--color-primary);
+  --van-success-color: var(--color-primary);
+  --van-button-primary-background: var(--color-primary);
+  --van-button-primary-border-color: var(--color-primary);
   --van-nav-bar-background: #FFFFFF;
   --van-nav-bar-title-text-color: #333333;
   --van-font-size-xs: var(--font-size-xs);

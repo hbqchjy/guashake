@@ -254,7 +254,7 @@ async function onFileChange(e) {
   border-radius: var(--radius-lg);
   color: white;
 }
-.summary-banner.good { background: linear-gradient(135deg, #11c17d, #00b578); }
+.summary-banner.good { background: linear-gradient(135deg, var(--color-primary), var(--color-primary-deep)); }
 .summary-banner.warn { background: linear-gradient(135deg, #ffcc59, #faad14); }
 .summary-banner.alert { background: linear-gradient(135deg, #ff7d6d, #ff4d4f); }
 .summary-title {

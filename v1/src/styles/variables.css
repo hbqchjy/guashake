@@ -1,6 +1,7 @@
 :root {
   /* 主色 */
   --color-primary: #00B578;
+  --color-primary-deep: #009d68;
   --color-primary-light: #E8F8F0;
 
   /* 严重程度色彩体系 */

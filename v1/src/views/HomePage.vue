@@ -12,7 +12,7 @@
         </div>
       </div>
       <div class="header-right" @click="goLogin">
-        <van-icon name="user-circle-o" size="42" color="#1f1f1f" />
+        <van-icon name="user-circle-o" size="42" color="var(--color-primary)" />
       </div>
     </header>
 
@@ -268,7 +268,7 @@ function goResult(record) {
 }
 .stage-icon-pre { background: linear-gradient(135deg, #ffb84d, #ff8f1f); }
 .stage-icon-during { background: linear-gradient(135deg, #19a0ff, #1677ff); }
-.stage-icon-post { background: linear-gradient(135deg, #15bf7a, #00b578); }
+.stage-icon-post { background: linear-gradient(135deg, var(--color-primary), var(--color-primary-deep)); }
 .stage-info {
   flex: 1;
   min-width: 0;
