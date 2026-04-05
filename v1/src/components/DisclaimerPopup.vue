@@ -6,7 +6,7 @@
 
         <div class="disclaimer-body">
           <p class="disclaimer-highlight">
-            「挂啥科」是一款就医信息辅助工具，帮助你在就医过程中做出更有依据的判断。
+            「小科」是一款就医信息辅助工具，帮助你在就医过程中做出更有依据的判断。
           </p>
 
           <div class="disclaimer-section">

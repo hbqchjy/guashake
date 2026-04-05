@@ -33,6 +33,15 @@ export function uploadTriageFile(sessionId, file) {
   }).then(r => r.data)
 }
 
+export function startTriageWithFile(file, label = '检查报告') {
+  const form = new FormData()
+  form.append('file', file)
+  form.append('label', label)
+  return api.post('/triage/start-with-file', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }).then(r => r.data)
+}
+
 export function getTriageResult(sessionId) {
   return api.get(`/triage/result/${sessionId}`).then(r => r.data)
 }

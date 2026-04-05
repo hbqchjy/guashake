@@ -3,8 +3,8 @@
     <!-- 顶部 -->
     <header class="home-header">
       <div class="header-left">
-        <h1 class="app-title">挂啥科</h1>
-        <p class="app-subtitle">你的就医信息助手</p>
+        <h1 class="app-title">小科</h1>
+        <p class="app-subtitle">看病前帮你判断方向，看病时帮你省钱少走弯路，看完后帮你看懂结果。</p>
       </div>
       <div class="header-right" @click="goLogin">
         <span class="user-nick" v-if="nickname">{{ nickname }}</span>
@@ -20,7 +20,7 @@
         <div class="stage-icon">&#x1F61F;</div>
         <div class="stage-info">
           <h3>我不舒服</h3>
-          <p>告诉我哪里不舒服，帮你判断要不要去医院</p>
+          <p>先帮你判断大概是什么问题，看看现在该观察、先用药，还是去医院。</p>
         </div>
         <van-icon name="arrow" class="stage-arrow" />
       </div>
@@ -29,7 +29,7 @@
         <div class="stage-icon">&#x1F3E5;</div>
         <div class="stage-info">
           <h3>我在医院</h3>
-          <p>拍下检查单和处方，帮你看懂、帮你省钱</p>
+          <p>帮你提前想好怎么和医生说病情、怎么问检查和用药，也能看懂检查单和处方。</p>
         </div>
         <van-icon name="arrow" class="stage-arrow" />
       </div>
@@ -38,7 +38,7 @@
         <div class="stage-icon">&#x1F4CB;</div>
         <div class="stage-info">
           <h3>我看完了</h3>
-          <p>拍下报告，帮你看懂结果、提醒复诊</p>
+          <p>帮你看懂检查结果，提醒你接下来怎么处理、怎么复查，什么时候需要再去医院。</p>
         </div>
         <van-icon name="arrow" class="stage-arrow" />
       </div>

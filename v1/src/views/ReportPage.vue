@@ -1,19 +1,19 @@
 <template>
   <div class="page">
-    <van-nav-bar title="报告解读" left-arrow @click-left="$router.back()" />
+    <van-nav-bar title="我看完了" left-arrow @click-left="$router.back()" />
 
     <!-- 分诊上下文横幅 -->
     <div class="context-banner" v-if="triageCtx">
       <span class="context-icon">&#x1F4CB;</span>
       <div class="context-info">
-        <p>你之前因为「{{ triageCtx.complaint }}」在 <strong>{{ triageCtx.department }}</strong> 就诊</p>
+        <p>你之前因为「{{ triageCtx.complaint }}」向小科做过分析，这次结果可以继续接着看。</p>
       </div>
     </div>
 
     <div class="content">
       <!-- 说明 -->
       <div class="hint-card" v-if="!result && !loading">
-        <p>&#x1F4CA; 拍下检验报告，帮你看懂每项指标的含义，标出需要关注的异常项。</p>
+        <p>&#x1F4CA; 你可以上传这次在医院做的检验单、报告单，也可以补充医生开的药和医生交代的内容。小科会帮你看懂结果重点，告诉你现在该怎么处理，后面要不要复查或复诊。</p>
       </div>
 
       <!-- 上传 -->
@@ -177,7 +177,7 @@ async function onFileChange(e) {
 
   try {
     const context = triageCtx.value
-      ? `患者因「${triageCtx.value.complaint}」就诊，科室：${triageCtx.value.department}，症状摘要：${triageCtx.value.summaryForDoctor || '无'}`
+      ? `患者因「${triageCtx.value.complaint}」就诊，既往分析摘要：${triageCtx.value.summaryForDoctor || '无'}`
       : undefined
     const res = await analyzeReport(file, context)
     if (res.ok) {

@@ -5,7 +5,7 @@
     <div class="login-content">
       <div class="login-logo">
         <span class="logo-icon">&#x1F3E5;</span>
-        <h2>挂啥科</h2>
+        <h2>小科</h2>
         <p>登录后可保存就诊记录</p>
       </div>
 

@@ -26,7 +26,7 @@
     <div class="context-banner" v-if="triageCtx">
       <span class="context-icon">&#x1F4CB;</span>
       <div class="context-info">
-        <p>你之前因为「{{ triageCtx.complaint }}」被建议挂 <strong>{{ triageCtx.department }}</strong></p>
+        <p>你之前因为「{{ triageCtx.complaint }}」向小科做过分析，这次可以直接接着问。</p>
       </div>
     </div>
 
@@ -34,10 +34,10 @@
       <!-- 说明文字 -->
       <div class="hint-card" v-if="!result && !loading">
         <p v-if="mode === 'check'">
-          拍下医生开的检查单，帮你看哪些检查必要，哪些可以先不做，预估能省多少钱。
+          你可以先说这次最想和医生确认什么，也可以直接拍下检查单。小科会先帮你想好怎么说、怎么问，再帮你判断哪些检查更值得先做。
         </p>
         <p v-else>
-          拍下处方，帮你了解每种药的作用和必要性，标出辅助用药和自费药。
+          你也可以直接拍下处方。小科会帮你区分核心用药和辅助用药，看看哪些地方值得再和医生确认。
         </p>
       </div>
 
@@ -196,7 +196,7 @@ async function onFileChange(e) {
     const fn = mode.value === 'check' ? analyzeCheckSheet : analyzePrescription
     // 传入分诊上下文
     const context = triageCtx.value
-      ? `患者因「${triageCtx.value.complaint}」就诊，推荐科室：${triageCtx.value.department}，症状摘要：${triageCtx.value.summaryForDoctor || '无'}`
+      ? `患者因「${triageCtx.value.complaint}」就诊，既往分析摘要：${triageCtx.value.summaryForDoctor || '无'}`
       : undefined
     const res = await fn(file, context)
     if (res.ok) {
