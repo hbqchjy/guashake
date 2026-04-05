@@ -5,13 +5,22 @@
       <div class="header-left">
         <div class="brand-row">
           <img class="brand-logo" :src="brandIcon" alt="小科" />
-          <h1 class="app-title">小科</h1>
+          <div class="brand-copy">
+            <h1 class="app-title">小科</h1>
+            <p class="app-tagline">你的就医信息助手</p>
+          </div>
         </div>
-        <p class="app-subtitle">看病前判断方向，看病中少走弯路，看病后看懂结果。</p>
       </div>
       <div class="header-right" @click="goLogin">
-        <span class="user-nick" v-if="nickname">{{ nickname }}</span>
-        <van-icon name="user-circle-o" size="28" color="#666" />
+        <span class="user-nick">{{ nickname || '我的' }}</span>
+        <div class="user-badge" aria-hidden="true">
+          <svg viewBox="0 0 24 24" class="user-badge-icon">
+            <path d="M12 12.4a3.5 3.5 0 1 0-3.5-3.5 3.5 3.5 0 0 0 3.5 3.5Z" />
+            <path d="M6.3 18.2a5.7 5.7 0 0 1 11.4 0" />
+            <path d="M18.1 7.2h2.6" />
+            <path d="M19.4 5.9v2.6" />
+          </svg>
+        </div>
       </div>
     </header>
 
@@ -163,32 +172,47 @@ function goResult(record) {
   padding: var(--spacing-lg) var(--spacing-md) var(--spacing-md);
   background: var(--color-white);
 }
+.header-left,
+.header-right {
+  min-height: 52px;
+}
+.header-left {
+  display: flex;
+  align-items: center;
+}
 .app-title {
-  font-size: var(--font-size-xxl);
+  font-size: 29px;
   font-weight: 700;
-  color: var(--color-primary);
+  line-height: 1.08;
+  color: #1f1f1f;
 }
 .brand-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
 }
 .brand-logo {
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
   display: block;
   flex-shrink: 0;
 }
-.app-subtitle {
-  position: relative;
-  font-size: var(--font-size-sm);
-  color: var(--color-text-hint);
-  margin-top: 6px;
-  line-height: 1.6;
-  padding-left: 12px;
+.brand-copy {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
 }
-.app-subtitle::before {
+.app-tagline {
+  position: relative;
+  padding-left: 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #6b7280;
+  line-height: 1.4;
+}
+.app-tagline::before {
   content: '·';
   position: absolute;
   left: 0;
@@ -199,17 +223,37 @@ function goResult(record) {
 .header-right {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: var(--spacing-sm);
+  gap: 9px;
+  padding: 6px 0 6px 10px;
   cursor: pointer;
 }
 .user-nick {
-  font-size: var(--font-size-sm);
-  color: var(--color-text-secondary);
-  max-width: 80px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 600;
+  color: #4b5563;
+  line-height: 1.2;
+  max-width: 72px;
+  text-align: right;
+}
+.user-badge {
+  width: 42px;
+  height: 42px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #5b8cff 0%, #4a7bff 45%, #15bf7a 100%);
+  box-shadow: 0 8px 18px rgba(74, 123, 255, 0.18);
+}
+.user-badge-icon {
+  width: 21px;
+  height: 21px;
+  stroke: #fff;
+  stroke-width: 1.9;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 /* 三入口 */
