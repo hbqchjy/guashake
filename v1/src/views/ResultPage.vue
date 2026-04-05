@@ -414,7 +414,7 @@ async function deleteCurrentAnalysis() {
 .summary-sub {
   margin-top: 8px;
   font-size: var(--font-size-sm);
-  line-height: 1.6;
+  line-height: 1.5;
   opacity: 0.96;
 }
 
@@ -422,7 +422,7 @@ async function deleteCurrentAnalysis() {
   background: var(--color-white);
   border-radius: var(--radius-md);
   margin: var(--spacing-md);
-  padding: var(--spacing-md);
+  padding: 13px 14px;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
 }
 .card-danger {
@@ -434,7 +434,7 @@ async function deleteCurrentAnalysis() {
   font-size: var(--font-size-lg);
   font-weight: 700;
   color: var(--color-text);
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 
 .bullet-list {
@@ -443,11 +443,11 @@ async function deleteCurrentAnalysis() {
 .bullet-list li {
   position: relative;
   padding-left: 14px;
-  line-height: 1.7;
+  line-height: 1.56;
   color: var(--color-text);
 }
 .bullet-list li + li {
-  margin-top: 6px;
+  margin-top: 4px;
 }
 .bullet-list li::before {
   content: '';
@@ -464,8 +464,8 @@ async function deleteCurrentAnalysis() {
 }
 
 .tag-note {
-  padding: 10px 12px;
-  margin-bottom: 10px;
+  padding: 8px 10px;
+  margin-bottom: 8px;
   background: #f5fbf8;
   border-radius: 10px;
   font-size: var(--font-size-sm);
@@ -475,14 +475,14 @@ async function deleteCurrentAnalysis() {
 .check-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 .check-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 10px 12px;
+  padding: 9px 10px;
   background: #f8f9fb;
   border-radius: 10px;
 }
@@ -506,7 +506,7 @@ async function deleteCurrentAnalysis() {
   font-weight: 600;
 }
 .check-total {
-  margin-top: 10px;
+  margin-top: 8px;
   font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
 }

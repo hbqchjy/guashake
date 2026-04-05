@@ -320,14 +320,14 @@ function normalizeMedicineClass(necessity) {
 
 .hint-card {
   margin: var(--spacing-md);
-  padding: var(--spacing-md);
+  padding: 12px 14px;
   background: var(--color-primary-light);
   border-radius: var(--radius-sm);
 }
 .hint-card p {
   font-size: var(--font-size-sm);
   color: var(--color-primary);
-  line-height: 1.7;
+  line-height: 1.55;
 }
 
 .upload-area { margin: var(--spacing-md); }
@@ -367,28 +367,28 @@ function normalizeMedicineClass(necessity) {
   background: var(--color-white);
   border-radius: var(--radius-md);
   margin: var(--spacing-md);
-  padding: var(--spacing-md);
+  padding: 13px 14px;
   box-shadow: 0 1px 4px rgba(0,0,0,0.04);
 }
 .card-title {
   font-size: var(--font-size-lg);
   font-weight: 700;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 .lead-text {
   font-size: var(--font-size-md);
-  line-height: 1.7;
+  line-height: 1.55;
   color: var(--color-text);
 }
 
 .script-box {
   background: var(--color-primary-light);
   border-radius: var(--radius-sm);
-  padding: 12px 14px;
+  padding: 10px 12px;
   font-size: var(--font-size-md);
   color: var(--color-primary);
-  line-height: 1.7;
+  line-height: 1.55;
 }
 
 .bullet-list {
@@ -397,10 +397,10 @@ function normalizeMedicineClass(necessity) {
 .bullet-list li {
   position: relative;
   padding-left: 14px;
-  line-height: 1.7;
+  line-height: 1.56;
   color: var(--color-text);
 }
-.bullet-list li + li { margin-top: 6px; }
+.bullet-list li + li { margin-top: 4px; }
 .bullet-list li::before {
   content: '';
   position: absolute;
@@ -415,13 +415,13 @@ function normalizeMedicineClass(necessity) {
 .list-rows {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 .list-row {
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  padding: 10px 12px;
+  padding: 9px 10px;
   background: #f8f9fb;
   border-radius: 10px;
 }
@@ -436,8 +436,12 @@ function normalizeMedicineClass(necessity) {
 .row-desc {
   margin-top: 3px;
   font-size: var(--font-size-sm);
-  line-height: 1.6;
+  line-height: 1.5;
   color: var(--color-text-secondary);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 .row-side {
   flex-shrink: 0;
@@ -449,12 +453,12 @@ function normalizeMedicineClass(necessity) {
   font-weight: 600;
 }
 .row-source {
-  margin-top: 4px;
+  margin-top: 3px;
   font-size: 11px;
   color: var(--color-text-secondary);
 }
 .row-badge {
-  margin-top: 6px;
+  margin-top: 4px;
   display: inline-block;
   padding: 3px 8px;
   border-radius: 10px;
@@ -465,7 +469,7 @@ function normalizeMedicineClass(necessity) {
 .badge-warn { background: #fff7e6; color: #d48806; }
 
 .foot-note {
-  margin-top: 10px;
+  margin-top: 8px;
   font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
 }
