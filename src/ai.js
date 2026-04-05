@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { findDrugRefsByText } = require('./store');
+const { tts: tencentTtsSdk } = require('tencentcloud-sdk-nodejs-tts');
 
 const DEFAULT_BASE_URL = 'https://dashscope.aliyuncs.com/compatible-mode/v1';
 const DEFAULT_TEXT_MODEL = 'qwen3.5-plus-2026-02-15';
@@ -76,7 +77,7 @@ function getStatus() {
 }
 
 function hasTencentTtsConfig(config) {
-  return Boolean(config.tencentTtsSecretId && config.tencentTtsSecretKey && config.tencentTtsAppId);
+  return Boolean(config.tencentTtsSecretId && config.tencentTtsSecretKey);
 }
 
 function resolveTtsProvider(config) {
@@ -312,6 +313,63 @@ function normalizeDashscopeAudioMime(format = 'mp3') {
   return 'audio/mpeg';
 }
 
+function buildTencentTtsClient(config) {
+  const TtsClient = tencentTtsSdk.v20190823.Client;
+  return new TtsClient({
+    credential: {
+      secretId: config.tencentTtsSecretId,
+      secretKey: config.tencentTtsSecretKey,
+    },
+    region: process.env.TENCENT_TTS_REGION || 'ap-guangzhou',
+    profile: {
+      signMethod: 'TC3-HMAC-SHA256',
+      httpProfile: {
+        reqMethod: 'POST',
+        reqTimeout: 30,
+      },
+    },
+  });
+}
+
+async function synthesizeSpeechByTencent(text, options = {}) {
+  const config = getConfig();
+  if (!hasTencentTtsConfig(config)) {
+    throw new Error('Tencent TTS credentials are not configured');
+  }
+  const inputText = String(text || '').trim();
+  if (!inputText) {
+    throw new Error('text is required');
+  }
+  if (inputText.length > 140) {
+    throw new Error('Tencent TTS text too long for basic synthesis');
+  }
+
+  const client = buildTencentTtsClient(config);
+  const codec = String(options.format || 'mp3').toLowerCase() === 'wav' ? 'wav' : 'mp3';
+  const sampleRate = Number(options.sampleRate || 16000);
+  const voiceType = Number(options.voiceType || config.tencentTtsVoiceType || 1001);
+  const params = {
+    Text: inputText,
+    SessionId: `xk-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    VoiceType: voiceType,
+    Codec: codec,
+    SampleRate: sampleRate,
+    ModelType: 1,
+    Volume: Number.isFinite(Number(options.volume)) ? Number(options.volume) : 0,
+    Speed: Number.isFinite(Number(options.speed)) ? Number(options.speed) : 0,
+    PrimaryLanguage: 1,
+  };
+  const resp = await client.TextToVoice(params);
+  const audio = String(resp?.Audio || '').trim();
+  if (!audio) {
+    throw new Error('Tencent TTS returned empty audio');
+  }
+  return {
+    buffer: Buffer.from(audio, 'base64'),
+    mimeType: codec === 'wav' ? 'audio/wav' : 'audio/mpeg',
+  };
+}
+
 async function synthesizeSpeech(text, options = {}) {
   const config = getConfig();
   const inputText = String(text || '').trim();
@@ -321,8 +379,14 @@ async function synthesizeSpeech(text, options = {}) {
 
   const provider = resolveTtsProvider(config);
   if (provider === 'tencent') {
-    // Tencent TTS will be wired here once provider implementation is added.
-    // Until then, keep online traffic on the stable DashScope path.
+    try {
+      return await synthesizeSpeechByTencent(inputText, options);
+    } catch (error) {
+      // Keep online traffic on the stable DashScope path when Tencent fails.
+      if (process.env.TTS_PROVIDER_STRICT === '1') {
+        throw error;
+      }
+    }
   }
 
   if (!config.apiKey) {
