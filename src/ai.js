@@ -10,6 +10,7 @@ const DEFAULT_VISION_MODEL = 'qwen-vl-max-latest';
 const DEFAULT_ASR_MODEL = 'qwen3-asr-flash';
 const DEFAULT_TTS_MODEL = 'cosyvoice-v2';
 const DEFAULT_TTS_VOICE = 'longxiaochun_v2';
+const DEFAULT_TTS_PROVIDER = 'dashscope';
 const DEFAULT_TIMEOUT_MS = 15000;
 
 function getConfig() {
@@ -31,8 +32,13 @@ function getConfig() {
     ocrModel: process.env.DASHSCOPE_OCR_MODEL || DEFAULT_OCR_MODEL,
     visionModel: process.env.DASHSCOPE_VISION_MODEL || DEFAULT_VISION_MODEL,
     asrModel: process.env.DASHSCOPE_ASR_MODEL || DEFAULT_ASR_MODEL,
+    ttsProvider: String(process.env.TTS_PROVIDER || DEFAULT_TTS_PROVIDER).trim().toLowerCase(),
     ttsModel: process.env.DASHSCOPE_TTS_MODEL || DEFAULT_TTS_MODEL,
     ttsVoice: process.env.DASHSCOPE_TTS_VOICE || DEFAULT_TTS_VOICE,
+    tencentTtsSecretId: process.env.TENCENT_TTS_SECRET_ID || '',
+    tencentTtsSecretKey: process.env.TENCENT_TTS_SECRET_KEY || '',
+    tencentTtsAppId: process.env.TENCENT_TTS_APP_ID || '',
+    tencentTtsVoiceType: process.env.TENCENT_TTS_VOICE_TYPE || '',
     externalFallbackApiKey: process.env.FALLBACK_OPENAI_API_KEY || '',
     externalFallbackBaseUrl: (process.env.FALLBACK_OPENAI_BASE_URL || '').replace(/\/$/, ''),
     externalFallbackModel: process.env.FALLBACK_OPENAI_MODEL || '',
@@ -58,6 +64,8 @@ function getStatus() {
     ocrModel: config.ocrModel,
     visionModel: config.visionModel,
     asrModel: config.asrModel,
+    ttsProviderRequested: config.ttsProvider,
+    ttsProvider: resolveTtsProvider(config),
     ttsModel: config.ttsModel,
     ttsVoice: config.ttsVoice,
     baseUrl: config.baseUrl,
@@ -65,6 +73,17 @@ function getStatus() {
     externalFallbackBaseUrl: config.externalFallbackBaseUrl || '',
     externalFallbackModel: config.externalFallbackModel || '',
   };
+}
+
+function hasTencentTtsConfig(config) {
+  return Boolean(config.tencentTtsSecretId && config.tencentTtsSecretKey && config.tencentTtsAppId);
+}
+
+function resolveTtsProvider(config) {
+  if (config.ttsProvider === 'tencent' && hasTencentTtsConfig(config) && process.env.TENCENT_TTS_ENABLED === '1') {
+    return 'tencent';
+  }
+  return 'dashscope';
 }
 
 async function callChatCompletionOnce({
@@ -295,13 +314,19 @@ function normalizeDashscopeAudioMime(format = 'mp3') {
 
 async function synthesizeSpeech(text, options = {}) {
   const config = getConfig();
-  if (!config.apiKey) {
-    throw new Error('DASHSCOPE_API_KEY is not configured');
-  }
-
   const inputText = String(text || '').trim();
   if (!inputText) {
     throw new Error('text is required');
+  }
+
+  const provider = resolveTtsProvider(config);
+  if (provider === 'tencent') {
+    // Tencent TTS will be wired here once provider implementation is added.
+    // Until then, keep online traffic on the stable DashScope path.
+  }
+
+  if (!config.apiKey) {
+    throw new Error('DASHSCOPE_API_KEY is not configured');
   }
 
   const model = options.model || config.ttsModel;
