@@ -181,7 +181,7 @@ function goResult(record) {
 }
 .stage-card {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   background: var(--color-white);
   border-radius: var(--radius-md);
   padding: var(--spacing-md) var(--spacing-md);
@@ -207,6 +207,8 @@ function goResult(record) {
   justify-content: center;
   flex-shrink: 0;
   color: #fff;
+  margin-right: 14px;
+  margin-top: 2px;
 }
 .stage-icon-pre { background: linear-gradient(135deg, #ffb84d, #ff8f1f); }
 .stage-icon-during { background: linear-gradient(135deg, #19a0ff, #1677ff); }
@@ -214,21 +216,35 @@ function goResult(record) {
 .stage-info {
   flex: 1;
   min-width: 0;
+  padding-top: 1px;
 }
 .stage-info h3 {
   font-size: var(--font-size-lg);
   font-weight: 600;
   color: var(--color-text);
+  line-height: 1.35;
 }
 .stage-info p {
+  position: relative;
   font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
-  margin-top: 2px;
+  margin-top: 6px;
+  line-height: 1.65;
+  padding-left: 12px;
+}
+.stage-info p::before {
+  content: '·';
+  position: absolute;
+  left: 0;
+  top: 0;
+  color: var(--color-primary);
+  font-weight: 700;
 }
 .stage-arrow {
   color: var(--color-text-hint);
   flex-shrink: 0;
-  margin-left: var(--spacing-sm);
+  margin-left: 12px;
+  margin-top: 12px;
 }
 
 /* 最近记录 */
