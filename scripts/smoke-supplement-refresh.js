@@ -25,8 +25,16 @@ function assert(condition, message) {
   const created = await post('/triage/session', { chiefComplaint: '胃不舒服，反酸烧心', age: 36, gender: '男' });
   const sid = created.sessionId;
 
-  await post('/triage/message', { sessionId: sid, message: '两天了，饭后更明显，没有发烧，也没有呕血黑便' });
-  let current = await post('/triage/message', { sessionId: sid, message: '上腹为主，有点胀气，食欲一般' });
+  let current = await post('/triage/message', { sessionId: sid, message: '两天了，饭后更明显，没有发烧，也没有呕血黑便' });
+  const openFollowups = [
+    '上腹为主，有点胀气，食欲一般',
+    '没有明显腹泻，喝热水会稍微舒服一点',
+    '主要是饭后反酸和烧心，晚上躺下更明显',
+  ];
+  for (const text of openFollowups) {
+    if (current.mode === 'question') break;
+    current = await post('/triage/message', { sessionId: sid, message: text });
+  }
   assert(current.mode === 'question', 'should enter structured mode before supplement refresh test');
 
   for (let i = 0; i < 3 && current.nextQuestion; i += 1) {

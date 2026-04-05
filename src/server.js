@@ -427,6 +427,16 @@ function shouldDelayResultConfirmation(session, stepCount = 0) {
   return structuredSteps < 3;
 }
 
+function getConfirmationGuard(session, extra = {}) {
+  const structuredSteps = Number(extra.stepCount || session?.followUp?.stepCount || 0);
+  const openTurns = Number(extra.openTurns || session?.openTurns || 0);
+  return {
+    structuredSteps,
+    openTurns,
+    blocked: structuredSteps < 3,
+  };
+}
+
 function getAskedQuestionIds(session) {
   return Array.isArray(session.followUp?.askedQuestionIds) ? session.followUp.askedQuestionIds : [];
 }
@@ -449,7 +459,7 @@ function getFallbackNextQuestion(session) {
 function isSlotFilled(session, slot) {
   if (!slot) return false;
   const slotState = session.followUp?.slotState || {};
-  return Boolean(slotState[slot]?.answer);
+  return Boolean(slotState[slot]?.answer && slotState[slot]?.source === 'answer');
 }
 
 function mapIntentToFocus(intentType = '', topicKey = '', focusLabel = '') {
@@ -510,7 +520,7 @@ function hasEscalationSignal(text = '') {
     return raw.includes(token);
   };
   const signalKeywords = [
-    '加重', '越来越', '夜间憋醒', '走路都喘', '呼吸困难', '胸痛', '黑便', '便血', '高烧',
+    '明显加重', '持续加重', '越来越重', '越来越频繁', '夜间憋醒', '走路都喘', '呼吸困难', '胸痛', '黑便', '便血', '高烧',
     '意识模糊', '说话不清', '口角歪斜', '偏瘫', '肢体无力', '抽搐', '晕倒', '剧烈头痛',
     '喉咙紧', '喉头水肿', '全身风团', '大量出血', '刀割样腹痛', '反跳痛', '停经后出血',
     '阴道大出血', '胎动减少', '破水', '产后大出血', '高热惊厥', '自杀', '轻生', '不想活',
@@ -863,6 +873,7 @@ function mergeSlotHintsIntoState(existingState = {}, hints = [], sourcePrefix = 
       slot: hint.slot,
       slotLabel: hint.slotLabel || current?.slotLabel || hint.slot,
       answer: mergedAnswer,
+      source: current?.source === 'answer' ? 'answer' : sourcePrefix,
     };
   }
 
@@ -1484,6 +1495,7 @@ app.post('/triage/answer', async (req, res) => {
       slot: slotMeta.slot,
       slotLabel: slotMeta.slotLabel,
       answer,
+      source: 'answer',
     };
   }
 
@@ -1773,6 +1785,7 @@ app.post('/triage/message', async (req, res) => {
   }
 
   if (openPlan.collectMode === 'summary') {
+    const confirmationGuard = getConfirmationGuard(updatedSession, { openTurns });
     if (candidates.length && openTurns < 3) {
       const picked = candidates[0];
       const nextQuestion = {
@@ -1832,6 +1845,29 @@ app.post('/triage/message', async (req, res) => {
       });
     }
 
+    if (confirmationGuard.blocked) {
+      upsertSession(sessionId, {
+        conversationStage: 'open',
+        openPromptText: '现在还不能直接出分析。我还想再确认一下：具体在什么位置？是持续不舒服，还是一阵一阵？有没有反酸、恶心、发热、黑便这些情况？',
+      });
+      return res.json({
+        ok: true,
+        intentType,
+        mode: 'text',
+        assistantReply: openPlan.assistantReply || '现在信息还不够稳，我先不急着给结果。',
+        nextPrompt: {
+          type: 'text',
+          text: '现在还不能直接出分析。我还想再确认一下：具体在什么位置？是持续不舒服，还是一阵一阵？有没有反酸、恶心、发热、黑便这些情况？',
+        },
+        insight,
+        currentFocus,
+        followUpMeta: {
+          mode: 'guarded-open-confirmation-blocked',
+          reason: '未达到最少结构化确认次数，继续开放式补充',
+        },
+      });
+    }
+
     upsertSession(sessionId, {
       conversationStage: 'structured',
       followUp: {
@@ -1854,6 +1890,29 @@ app.post('/triage/message', async (req, res) => {
   if (openPlan.collectMode === 'structured') {
     const picked = candidates.find((item) => item.id === openPlan.questionId) || candidates[0] || null;
     if (!picked) {
+      const confirmationGuard = getConfirmationGuard(updatedSession, { openTurns });
+      if (confirmationGuard.blocked) {
+        upsertSession(sessionId, {
+          conversationStage: 'open',
+          openPromptText: '现在还不能直接出分析。你继续补充一下：持续多久了、具体位置在哪里、有没有明显加重或伴随症状？',
+        });
+        return res.json({
+          ok: true,
+          intentType,
+          mode: 'text',
+          assistantReply: '我还不想太早下结论，先把关键情况补齐。',
+          nextPrompt: {
+            type: 'text',
+            text: '现在还不能直接出分析。你继续补充一下：持续多久了、具体位置在哪里、有没有明显加重或伴随症状？',
+          },
+          insight,
+          currentFocus,
+          followUpMeta: {
+            mode: 'guarded-open-no-picked',
+            reason: '未达到最少结构化确认次数，继续补充开放式信息',
+          },
+        });
+      }
       return res.json({
         ok: true,
         intentType,

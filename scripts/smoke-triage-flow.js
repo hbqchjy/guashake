@@ -66,6 +66,27 @@ function assert(condition, message) {
     }
   }
 
+  const openOnly = await post('/triage/session', {
+    chiefComplaint: '最近胃不舒服',
+    age: 32,
+    gender: '女',
+  });
+  const openSid = openOnly.sessionId;
+  const openA = await post('/triage/message', {
+    sessionId: openSid,
+    message: '吃饭后会加重，已经一周了',
+  });
+  assert(openA.mode === 'text' || openA.mode === 'question', 'open-only path should keep collecting information');
+  assert(!openA.needsConfirmation, 'open-only path should not confirm after first intake turn');
+  assert(!openA.immediateResult, 'open-only path should not jump to result after first intake turn');
+  assert(openA.mode !== 'immediate_result', 'meal-related aggravation alone must not trigger urgent result');
+  const openB = await post('/triage/message', {
+    sessionId: openSid,
+    message: '吃饭前不明显，没有黑便，也没有呕吐',
+  });
+  assert(openB.mode === 'question' || openB.mode === 'text', 'open-only path should continue intake, not confirm');
+  assert(!openB.needsConfirmation, 'open-only path should not allow confirmation without structured answers');
+
   console.log('smoke ok');
 })().catch((error) => {
   console.error('smoke failed:', error.message);
