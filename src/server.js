@@ -1646,6 +1646,65 @@ app.post('/triage/message', async (req, res) => {
   }
 
   if (openPlan.collectMode === 'summary') {
+    if (candidates.length && openTurns < 3) {
+      const picked = candidates[0];
+      const nextQuestion = {
+        ...picked,
+        text: picked.text,
+        options: picked.options,
+      };
+      upsertSession(sessionId, {
+        conversationStage: 'structured',
+        followUp: {
+          ...(updatedSession.followUp || {}),
+          currentQuestionId: nextQuestion.id,
+          completed: false,
+        },
+        followUpMeta: {
+          mode: 'guarded-open-to-structured',
+          reason: '开放式信息尚不足，先补充关键选择题',
+          targetSlot: nextQuestion.slot || nextQuestion.id,
+          targetSlotLabel: nextQuestion.slotLabel || nextQuestion.slot || nextQuestion.id,
+        },
+      });
+      return res.json({
+        ok: true,
+        intentType,
+        mode: 'question',
+        assistantReply: openPlan.assistantReply || '我现在还不想太早下结论，再确认几个关键点。',
+        nextQuestion,
+        progress: {
+          current: 1,
+          total: getStructuredProgressTotal(followUpConfig, candidates.length),
+        },
+        followUpMeta: {
+          mode: 'guarded-open-to-structured',
+          reason: '开放式信息尚不足，先补充关键选择题',
+        },
+        insight,
+        currentFocus,
+      });
+    }
+
+    if (!candidates.length && openTurns < 3) {
+      upsertSession(sessionId, {
+        conversationStage: 'open',
+        openPromptText: '我还想再确认一下：大概持续多久了？最近是在加重、减轻，还是差不多？',
+      });
+      return res.json({
+        ok: true,
+        intentType,
+        mode: 'text',
+        assistantReply: openPlan.assistantReply || '现在信息还不够，我先不急着给结果。',
+        nextPrompt: {
+          type: 'text',
+          text: '我还想再确认一下：大概持续多久了？最近是在加重、减轻，还是差不多？',
+        },
+        insight,
+        currentFocus,
+      });
+    }
+
     upsertSession(sessionId, {
       conversationStage: 'structured',
       followUp: {
@@ -1910,6 +1969,9 @@ app.post('/triage/supplement', async (req, res) => {
     });
   }
   let followUpAnswer = null;
+  const canRefreshSummary =
+    Boolean(session.triageResult) &&
+    ['medical_followup', 'medication_question', 'booking_question', 'cost_question'].includes(intentType);
   if (session.triageResult && ['medical_followup', 'medication_question', 'booking_question', 'cost_question'].includes(intentType)) {
     try {
       followUpAnswer = await answerFollowUpTurn(updated, text, intentType);
@@ -1924,6 +1986,7 @@ app.post('/triage/supplement', async (req, res) => {
     supplements: updated.supplements || [],
     insight,
     reply: followUpAnswer?.answer || turnIntent?.reply || '',
+    canRefreshSummary,
     affectsSummary: Boolean(followUpAnswer?.affectsSummary) || hasEscalationSignal(text) || hasDeescalationSignal(text),
     impactLevel: hasEscalationSignal(text)
       ? 'major'

@@ -524,10 +524,13 @@ async function supplement(text) {
       stage.value = 'structured'
       announceStructuredMode(res.reply || res.assistantReply)
       showQuestion(res)
-    } else if (res.refreshSummary || res.affectsSummary) {
+    } else if (res.refreshSummary || res.affectsSummary || res.canRefreshSummary) {
       stage.value = 'supplement'
+      const promptText = res.affectsSummary || res.refreshSummary
+        ? (res.reply || '根据你刚补充的新信息，当前分析可能会变化。要不要现在更新分析结果？')
+        : (res.reply || '这条补充我已经并入当前咨询了。你可以继续补充，或者现在更新分析。')
       addBotMessage(
-        res.reply || '根据你刚补充的新信息，当前分析可能会变化。要不要现在更新分析结果？',
+        promptText,
         [
           { label: '更新分析', value: '__generate__' },
           { label: '继续补充', value: '__continue__' },
