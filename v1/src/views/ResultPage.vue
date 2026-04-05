@@ -321,6 +321,23 @@ function continueAnalysis() {
   })
 }
 
+function redirectBackToSupplement(message = '') {
+  const sid = props.sessionId || route.params.sessionId
+  if (!sid) return
+  sessionStorage.setItem(
+    'triageResumeNotice',
+    message || '现在还不能直接生成分析，先把关键问题补齐。',
+  )
+  router.replace({
+    path: '/triage',
+    query: {
+      sessionId: sid,
+      mode: 'supplement',
+      title: localStorage.getItem('currentComplaint') || '',
+    },
+  })
+}
+
 async function saveAnalysis() {
   const userId = localStorage.getItem('userId')
   const sid = props.sessionId || route.params.sessionId
@@ -346,7 +363,11 @@ async function saveAnalysis() {
       summary: archiveTitle.value,
     })
     showToast('分析已保存')
-  } catch {
+  } catch (error) {
+    if (error?.response?.status === 409 && error?.response?.data?.error === 'insufficient_confirmation') {
+      redirectBackToSupplement(error?.response?.data?.message)
+      return
+    }
     showToast('保存失败，请稍后重试')
   }
 }
