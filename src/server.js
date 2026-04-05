@@ -33,6 +33,7 @@ const {
   trackSymptomClick,
   incrementConsultationCount,
   getQuickSymptomAnalytics,
+  findDrugRefsByScenarios,
 } = require('./store');
 const { summarizeFile, buildSummarySlotHints } = require('./file-summary');
 const {
@@ -571,6 +572,48 @@ function buildTopicChips(session, triageResult) {
   }
 
   return chips.filter((chip, index, array) => array.findIndex((item) => item.key === chip.key) === index);
+}
+
+const SCENARIO_DRUG_CODES = {
+  digestive: ['stomach'],
+  respiratory: ['cold', 'cough', 'throat'],
+  eye: ['eye'],
+  dermatology: ['skin'],
+  cardiac: ['hypertension'],
+  male: ['pain'],
+  general: ['pain'],
+};
+
+function formatDrugPriceRange(min, max) {
+  const low = Number(min || 0);
+  const high = Number(max || 0);
+  if (low && high) return `${low}~${high}元`;
+  if (low || high) return `${low || high}元`;
+  return '价格待确认';
+}
+
+function buildLocalMedicationRefs(scenarioId = '') {
+  const codes = SCENARIO_DRUG_CODES[String(scenarioId || '').trim()] || [];
+  if (!codes.length) return [];
+  return findDrugRefsByScenarios(codes, 4).map((item) => ({
+    name: item.genericName,
+    priceRange: formatDrugPriceRange(item.priceMin, item.priceMax),
+    source: '本地参考',
+    insuranceType: item.insuranceClass || '不确定',
+    note: item.isCentralized ? '集采品种' : '',
+  }));
+}
+
+function mergeMedicationRefs(primary = [], fallback = []) {
+  const seen = new Set();
+  const merged = [];
+  for (const item of [...primary, ...fallback]) {
+    const key = `${item.name || item.category || ''}|${item.priceRange || item.price || ''}`;
+    if (!key.trim() || seen.has(key)) continue;
+    seen.add(key);
+    merged.push(item);
+  }
+  return merged.slice(0, 5);
 }
 
 async function resolveNextQuestion(session, options = {}) {
@@ -1648,10 +1691,52 @@ app.post('/triage/message', async (req, res) => {
     .filter((item) => !isSlotFilled(updatedSession, item.slot))
     .filter((item) => !shouldSkipQuestionByContext(updatedSession, item));
 
+  const followUpConfig = getFollowUpConfig(updatedSession);
+  // 第二轮开放式追问后，仍停留在 open 阶段时优先切到结构化确认。
+  // 不再把“是否切换”完全交给模型，避免开放式问题拖得过长。
+  if (openTurns >= 2 && candidates.length >= 1) {
+    const picked = candidates[0];
+    const nextQuestion = {
+      ...picked,
+      text: picked.text,
+      options: picked.options,
+    };
+    upsertSession(sessionId, {
+      conversationStage: 'structured',
+      followUp: {
+        ...(updatedSession.followUp || {}),
+        currentQuestionId: nextQuestion.id,
+        completed: false,
+      },
+      followUpMeta: {
+        mode: 'forced-open-to-structured',
+        reason: '开放式信息已积累两轮，切换到选择题确认关键点',
+        targetSlot: nextQuestion.slot || nextQuestion.id,
+        targetSlotLabel: nextQuestion.slotLabel || nextQuestion.slot || nextQuestion.id,
+      },
+    });
+    return res.json({
+      ok: true,
+      intentType,
+      mode: 'question',
+      assistantReply: '我已经先听明白大概情况了，接下来用几个选择题把关键点问清楚。',
+      nextQuestion,
+      progress: {
+        current: 1,
+        total: getStructuredProgressTotal(followUpConfig, candidates.length),
+      },
+      followUpMeta: {
+        mode: 'forced-open-to-structured',
+        reason: '开放式信息已积累两轮，切换到选择题确认关键点',
+      },
+      insight,
+      currentFocus,
+    });
+  }
+
   const openPlan = await planOpenInterviewTurn(updatedSession, text, candidates, {
     openTurns,
   }).catch(() => null);
-  const followUpConfig = getFollowUpConfig(updatedSession);
 
   if (!openPlan) {
     return res.json({
@@ -1793,46 +1878,6 @@ app.post('/triage/message', async (req, res) => {
       followUpMeta: {
         mode: 'ai-open-to-structured',
         reason: openPlan.reason || '开放式信息已足够，开始进入精准提问',
-      },
-      insight,
-      currentFocus,
-    });
-  }
-
-  if (openPlan.collectMode === 'text' && openTurns >= 2 && candidates.length >= 1) {
-    const picked = candidates[0];
-    const nextQuestion = {
-      ...picked,
-      text: picked.text,
-      options: picked.options,
-    };
-    upsertSession(sessionId, {
-      conversationStage: 'structured',
-      followUp: {
-        ...(updatedSession.followUp || {}),
-        currentQuestionId: nextQuestion.id,
-        completed: false,
-      },
-      followUpMeta: {
-        mode: 'forced-open-to-structured',
-        reason: '开放式信息已积累两轮，切换到选择题确认关键点',
-        targetSlot: nextQuestion.slot || nextQuestion.id,
-        targetSlotLabel: nextQuestion.slotLabel || nextQuestion.slot || nextQuestion.id,
-      },
-    });
-    return res.json({
-      ok: true,
-      intentType,
-      mode: 'question',
-      assistantReply: openPlan.assistantReply || '我已经大概有方向了，再回答几个选择题，我会更准确。',
-      nextQuestion,
-      progress: {
-        current: 1,
-        total: getStructuredProgressTotal(followUpConfig, candidates.length),
-      },
-      followUpMeta: {
-        mode: 'forced-open-to-structured',
-        reason: '开放式信息已积累两轮，切换到选择题确认关键点',
       },
       insight,
       currentFocus,
@@ -2260,6 +2305,13 @@ app.post('/cost/estimate', (req, res) => {
   }
 
   const estimate = buildCostEstimate(session);
+  const localMedicationRefs = buildLocalMedicationRefs(session.scenario?.id);
+  if (localMedicationRefs.length) {
+    estimate.expanded.medicationPriceRefs = mergeMedicationRefs(
+      localMedicationRefs,
+      estimate.expanded.medicationPriceRefs || []
+    );
+  }
   upsertSession(sessionId, { estimate });
   return res.json({
     coverageTier: '基础覆盖',

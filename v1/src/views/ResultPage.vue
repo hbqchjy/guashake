@@ -139,7 +139,9 @@ const medicationItems = computed(() => {
   const priceLines = refs.map((item) => {
     const name = item.name || item.category || '常见药物'
     const price = item.priceRange || item.price || ''
-    return price ? `${name}：约 ${price}` : name
+    const source = item.source ? `（${item.source}）` : ''
+    const insurance = item.insuranceType ? `，${item.insuranceType}` : ''
+    return price ? `${name}${source}${insurance}：约 ${price}` : `${name}${source}${insurance}`
   })
   const fallbackPriceLines = priceLines.length ? [] : buildMedicationFallbackPrices(advice)
   return Array.from(new Set([...advice, ...priceLines, ...fallbackPriceLines])).slice(0, 4)

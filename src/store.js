@@ -446,6 +446,56 @@ function findDrugRefsByText(text, limit = 12) {
     .map(({ matchLength, ...item }) => item);
 }
 
+function findDrugRefsByScenarios(scenarioCodes = [], limit = 6) {
+  const codes = Array.from(
+    new Set(
+      (Array.isArray(scenarioCodes) ? scenarioCodes : [scenarioCodes])
+        .map((item) => String(item || '').trim())
+        .filter(Boolean)
+    )
+  );
+  if (!codes.length) return [];
+
+  const placeholders = codes.map(() => '?').join(', ');
+  const rows = getDb()
+    .prepare(`
+      SELECT
+        d.id,
+        d.generic_name,
+        d.form,
+        d.spec,
+        d.insurance_class,
+        d.is_centralized,
+        d.price_min,
+        d.price_max,
+        d.source,
+        GROUP_CONCAT(DISTINCT ds.scenario_name) AS scenario_names
+      FROM drugs d
+      INNER JOIN drug_scenarios ds ON ds.drug_id = d.id
+      WHERE ds.scenario_code IN (${placeholders})
+      GROUP BY d.id
+      ORDER BY d.is_centralized DESC, d.price_min ASC, d.generic_name ASC
+      LIMIT ?
+    `)
+    .all(...codes, Math.max(1, Number(limit) || 6));
+
+  return rows.map((row) => ({
+    id: row.id,
+    genericName: row.generic_name,
+    form: row.form || '',
+    spec: row.spec || '',
+    insuranceClass: row.insurance_class || '不确定',
+    isCentralized: Boolean(row.is_centralized),
+    priceMin: Number(row.price_min || 0),
+    priceMax: Number(row.price_max || 0),
+    source: row.source || 'seed',
+    scenarios: String(row.scenario_names || '')
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean),
+  }));
+}
+
 module.exports = {
   upsertSession,
   getSession,
@@ -464,4 +514,5 @@ module.exports = {
   incrementConsultationCount,
   getQuickSymptomAnalytics,
   findDrugRefsByText,
+  findDrugRefsByScenarios,
 };
