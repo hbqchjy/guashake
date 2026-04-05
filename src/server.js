@@ -1575,6 +1575,12 @@ app.post('/triage/answer', async (req, res) => {
         },
       });
     }
+    upsertSession(sessionId, {
+      generationReady: true,
+      summaryDirty: false,
+      summaryImpactLevel: 'none',
+      summaryDirtyNotice: '信息差不多了。你可以先生成分析，也可以继续补充。',
+    });
     return res.json({
       done: false,
       needsConfirmation: true,
@@ -1952,6 +1958,12 @@ app.post('/triage/message', async (req, res) => {
           },
         });
       }
+      upsertSession(sessionId, {
+        generationReady: true,
+        summaryDirty: false,
+        summaryImpactLevel: 'none',
+        summaryDirtyNotice: '信息差不多了。你可以先生成分析，也可以继续补充。',
+      });
       return res.json({
         ok: true,
         intentType,
@@ -2168,6 +2180,22 @@ app.post('/triage/supplement', async (req, res) => {
       followUpAnswer = null;
     }
   }
+  const affectsSummary = Boolean(followUpAnswer?.affectsSummary) || hasEscalationSignal(text) || hasDeescalationSignal(text);
+  const impactLevel = hasEscalationSignal(text)
+    ? 'major'
+    : (hasDeescalationSignal(text) ? 'minor' : (followUpAnswer?.impactLevel || 'none'));
+  const refreshSummary =
+    Boolean(session.triageResult) &&
+    ['medical_followup', 'medication_question', 'booking_question', 'cost_question'].includes(intentType) &&
+    ((Boolean(followUpAnswer?.affectsSummary) && (followUpAnswer?.shouldRefreshSummary !== false))
+      || hasEscalationSignal(text)
+      || hasDeescalationSignal(text));
+  upsertSession(sessionId, {
+    generationReady: Boolean(canRefreshSummary && !refreshSummary),
+    summaryDirty: Boolean(refreshSummary || affectsSummary),
+    summaryImpactLevel: refreshSummary || affectsSummary ? impactLevel : 'none',
+    summaryDirtyNotice: followUpAnswer?.answer || turnIntent?.reply || '',
+  });
   return res.json({
     ok: true,
     intentType,
@@ -2176,16 +2204,9 @@ app.post('/triage/supplement', async (req, res) => {
     insight,
     reply: followUpAnswer?.answer || turnIntent?.reply || '',
     canRefreshSummary,
-    affectsSummary: Boolean(followUpAnswer?.affectsSummary) || hasEscalationSignal(text) || hasDeescalationSignal(text),
-    impactLevel: hasEscalationSignal(text)
-      ? 'major'
-      : (hasDeescalationSignal(text) ? 'minor' : (followUpAnswer?.impactLevel || 'none')),
-    refreshSummary:
-      Boolean(session.triageResult) &&
-      ['medical_followup', 'medication_question', 'booking_question', 'cost_question'].includes(intentType) &&
-      ((Boolean(followUpAnswer?.affectsSummary) && (followUpAnswer?.shouldRefreshSummary !== false))
-        || hasEscalationSignal(text)
-        || hasDeescalationSignal(text)),
+    affectsSummary,
+    impactLevel,
+    refreshSummary,
   });
 });
 
