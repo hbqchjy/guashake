@@ -225,6 +225,7 @@ import {
   uploadTriageFile,
   startTriageWithFile,
   getTriageState,
+  synthesizeTriageSpeech,
 } from '../api'
 
 const router = useRouter()
@@ -252,6 +253,9 @@ const mediaRecorder = ref(null)
 const mediaChunks = ref([])
 const hasShownStructuredIntro = ref(false)
 const resumeNotice = ref('')
+const ttsAudio = ref(null)
+const ttsQueue = ref([])
+const ttsPlaying = ref(false)
 
 const primarySymptoms = [
   { text: '胃不舒服' },
@@ -327,6 +331,7 @@ function addBotMessage(text, options = []) {
   messages.value.forEach(m => { if (m.role === 'bot') m.isLatest = false })
   messages.value.push({ role: 'bot', text, options, isLatest: true })
   scrollBottom()
+  enqueueBotSpeech(text)
 }
 
 function addUserMessage(text) {
@@ -351,6 +356,9 @@ function toggleComposerMode() {
   composerMode.value = composerMode.value === 'text' ? 'voice' : 'text'
   if (composerMode.value === 'voice') {
     inputText.value = ''
+    enqueueBotSpeech('语音模式已开启，你可以按住说话，我也会尽量自动播报回复。')
+  } else {
+    stopBotSpeech()
   }
 }
 
@@ -688,6 +696,7 @@ async function startVoiceCapture() {
     showToast('当前设备暂不支持语音输入')
     return
   }
+  stopBotSpeech()
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
     mediaChunks.value = []
@@ -839,6 +848,85 @@ function playCue(type = 'start') {
   }
 }
 
+function ensureTtsAudio() {
+  if (ttsAudio.value) return ttsAudio.value
+  const audio = new Audio()
+  audio.preload = 'auto'
+  audio.crossOrigin = 'use-credentials'
+  audio.setAttribute('playsinline', 'true')
+  audio.setAttribute('webkit-playsinline', 'true')
+  audio.style.display = 'none'
+  document.body.appendChild(audio)
+  ttsAudio.value = audio
+  return audio
+}
+
+function stripSpeakText(text = '') {
+  return String(text || '')
+    .replace(/<br\s*\/?>/gi, '，')
+    .replace(/<\/p>/gi, '，')
+    .replace(/<[^>]+>/g, '')
+    .replace(/\s+/g, ' ')
+    .replace(/[“”"]/g, '')
+    .trim()
+}
+
+function enqueueBotSpeech(text = '') {
+  if (composerMode.value !== 'voice') return
+  const content = stripSpeakText(text)
+  if (!content) return
+  ttsQueue.value.push(content)
+  processTtsQueue()
+}
+
+async function processTtsQueue() {
+  if (ttsPlaying.value || composerMode.value !== 'voice') return
+  const next = ttsQueue.value.shift()
+  if (!next) return
+  ttsPlaying.value = true
+  const audio = ensureTtsAudio()
+  let objectUrl = ''
+  try {
+    const blob = await synthesizeTriageSpeech(next)
+    if (composerMode.value !== 'voice') return
+    objectUrl = URL.createObjectURL(blob)
+    audio.src = objectUrl
+    await audio.play()
+    await new Promise((resolve, reject) => {
+      audio.onended = () => resolve()
+      audio.onerror = () => reject(new Error('tts play failed'))
+      audio.onabort = () => reject(new Error('tts play aborted'))
+    })
+  } catch {
+    // 自动播报失败时保留文字，不额外打断流程
+  } finally {
+    if (objectUrl) URL.revokeObjectURL(objectUrl)
+    audio.onended = null
+    audio.onerror = null
+    audio.onabort = null
+    ttsPlaying.value = false
+    if (composerMode.value === 'voice' && ttsQueue.value.length) processTtsQueue()
+  }
+}
+
+function stopBotSpeech(removeNode = false) {
+  ttsQueue.value = []
+  ttsPlaying.value = false
+  const audio = ttsAudio.value
+  if (!audio) return
+  try {
+    audio.pause()
+    audio.removeAttribute('src')
+    audio.load()
+  } catch {
+    // ignore
+  }
+  if (removeNode) {
+    audio.remove()
+    ttsAudio.value = null
+  }
+}
+
 function goResult() {
   stage.value = 'done'
   showInput.value = false
@@ -859,6 +947,7 @@ function handleDocumentClick(event) {
 }
 
 onMounted(() => {
+  ensureTtsAudio()
   document.addEventListener('click', handleDocumentClick)
   resumeNotice.value = sessionStorage.getItem('triageResumeNotice') || ''
   sessionStorage.removeItem('triageResumeNotice')
@@ -867,6 +956,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   document.removeEventListener('click', handleDocumentClick)
+  stopBotSpeech(true)
 })
 </script>
 

@@ -50,6 +50,13 @@ export function getTriageState(sessionId) {
   return api.get(`/triage/session/${sessionId}/state`).then(r => r.data)
 }
 
+export function synthesizeTriageSpeech(text) {
+  return api.post('/api/tts', { text }, {
+    responseType: 'blob',
+    timeout: 60000,
+  }).then(r => r.data)
+}
+
 // ── 费用 & 挂号 ──
 
 export function getCostEstimate(data) {
