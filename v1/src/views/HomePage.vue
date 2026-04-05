@@ -37,9 +37,12 @@
       <div class="stage-card stage-during" @click="goHospital">
         <div class="stage-icon stage-icon-during">
           <svg viewBox="0 0 24 24" aria-hidden="true" class="stage-icon-svg">
-            <path d="M5.5 7.5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-9a2 2 0 0 1-2-2Z" />
-            <path d="M12 8.5v7" />
-            <path d="M8.5 12h7" />
+            <path d="M6.5 19.5V8.5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v11" />
+            <path d="M9.5 19.5v-3.5h5v3.5" />
+            <path d="M10.5 9.2h3" />
+            <path d="M12 7.7v3" />
+            <path d="M9.2 12.5h1.2" />
+            <path d="M13.6 12.5h1.2" />
           </svg>
         </div>
         <div class="stage-info">
