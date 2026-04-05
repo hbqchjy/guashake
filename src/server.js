@@ -502,6 +502,14 @@ function prioritizeStructuredCandidates(candidates = []) {
   });
 }
 
+function narrowStructuredCandidatesForStep(candidates = [], stepCount = 0) {
+  if (!Array.isArray(candidates) || !candidates.length) return [];
+  const sorted = prioritizeStructuredCandidates(candidates);
+  const threshold = stepCount <= 0 ? 2 : (stepCount === 1 ? 3 : 5);
+  const narrowed = sorted.filter((item) => getStructuredQuestionPriority(item) <= threshold);
+  return narrowed.length ? narrowed : sorted;
+}
+
 function getFallbackNextQuestion(session) {
   const asked = new Set(getAskedQuestionIds(session));
   const slotCatalog = getScenarioSlotCatalog(session.scenario || {});
@@ -765,8 +773,10 @@ async function resolveNextQuestion(session, options = {}) {
     reason: '按默认顺序继续追问',
   };
 
+  const candidatePool = narrowStructuredCandidatesForStep(candidates, stepCount);
+
   try {
-    const aiDecision = await chooseNextFollowUp(session, candidates, {
+    const aiDecision = await chooseNextFollowUp(session, candidatePool, {
       stepCount,
       ...config,
       ...options,
@@ -819,7 +829,7 @@ async function resolveNextQuestion(session, options = {}) {
   }
 
   if (!picked) {
-    picked = candidates[0] || getFallbackNextQuestion(session);
+    picked = candidatePool[0] || candidates[0] || getFallbackNextQuestion(session);
   }
 
   if (!followUpMeta.targetSlot && picked) {

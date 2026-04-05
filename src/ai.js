@@ -925,6 +925,7 @@ async function chooseNextFollowUp(session, candidates, meta = {}) {
     '3. 如果目前信息已经够生成初步建议，可以返回 enoughInfo=true。',
     '4. 用户目标是挂哪个科、先查什么、费用大概多少，不是做诊断。',
     '5. 输出必须是 JSON。',
+    '6. 在前 3 个结构化问题里，优先问高价值槽位：危险信号、位置/主问题、持续时间、严重程度、明显伴随症状。',
     '字段固定：questionId、questionText、options、enoughInfo、reason、estimatedTotalSteps。',
     `当前主诉：${session.chiefComplaint}`,
     `当前场景：${session.scenario?.label || ''}`,
