@@ -2308,6 +2308,15 @@ app.get('/archive/list', (req, res) => {
   return res.json({ userId, total: records.length, records });
 });
 
+app.get('/archive/:userId/:recordId', (req, res) => {
+  const { userId, recordId } = req.params;
+  const record = getArchive(userId, recordId);
+  if (!record) {
+    return res.status(404).json({ error: 'record not found' });
+  }
+  return res.json({ ok: true, record });
+});
+
 app.get('/archive/:userId/:recordId/context', (req, res) => {
   const { userId, recordId } = req.params;
   const record = getArchive(userId, recordId);

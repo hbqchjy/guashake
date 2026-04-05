@@ -2,7 +2,7 @@
   <div class="page result-page">
     <van-nav-bar title="小科分析" left-arrow @click-left="$router.push('/')" />
 
-    <van-loading v-if="loading" class="page-loading" size="24px" vertical>正在生成分析...</van-loading>
+    <van-loading v-if="loading" class="page-loading" size="24px" vertical>{{ loadingText }}</van-loading>
 
     <template v-if="!loading && result">
       <div class="summary-banner" :class="severityClass">
@@ -48,11 +48,17 @@
       </section>
 
       <div class="actions">
-        <van-button block round type="primary" @click="continueAnalysis">
+        <van-button v-if="!archiveMode" block round type="primary" @click="continueAnalysis">
           补充信息继续分析
         </van-button>
-        <van-button block round plain type="primary" @click="saveAnalysis" style="margin-top: 12px;">
+        <van-button v-if="!archiveMode" block round plain type="primary" @click="saveAnalysis" style="margin-top: 12px;">
           保存分析
+        </van-button>
+        <van-button v-if="archiveMode" block round type="primary" @click="shareCurrentAnalysis">
+          分享
+        </van-button>
+        <van-button v-if="archiveMode" block round plain type="danger" @click="deleteCurrentAnalysis" style="margin-top: 12px;">
+          删除分析
         </van-button>
       </div>
     </template>
@@ -62,8 +68,8 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { showToast } from 'vant'
-import { getTriageResult, getCostEstimate, saveArchiveRecord } from '../api'
+import { showConfirmDialog, showToast } from 'vant'
+import { getTriageResult, getCostEstimate, saveArchiveRecord, getArchiveRecord, deleteArchiveRecord } from '../api'
 
 const props = defineProps({ sessionId: String })
 const router = useRouter()
@@ -72,6 +78,11 @@ const route = useRoute()
 const loading = ref(true)
 const result = ref(null)
 const costEstimate = ref(null)
+const archiveRecord = ref(null)
+const archiveMode = computed(() => Boolean(archiveRecord.value?.id))
+const loadingText = computed(() => (String(route.query.recordId || '').trim() && localStorage.getItem('userId'))
+  ? '正在读取已保存分析...'
+  : '正在生成分析...')
 
 const severityMap = {
   observe: { label: '可先观察', className: 'observe' },
@@ -152,8 +163,9 @@ const checkItems = computed(() => {
 
 const checkTotal = computed(() => {
   const simple = costEstimate.value?.simple
-  if (!simple?.costRange) return ''
-  return `合计参考：${simple.costRange}`
+  if (simple?.costRange) return `合计参考：${simple.costRange}`
+  const fallback = result.value?.layeredOutput?.core?.firstCostRange || archiveRecord.value?.costRange || ''
+  return fallback ? `合计参考：${fallback}` : ''
 })
 
 const showChecksCard = computed(() => needsHospital.value && checkItems.value.length > 0)
@@ -182,11 +194,38 @@ function formatRange(min, max) {
 
 onMounted(async () => {
   const sid = props.sessionId || route.params.sessionId
+  const recordId = String(route.query.recordId || '').trim()
+  const userId = localStorage.getItem('userId')
   if (!sid) {
     router.push('/')
     return
   }
   try {
+    if (recordId && userId) {
+      const saved = await getArchiveRecord(userId, recordId)
+      const record = saved.record || saved
+      archiveRecord.value = record
+      result.value = {
+        severity: record.severity || record.summarySnapshot?.core?.recommendationLevel || '',
+        red_flags: [],
+        layeredOutput: record.summarySnapshot || {
+          core: {
+            text: record.summaryText || record.summary || '',
+            possibleTypes: record.likelyType ? [record.likelyType] : [],
+            recommendationLevel: record.summarySnapshot?.core?.recommendationLevel || '',
+            firstChecks: record.firstChecks || [],
+            firstCostRange: record.costRange || '',
+          },
+          detail: {
+            selfCareAdvice: [],
+            medicationAdvice: [],
+            visitAdvice: [],
+          },
+          riskReminder: [],
+        },
+      }
+      return
+    }
     const triageRes = await getTriageResult(sid)
     result.value = triageRes
     if (triageRes?.layeredOutput?.core?.needsCost || needsHospital.value || (triageRes?.layeredOutput?.detail?.medicationAdvice || []).length) {
@@ -233,6 +272,8 @@ async function saveAnalysis() {
       timestamp: Date.now(),
     }
     localStorage.setItem('triageContext', JSON.stringify(ctx))
+    localStorage.removeItem('draftSessionId')
+    localStorage.removeItem('draftComplaint')
     await saveArchiveRecord({
       userId,
       sessionId: sid,
@@ -241,6 +282,50 @@ async function saveAnalysis() {
     showToast('分析已保存')
   } catch {
     showToast('保存失败，请稍后重试')
+  }
+}
+
+async function shareCurrentAnalysis() {
+  const sid = props.sessionId || route.params.sessionId
+  const recordId = String(route.query.recordId || '').trim()
+  const url = recordId
+    ? `${window.location.origin}/v1/result/${sid}?recordId=${recordId}`
+    : `${window.location.origin}/v1/result/${sid}`
+  const title = archiveRecord.value?.summary || archiveTitle.value
+  if (navigator.share) {
+    try {
+      await navigator.share({ title, text: title, url })
+      return
+    } catch {
+      // ignore cancellation
+    }
+  }
+  try {
+    await navigator.clipboard.writeText(url)
+    showToast('已复制链接')
+  } catch {
+    showToast('请使用浏览器或微信的分享功能')
+  }
+}
+
+async function deleteCurrentAnalysis() {
+  const userId = localStorage.getItem('userId')
+  const recordId = String(route.query.recordId || '').trim()
+  if (!userId || !recordId) return
+  try {
+    await showConfirmDialog({
+      title: '删除分析',
+      message: '删除后无法恢复，确定删除这条分析吗？',
+    })
+  } catch {
+    return
+  }
+  try {
+    await deleteArchiveRecord(userId, recordId)
+    showToast('已删除')
+    router.push('/records')
+  } catch {
+    showToast('删除失败')
   }
 }
 </script>

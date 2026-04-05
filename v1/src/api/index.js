@@ -70,6 +70,10 @@ export function getArchiveList(userId) {
   return api.get('/archive/list', { params: { userId } }).then(r => r.data)
 }
 
+export function getArchiveRecord(userId, recordId) {
+  return api.get(`/archive/${userId}/${recordId}`).then(r => r.data)
+}
+
 export function getArchiveContext(userId, recordId) {
   return api.get(`/archive/${userId}/${recordId}/context`).then(r => r.data)
 }

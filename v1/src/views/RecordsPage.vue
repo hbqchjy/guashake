@@ -94,7 +94,10 @@ function severityTagType(record) {
 
 function goDetail(record) {
   if (record.sessionId) {
-    router.push(`/result/${record.sessionId}`)
+    router.push({
+      path: `/result/${record.sessionId}`,
+      query: { recordId: record.id },
+    })
   }
 }
 
@@ -176,7 +179,7 @@ async function shareRecord(record) {
   }
   try {
     await navigator.clipboard.writeText(shareUrl)
-    showToast('链接已复制，可发送给家属')
+    showToast('已复制链接')
   } catch {
     showToast('请使用浏览器或微信的分享功能')
   }

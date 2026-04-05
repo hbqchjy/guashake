@@ -188,7 +188,10 @@ function goRecords() { router.push('/records') }
 function goLogin() { router.push('/login') }
 function goResult(record) {
   if (record.sessionId) {
-    router.push(`/result/${record.sessionId}`)
+    router.push({
+      path: `/result/${record.sessionId}`,
+      query: { recordId: record.id },
+    })
   }
 }
 </script>
