@@ -70,6 +70,14 @@ export function getArchiveList(userId) {
   return api.get('/archive/list', { params: { userId } }).then(r => r.data)
 }
 
+export function getArchiveContext(userId, recordId) {
+  return api.get(`/archive/${userId}/${recordId}/context`).then(r => r.data)
+}
+
+export function createArchiveContextSession(userId, recordId) {
+  return api.post(`/archive/${userId}/${recordId}/context-session`).then(r => r.data)
+}
+
 export function deleteArchiveRecord(userId, recordId) {
   return api.delete(`/archive/${userId}/${recordId}`).then(r => r.data)
 }

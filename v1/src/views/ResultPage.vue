@@ -206,7 +206,14 @@ onMounted(async () => {
 function continueAnalysis() {
   const sid = props.sessionId || route.params.sessionId
   if (!sid) return
-  router.push(`/triage?sessionId=${sid}&mode=supplement`)
+  router.push({
+    path: '/triage',
+    query: {
+      sessionId: sid,
+      mode: 'supplement',
+      title: analysisTitle.value || localStorage.getItem('currentComplaint') || '',
+    },
+  })
 }
 
 async function saveAnalysis() {

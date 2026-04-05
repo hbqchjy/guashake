@@ -14,6 +14,11 @@
     </div>
 
     <div class="chat-area" ref="chatArea">
+      <div class="resume-banner" v-if="showResumeBanner">
+        <div class="resume-label">当前正在补充</div>
+        <div class="resume-value">{{ resumeLabel }}</div>
+      </div>
+
       <div class="quick-symptoms" v-if="stage === 'init'">
         <div class="chat-bubble bot">
           <div class="bubble-content">
@@ -233,6 +238,7 @@ const speechListening = ref(false)
 const mediaRecorder = ref(null)
 const mediaChunks = ref([])
 const hasShownStructuredIntro = ref(false)
+const resumeNotice = ref('')
 
 const primarySymptoms = [
   { text: '胃不舒服' },
@@ -287,6 +293,14 @@ const progressPercent = computed(() => {
 
 const showFollowupBanner = computed(() => {
   return (stage.value === 'structured' || stage.value === 'supplement') && step.value > 0 && totalSteps.value > 0
+})
+
+const resumeLabel = computed(() => {
+  return String(route.query.title || localStorage.getItem('currentComplaint') || '').trim()
+})
+
+const showResumeBanner = computed(() => {
+  return stage.value === 'supplement' && !!resumeLabel.value
 })
 
 const hasTypedText = computed(() => composerMode.value === 'text' && !!inputText.value.trim())
@@ -557,7 +571,13 @@ async function supplement(text) {
 async function selectMenuAction(action) {
   showPlusMenu.value = false
   if (action === 'records') {
-    router.push('/records')
+    router.push({
+      path: '/records',
+      query: {
+        mode: 'context',
+        sessionId: sessionId.value || '',
+      },
+    })
     return
   }
   if (action === 'report') {
@@ -716,7 +736,15 @@ async function restoreSession() {
 
     if (resumeMode === 'supplement' || state.hasResult) {
       stage.value = 'supplement'
-      addBotMessage('继续补充新的情况、检查结果或身体变化，我会根据新信息更新分析。')
+      addBotMessage(
+        resumeNotice.value || '继续补充新的情况、检查结果或身体变化，我会根据新信息更新分析。',
+        resumeNotice.value
+          ? [
+              { label: '更新分析', value: '__generate__' },
+              { label: '继续补充', value: '__continue__' },
+            ]
+          : [],
+      )
       return
     }
 
@@ -786,6 +814,8 @@ function handleDocumentClick(event) {
 
 onMounted(() => {
   document.addEventListener('click', handleDocumentClick)
+  resumeNotice.value = sessionStorage.getItem('triageResumeNotice') || ''
+  sessionStorage.removeItem('triageResumeNotice')
   restoreSession()
 })
 
@@ -853,6 +883,25 @@ onBeforeUnmount(() => {
 
 .quick-symptoms {
   margin-bottom: var(--spacing-md);
+}
+
+.resume-banner {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #f5fbf8;
+  border: 1px solid rgba(0, 181, 120, 0.12);
+}
+.resume-label {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--color-primary-deep);
+}
+.resume-value {
+  margin-top: 3px;
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+  color: var(--color-text);
 }
 
 .intro-text p + p {
