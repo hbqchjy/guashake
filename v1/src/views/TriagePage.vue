@@ -202,7 +202,7 @@ const chatArea = ref(null)
 const reportInput = ref(null)
 const cameraInput = ref(null)
 const imageInput = ref(null)
-const brandIcon = `${import.meta.env.BASE_URL}xiaoke-icon.svg`
+const brandIcon = `${import.meta.env.BASE_URL}icon.svg`
 
 const sessionId = ref('')
 const messages = ref([])

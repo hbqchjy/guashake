@@ -1,0 +1,17 @@
+<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="200" height="200" rx="44" fill="#00B578"/>
+  <!-- Speech bubble body -->
+  <rect x="26" y="28" width="148" height="112" rx="24" fill="white"/>
+  <!-- Speech bubble tail -->
+  <polygon points="52,140 34,174 86,140" fill="white"/>
+  <!-- Left eye -->
+  <path d="M66,72 Q80,58 94,72" stroke="#00B578" stroke-width="7" stroke-linecap="round" fill="none"/>
+  <!-- Right eye -->
+  <path d="M106,72 Q120,58 134,72" stroke="#00B578" stroke-width="7" stroke-linecap="round" fill="none"/>
+  <!-- Smile -->
+  <path d="M70,94 Q100,118 130,94" stroke="#00B578" stroke-width="7" stroke-linecap="round" fill="none"/>
+  <!-- Medical cross -->
+  <line x1="145" y1="130" x2="163" y2="130" stroke="#00B578" stroke-width="6" stroke-linecap="round"/>
+  <line x1="154" y1="121" x2="154" y2="139" stroke="#00B578" stroke-width="6" stroke-linecap="round"/>
+</svg>
