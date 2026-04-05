@@ -3,7 +3,10 @@
     <!-- 顶部 -->
     <header class="home-header">
       <div class="header-left">
-        <h1 class="app-title">小科</h1>
+        <div class="brand-row">
+          <img class="brand-logo" :src="brandIcon" alt="小科" />
+          <h1 class="app-title">小科</h1>
+        </div>
         <p class="app-subtitle">看病前判断方向，看病中少走弯路，看病后看懂结果。</p>
       </div>
       <div class="header-right" @click="goLogin">
@@ -98,6 +101,7 @@ const router = useRouter()
 const recentRecords = ref([])
 const loadingRecords = ref(false)
 const nickname = ref(localStorage.getItem('nickname') || '')
+const brandIcon = `${import.meta.env.BASE_URL}xiaoke-icon.svg`
 
 onMounted(async () => {
   const userId = localStorage.getItem('userId')
@@ -148,10 +152,33 @@ function goResult(record) {
   font-weight: 700;
   color: var(--color-primary);
 }
+.brand-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.brand-logo {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: block;
+  flex-shrink: 0;
+}
 .app-subtitle {
+  position: relative;
   font-size: var(--font-size-sm);
   color: var(--color-text-hint);
-  margin-top: 2px;
+  margin-top: 6px;
+  line-height: 1.6;
+  padding-left: 12px;
+}
+.app-subtitle::before {
+  content: '·';
+  position: absolute;
+  left: 0;
+  top: 0;
+  color: var(--color-primary);
+  font-weight: 700;
 }
 .header-right {
   display: flex;
@@ -181,7 +208,7 @@ function goResult(record) {
 }
 .stage-card {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   background: var(--color-white);
   border-radius: var(--radius-md);
   padding: var(--spacing-md) var(--spacing-md);
@@ -208,7 +235,6 @@ function goResult(record) {
   flex-shrink: 0;
   color: #fff;
   margin-right: 14px;
-  margin-top: 2px;
 }
 .stage-icon-pre { background: linear-gradient(135deg, #ffb84d, #ff8f1f); }
 .stage-icon-during { background: linear-gradient(135deg, #19a0ff, #1677ff); }
@@ -216,7 +242,6 @@ function goResult(record) {
 .stage-info {
   flex: 1;
   min-width: 0;
-  padding-top: 1px;
 }
 .stage-info h3 {
   font-size: var(--font-size-lg);
@@ -244,7 +269,6 @@ function goResult(record) {
   color: var(--color-text-hint);
   flex-shrink: 0;
   margin-left: 12px;
-  margin-top: 12px;
 }
 
 /* 最近记录 */

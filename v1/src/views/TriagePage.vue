@@ -11,7 +11,9 @@
       <div class="quick-symptoms" v-if="stage === 'init'">
         <div class="chat-bubble bot">
           <div class="bubble-content">
-            <div class="bot-avatar bot-avatar-brand"><span>小</span></div>
+            <div class="bot-avatar bot-avatar-brand">
+              <img :src="brandIcon" alt="小科" />
+            </div>
             <div class="bot-text intro-text">
               <p>告诉我你哪里不舒服，或者直接点一个常见症状开始。</p>
               <p>我会先判断大概方向和轻重，再告诉你现在该怎么办。</p>
@@ -69,7 +71,9 @@
         :class="msg.role"
       >
         <div class="bubble-content" v-if="msg.role === 'bot'">
-          <div class="bot-avatar bot-avatar-brand"><span>小</span></div>
+          <div class="bot-avatar bot-avatar-brand">
+            <img :src="brandIcon" alt="小科" />
+          </div>
           <div class="bot-text">
             <p v-html="msg.text"></p>
             <div class="options" v-if="msg.options && msg.isLatest && !loading">
@@ -89,7 +93,9 @@
 
       <div class="chat-bubble bot" v-if="loading">
         <div class="bubble-content">
-          <div class="bot-avatar bot-avatar-brand"><span>小</span></div>
+          <div class="bot-avatar bot-avatar-brand">
+            <img :src="brandIcon" alt="小科" />
+          </div>
           <div class="bot-text">
             <div class="typing-dots"><span></span><span></span><span></span></div>
           </div>
@@ -196,6 +202,7 @@ const chatArea = ref(null)
 const reportInput = ref(null)
 const cameraInput = ref(null)
 const imageInput = ref(null)
+const brandIcon = `${import.meta.env.BASE_URL}xiaoke-icon.svg`
 
 const sessionId = ref('')
 const messages = ref([])
@@ -823,10 +830,13 @@ onBeforeUnmount(() => {
 }
 
 .bot-avatar-brand {
-  background: linear-gradient(135deg, #13bf7c, #00b578);
-  color: white;
-  font-size: 17px;
-  font-weight: 700;
+  background: transparent;
+}
+.bot-avatar-brand img {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  display: block;
 }
 
 .bot-text {
