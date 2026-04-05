@@ -867,9 +867,20 @@ async function restoreSession() {
 
     if (resumeMode === 'supplement' || state.hasResult) {
       stage.value = 'supplement'
-      setSummaryDirty(
-        resumeNotice.value || '继续补充新的情况、检查结果或身体变化，我会根据新信息更新分析。'
-      )
+      if (state.summaryDirty) {
+        setSummaryDirty(
+          resumeNotice.value || state.summaryDirtyNotice || '继续补充新的情况、检查结果或身体变化，我会根据新信息更新分析。',
+          state.summaryImpactLevel || 'minor',
+        )
+      } else if (state.generationReady) {
+        setGenerationReady(
+          resumeNotice.value || state.summaryDirtyNotice || '信息差不多了。你可以先生成分析，也可以继续补充。'
+        )
+      } else {
+        setSummaryDirty(
+          resumeNotice.value || '继续补充新的情况、检查结果或身体变化，我会根据新信息更新分析。'
+        )
+      }
       addBotMessage(
         resumeNotice.value || '继续补充新的情况、检查结果或身体变化，我会根据新信息更新分析。',
         resumeNotice.value

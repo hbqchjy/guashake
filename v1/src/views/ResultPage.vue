@@ -282,7 +282,22 @@ onMounted(async () => {
         costEstimate.value = null
       }
     }
-  } catch {
+  } catch (error) {
+    if (error?.response?.status === 409 && error?.response?.data?.error === 'insufficient_confirmation') {
+      sessionStorage.setItem(
+        'triageResumeNotice',
+        error?.response?.data?.message || '现在还不能直接生成分析，先把关键问题补齐。',
+      )
+      router.replace({
+        path: '/triage',
+        query: {
+          sessionId: sid,
+          mode: 'supplement',
+          title: localStorage.getItem('currentComplaint') || '',
+        },
+      })
+      return
+    }
     showToast('获取结果失败')
   } finally {
     loading.value = false

@@ -437,6 +437,13 @@ function getConfirmationGuard(session, extra = {}) {
   };
 }
 
+function hasServerResultGuard(session) {
+  if (!session) return false;
+  if (session.triageResult) return false;
+  if (getTextRiskSignal(session) || hasHighImageRisk(session)) return false;
+  return shouldDelayResultConfirmation(session, session?.followUp?.stepCount || 0);
+}
+
 function getAskedQuestionIds(session) {
   return Array.isArray(session.followUp?.askedQuestionIds) ? session.followUp.askedQuestionIds : [];
 }
@@ -1505,6 +1512,10 @@ app.post('/triage/answer', async (req, res) => {
     answers,
     stepIndex: stepCount,
     triageResult: null,
+    generationReady: false,
+    summaryDirty: false,
+    summaryImpactLevel: 'none',
+    summaryDirtyNotice: '',
     followUp: {
       ...(session.followUp || {}),
       stepCount,
@@ -1519,6 +1530,10 @@ app.post('/triage/answer', async (req, res) => {
     upsertSession(sessionId, {
       triageResult,
       conversationStage: 'structured',
+      generationReady: false,
+      summaryDirty: true,
+      summaryImpactLevel: 'major',
+      summaryDirtyNotice: '你这条补充提示风险偏高，我先直接更新分析结果。',
       followUp: {
         ...(updatedSession.followUp || {}),
         completed: true,
@@ -1536,6 +1551,10 @@ app.post('/triage/answer', async (req, res) => {
   upsertSession(sessionId, {
     followUp: nextQuestionState.followUpPatch,
     followUpMeta: nextQuestionState.followUpMeta,
+    generationReady: false,
+    summaryDirty: false,
+    summaryImpactLevel: 'none',
+    summaryDirtyNotice: '',
   });
 
   if (nextQuestionState.done) {
@@ -1800,6 +1819,10 @@ app.post('/triage/message', async (req, res) => {
           currentQuestionId: nextQuestion.id,
           completed: false,
         },
+        generationReady: false,
+        summaryDirty: false,
+        summaryImpactLevel: 'none',
+        summaryDirtyNotice: '',
         followUpMeta: {
           mode: 'guarded-open-to-structured',
           reason: '开放式信息尚不足，先补充关键选择题',
@@ -1830,6 +1853,10 @@ app.post('/triage/message', async (req, res) => {
       upsertSession(sessionId, {
         conversationStage: 'open',
         openPromptText: '我还想再确认一下：大概持续多久了？最近是在加重、减轻，还是差不多？',
+        generationReady: false,
+        summaryDirty: false,
+        summaryImpactLevel: 'none',
+        summaryDirtyNotice: '',
       });
       return res.json({
         ok: true,
@@ -1849,6 +1876,10 @@ app.post('/triage/message', async (req, res) => {
       upsertSession(sessionId, {
         conversationStage: 'open',
         openPromptText: '现在还不能直接出分析。我还想再确认一下：具体在什么位置？是持续不舒服，还是一阵一阵？有没有反酸、恶心、发热、黑便这些情况？',
+        generationReady: false,
+        summaryDirty: false,
+        summaryImpactLevel: 'none',
+        summaryDirtyNotice: '',
       });
       return res.json({
         ok: true,
@@ -1875,6 +1906,10 @@ app.post('/triage/message', async (req, res) => {
         completed: true,
         currentQuestionId: '',
       },
+      generationReady: true,
+      summaryDirty: false,
+      summaryImpactLevel: 'none',
+      summaryDirtyNotice: '信息差不多了。你可以先生成分析，也可以继续补充。',
     });
     return res.json({
       ok: true,
@@ -1895,6 +1930,10 @@ app.post('/triage/message', async (req, res) => {
         upsertSession(sessionId, {
           conversationStage: 'open',
           openPromptText: '现在还不能直接出分析。你继续补充一下：持续多久了、具体位置在哪里、有没有明显加重或伴随症状？',
+          generationReady: false,
+          summaryDirty: false,
+          summaryImpactLevel: 'none',
+          summaryDirtyNotice: '',
         });
         return res.json({
           ok: true,
@@ -2084,6 +2123,7 @@ app.post('/triage/supplement', async (req, res) => {
       ),
     },
     triageResult: null,
+    generationReady: false,
   });
 
   if (shouldImmediateUrgent(updated, text)) {
@@ -2096,6 +2136,9 @@ app.post('/triage/supplement', async (req, res) => {
         completed: true,
         currentQuestionId: '',
       },
+      summaryDirty: true,
+      summaryImpactLevel: 'major',
+      summaryDirtyNotice: '你这条补充提示风险偏高，我先直接更新分析结果。',
       followUpMeta: {
         mode: 'urgent-shortcut',
         reason: '检测到高风险信号，跳过后续追问直接出分析',
@@ -2290,6 +2333,21 @@ app.get('/triage/result/:id', async (req, res) => {
   }
   const session = await rerouteSessionByContext(originalSession);
 
+  if (hasServerResultGuard(session)) {
+    return res.status(409).json({
+      error: 'insufficient_confirmation',
+      message: '现在还不能直接生成分析，至少还需要完成几个关键确认。',
+      sessionId: session.id,
+      conversationStage: session.conversationStage || 'open',
+      progress: session.followUp?.stepCount && session.scenario?.questions?.length
+        ? {
+            current: Number(session.followUp.stepCount || 0),
+            total: session.scenario.questions.length,
+          }
+        : null,
+    });
+  }
+
   let triageResult = session.triageResult || buildTriageResult(session);
   if (!session.triageResult) {
     try {
@@ -2414,6 +2472,10 @@ app.get('/booking/options', (req, res) => {
 app.post('/archive/upload', upload.array('files', 10), (req, res) => {
   const { userId = 'guest', sessionId, summary, doctorAdvice } = req.body;
   const session = sessionId ? getSession(sessionId) : null;
+
+  if (session && hasServerResultGuard(session)) {
+    return res.status(409).json({ error: 'insufficient_confirmation', message: '当前信息还不足以保存正式分析' });
+  }
 
   const triageResult = session?.triageResult || (session ? buildTriageResult(session) : null);
   const record = {
@@ -2558,6 +2620,10 @@ app.get('/triage/session/:id/state', async (req, res) => {
       insuranceType: session.insuranceType || '',
     },
     hasResult: Boolean(session.triageResult),
+    generationReady: Boolean(session.generationReady),
+    summaryDirty: Boolean(session.summaryDirty),
+    summaryImpactLevel: session.summaryImpactLevel || 'none',
+    summaryDirtyNotice: session.summaryDirtyNotice || '',
     currentFocus,
   });
 });
