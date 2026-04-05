@@ -450,6 +450,58 @@ function getAskedQuestionIds(session) {
   return Array.isArray(session.followUp?.askedQuestionIds) ? session.followUp.askedQuestionIds : [];
 }
 
+const STRUCTURED_SLOT_PRIORITY = new Map([
+  ['riskSignal', 1],
+  ['infectionSigns', 1],
+  ['neurologic', 1],
+  ['visionChange', 1],
+  ['bloodInUrine', 1],
+  ['bowelChange', 1],
+  ['breath', 1],
+  ['problemType', 2],
+  ['location', 2],
+  ['duration', 2],
+  ['timeline', 2],
+  ['severity', 2],
+  ['feverVomiting', 2],
+  ['urinationPain', 2],
+  ['triggerTime', 3],
+  ['mealRelation', 3],
+  ['activityRelation', 3],
+  ['associatedSymptoms', 3],
+  ['refluxBloating', 3],
+  ['appetite', 3],
+  ['foodTrigger', 3],
+  ['nightPattern', 3],
+  ['frequency', 3],
+  ['history', 4],
+  ['repeatHistory', 4],
+  ['chronicHistory', 4],
+  ['contactHistory', 4],
+  ['exposureHistory', 4],
+]);
+
+function getStructuredQuestionPriority(question = {}) {
+  const slot = String(question.slot || '').trim();
+  const label = String(question.slotLabel || '').trim();
+  const text = String(question.text || '').trim();
+  const mapped = STRUCTURED_SLOT_PRIORITY.get(slot);
+  if (mapped) return mapped;
+  if (/危险|出血|黑便|呼吸|神经|视力/.test(label) || /危险|出血|黑便|呼吸|神经|视力/.test(text)) return 1;
+  if (/位置|持续|多久|哪边|哪侧|主症状|类型|发热|疼痛/.test(label) || /位置|持续|多久|哪边|哪侧|主症状|类型|发热|疼痛/.test(text)) return 2;
+  if (/诱因|伴随|饭后|空腹|活动|夜间|频率|食欲/.test(label) || /诱因|伴随|饭后|空腹|活动|夜间|频率|食欲/.test(text)) return 3;
+  return 5;
+}
+
+function prioritizeStructuredCandidates(candidates = []) {
+  return [...candidates].sort((a, b) => {
+    const pa = getStructuredQuestionPriority(a);
+    const pb = getStructuredQuestionPriority(b);
+    if (pa !== pb) return pa - pb;
+    return String(a.id || '').localeCompare(String(b.id || ''));
+  });
+}
+
 function getFallbackNextQuestion(session) {
   const asked = new Set(getAskedQuestionIds(session));
   const slotCatalog = getScenarioSlotCatalog(session.scenario || {});
@@ -658,7 +710,7 @@ function mergeMedicationRefs(primary = [], fallback = []) {
 async function resolveNextQuestion(session, options = {}) {
   const asked = getAskedQuestionIds(session);
   const slotCatalog = getScenarioSlotCatalog(session.scenario || {});
-  const candidates = slotCatalog
+  const candidates = prioritizeStructuredCandidates(slotCatalog
     .map((slotItem) => {
       const question = (session.scenario?.questions || []).find((item) => item.id === slotItem.questionId);
       if (!question) return null;
@@ -671,7 +723,7 @@ async function resolveNextQuestion(session, options = {}) {
     .filter(Boolean)
     .filter((question) => !asked.includes(question.id))
     .filter((question) => !isSlotFilled(session, question.slot))
-    .filter((question) => !shouldSkipQuestionByContext(session, question));
+    .filter((question) => !shouldSkipQuestionByContext(session, question)));
   const config = getFollowUpConfig(session);
   const stepCount = Number(session.followUp?.stepCount || 0);
 
@@ -1735,7 +1787,7 @@ app.post('/triage/message', async (req, res) => {
   }
 
   const asked = getAskedQuestionIds(updatedSession);
-  const candidates = getScenarioSlotCatalog(updatedSession.scenario || {})
+  const candidates = prioritizeStructuredCandidates(getScenarioSlotCatalog(updatedSession.scenario || {})
     .map((slotItem) => {
       const question = (updatedSession.scenario?.questions || []).find((item) => item.id === slotItem.questionId);
       if (!question) return null;
@@ -1748,7 +1800,7 @@ app.post('/triage/message', async (req, res) => {
     .filter(Boolean)
     .filter((item) => !asked.includes(item.id))
     .filter((item) => !isSlotFilled(updatedSession, item.slot))
-    .filter((item) => !shouldSkipQuestionByContext(updatedSession, item));
+    .filter((item) => !shouldSkipQuestionByContext(updatedSession, item)));
 
   const followUpConfig = getFollowUpConfig(updatedSession);
   // 第二轮开放式追问后，仍停留在 open 阶段时优先切到结构化确认。
