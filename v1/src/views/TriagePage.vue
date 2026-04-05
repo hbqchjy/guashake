@@ -11,7 +11,7 @@
       <div class="quick-symptoms" v-if="stage === 'init'">
         <div class="chat-bubble bot">
           <div class="bubble-content">
-            <div class="bot-avatar"><span>&#x1F469;&#x200D;&#x2695;&#xFE0F;</span></div>
+            <div class="bot-avatar bot-avatar-brand"><span>小</span></div>
             <div class="bot-text intro-text">
               <p>告诉我你哪里不舒服，或者直接点一个常见症状开始。</p>
               <p>我会先判断大概方向和轻重，再告诉你现在该怎么办。</p>
@@ -21,14 +21,44 @@
 
         <div class="quick-grid">
           <button
-            v-for="item in quickSymptoms"
-            :key="item"
+            v-for="item in primarySymptoms"
+            :key="item.text"
             class="quick-chip"
+            :class="{ 'quick-chip-risk': item.risk }"
             type="button"
-            @click="quickStart(item)"
+            @click="quickStart(item.text)"
           >
-            {{ item }}
+            <span v-if="item.risk" class="quick-risk-icon">⚠</span>
+            <span>{{ item.text }}</span>
           </button>
+          <button
+            class="quick-chip quick-chip-more"
+            :class="{ active: showMoreSymptoms }"
+            type="button"
+            @click="showMoreSymptoms = !showMoreSymptoms"
+          >
+            <span class="quick-risk-icon">＋</span>
+            <span>更多症状</span>
+          </button>
+        </div>
+
+        <div class="more-symptoms" v-if="showMoreSymptoms">
+          <div class="more-group" v-for="group in symptomGroups" :key="group.label">
+            <div class="more-group-title">{{ group.label }}</div>
+            <div class="more-group-row">
+              <button
+                v-for="item in group.items"
+                :key="item.text"
+                class="quick-chip more-chip"
+                :class="{ 'quick-chip-risk': item.risk }"
+                type="button"
+                @click="quickStart(item.text)"
+              >
+                <span v-if="item.risk" class="quick-risk-icon">⚠</span>
+                <span>{{ item.text }}</span>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -39,7 +69,7 @@
         :class="msg.role"
       >
         <div class="bubble-content" v-if="msg.role === 'bot'">
-          <div class="bot-avatar"><span>&#x1F469;&#x200D;&#x2695;&#xFE0F;</span></div>
+          <div class="bot-avatar bot-avatar-brand"><span>小</span></div>
           <div class="bot-text">
             <p v-html="msg.text"></p>
             <div class="options" v-if="msg.options && msg.isLatest && !loading">
@@ -59,7 +89,7 @@
 
       <div class="chat-bubble bot" v-if="loading">
         <div class="bubble-content">
-          <div class="bot-avatar"><span>&#x1F469;&#x200D;&#x2695;&#xFE0F;</span></div>
+          <div class="bot-avatar bot-avatar-brand"><span>小</span></div>
           <div class="bot-text">
             <div class="typing-dots"><span></span><span></span><span></span></div>
           </div>
@@ -177,15 +207,49 @@ const stage = ref('init')
 const showInput = ref(true)
 const currentQuestionId = ref('')
 const showPlusMenu = ref(false)
+const showMoreSymptoms = ref(false)
 const composerMode = ref('text')
 const speechListening = ref(false)
 const mediaRecorder = ref(null)
 const mediaChunks = ref([])
 
-const quickSymptoms = [
-  '头痛', '头晕', '胸闷', '胸痛', '心慌',
-  '咳嗽', '发热', '胃痛', '腹痛', '腹泻',
-  '便秘', '黑便', '尿痛', '腰痛', '皮疹',
+const primarySymptoms = [
+  { text: '胃不舒服' },
+  { text: '咳嗽有痰' },
+  { text: '头晕头痛' },
+  { text: '胸口发闷' },
+  { text: '腰酸腰痛' },
+  { text: '尿频尿痛' },
+  { text: '皮肤起疹' },
+  { text: '拉肚子' },
+  { text: '便秘拉不出' },
+  { text: '眼睛不舒服' },
+  { text: '心慌气短' },
+  { text: '喉咙痛' },
+  { text: '黑便', risk: true },
+  { text: '便血', risk: true },
+  { text: '呕血', risk: true },
+]
+
+const symptomGroups = [
+  {
+    label: '常见不舒服',
+    items: [
+      { text: '恶心想吐' }, { text: '肚子痛' }, { text: '反酸烧心' }, { text: '发热怕冷' }, { text: '鼻塞流涕' },
+    ],
+  },
+  {
+    label: '疼痛和外伤',
+    items: [
+      { text: '关节疼' }, { text: '颈肩痛' }, { text: '摔伤扭伤' }, { text: '牙痛脸肿' }, { text: '耳朵痛' },
+    ],
+  },
+  {
+    label: '妇儿和其他',
+    items: [
+      { text: '月经不正常' }, { text: '孩子发烧' }, { text: '失眠焦虑' }, { text: '肛门不舒服' }, { text: '检查报告解读' },
+    ],
+  },
 ]
 
 const inputPlaceholder = computed(() => {
@@ -224,6 +288,7 @@ async function scrollBottom() {
 
 function quickStart(symptom) {
   stage.value = 'starting'
+  showMoreSymptoms.value = false
   addUserMessage(symptom)
   startSession(symptom)
 }
@@ -241,6 +306,7 @@ async function sendText() {
   if (!text || loading.value) return
   inputText.value = ''
   showPlusMenu.value = false
+  showMoreSymptoms.value = false
   addUserMessage(text)
 
   if (stage.value === 'init') {
@@ -559,10 +625,20 @@ async function transcribeAudio(blob) {
       showToast('这次没有识别到语音内容')
       return
     }
-    inputText.value = data.text.trim()
+    const transcript = data.text.trim()
+    inputText.value = ''
     composerMode.value = 'text'
-    await nextTick()
-    await sendText()
+    loading.value = false
+    addUserMessage(transcript)
+    if (stage.value === 'init') {
+      stage.value = 'starting'
+      await startSession(transcript)
+    } else if (stage.value === 'open') {
+      await continueOpen(transcript)
+    } else if (stage.value === 'structured') {
+      await supplement(transcript)
+    }
+    return
   } catch {
     showToast('语音识别失败，请重试')
   } finally {
@@ -646,17 +722,78 @@ onBeforeUnmount(() => {
 }
 
 .quick-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   border: 1px solid var(--color-border);
-  background: var(--color-white);
-  border-radius: 18px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8faf9 100%);
+  border-radius: 999px;
   min-height: 42px;
-  padding: 0 8px;
+  padding: 0 10px;
   font-size: var(--font-size-sm);
-  color: var(--color-text);
+  font-weight: 600;
+  color: #374047;
+  box-shadow: 0 6px 16px rgba(18, 28, 24, 0.04);
 }
 .quick-chip:active {
   background: var(--color-primary-light);
   border-color: rgba(0, 181, 120, 0.3);
+}
+
+.quick-chip-risk {
+  border-color: rgba(224, 86, 33, 0.3);
+  background: linear-gradient(180deg, #fff8f5 0%, #fff5ef 100%);
+  color: #7a2f11;
+}
+
+.quick-risk-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.quick-chip-more {
+  border-style: dashed;
+  color: #2f6e52;
+  background: linear-gradient(180deg, #f8fffb 0%, #f1faf5 100%);
+}
+
+.quick-chip-more.active {
+  border-color: rgba(7, 193, 96, 0.45);
+  background: linear-gradient(180deg, #eefdf5 0%, #e8f9f1 100%);
+}
+
+.more-symptoms {
+  margin-top: 12px;
+  padding: 12px;
+  background: #ffffff;
+  border-radius: 16px;
+}
+
+.more-group + .more-group {
+  margin-top: 12px;
+}
+
+.more-group-title {
+  margin-bottom: 8px;
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.more-group-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.more-chip {
+  min-height: 40px;
 }
 
 .chat-bubble {
@@ -665,7 +802,7 @@ onBeforeUnmount(() => {
 .bubble-content {
   display: flex;
   align-items: flex-start;
-  max-width: 88%;
+  max-width: 94%;
 }
 .user-content {
   justify-content: flex-end;
@@ -685,11 +822,19 @@ onBeforeUnmount(() => {
   margin-right: var(--spacing-sm);
 }
 
+.bot-avatar-brand {
+  background: linear-gradient(135deg, #13bf7c, #00b578);
+  color: white;
+  font-size: 17px;
+  font-weight: 700;
+}
+
 .bot-text {
   background: var(--color-white);
   border-radius: 0 var(--radius-md) var(--radius-md) var(--radius-md);
   padding: 12px 14px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  width: min(100%, 680px);
 }
 .bot-text p {
   font-size: var(--font-size-md);
@@ -849,6 +994,10 @@ onBeforeUnmount(() => {
 @media (max-width: 420px) {
   .quick-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .bubble-content {
+    max-width: 96%;
   }
 }
 </style>

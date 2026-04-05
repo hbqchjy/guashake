@@ -4,7 +4,7 @@
     <header class="home-header">
       <div class="header-left">
         <h1 class="app-title">小科</h1>
-        <p class="app-subtitle">看病前帮你判断方向，看病时帮你省钱少走弯路，看完后帮你看懂结果。</p>
+        <p class="app-subtitle">看病前判断方向，看病中少走弯路，看病后看懂结果。</p>
       </div>
       <div class="header-right" @click="goLogin">
         <span class="user-nick" v-if="nickname">{{ nickname }}</span>
@@ -17,28 +17,34 @@
       <p class="stage-hint">你现在处于哪个阶段？</p>
 
       <div class="stage-card stage-pre" @click="goTriage">
-        <div class="stage-icon">&#x1F61F;</div>
+        <div class="stage-icon stage-icon-pre">
+          <van-icon name="warning-o" size="24" />
+        </div>
         <div class="stage-info">
           <h3>我不舒服</h3>
-          <p>先帮你判断大概是什么问题，看看现在该观察、先用药，还是去医院。</p>
+          <p>评估症状轻重，提供观察、用药与就医参考。</p>
         </div>
         <van-icon name="arrow" class="stage-arrow" />
       </div>
 
       <div class="stage-card stage-during" @click="goHospital">
-        <div class="stage-icon">&#x1F3E5;</div>
+        <div class="stage-icon stage-icon-during">
+          <van-icon name="records-o" size="24" />
+        </div>
         <div class="stage-info">
           <h3>我在医院</h3>
-          <p>帮你提前想好怎么和医生说病情、怎么问检查和用药，也能看懂检查单和处方。</p>
+          <p>梳理病情重点，辅助医患沟通，解读检查、处方，帮助减少不必要支出。</p>
         </div>
         <van-icon name="arrow" class="stage-arrow" />
       </div>
 
       <div class="stage-card stage-post" @click="goReport">
-        <div class="stage-icon">&#x1F4CB;</div>
+        <div class="stage-icon stage-icon-post">
+          <van-icon name="description" size="24" />
+        </div>
         <div class="stage-info">
           <h3>我看完了</h3>
-          <p>帮你看懂检查结果，提醒你接下来怎么处理、怎么复查，什么时候需要再去医院。</p>
+          <p>通俗解读报告结果，说明异常意义，并提供后续处理与复查建议。</p>
         </div>
         <van-icon name="arrow" class="stage-arrow" />
       </div>
@@ -193,11 +199,18 @@ function goResult(record) {
 .stage-post { border-left-color: var(--color-primary); }
 
 .stage-icon {
-  font-size: 32px;
   width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
-  text-align: center;
+  color: #fff;
 }
+.stage-icon-pre { background: linear-gradient(135deg, #ffb84d, #ff8f1f); }
+.stage-icon-during { background: linear-gradient(135deg, #19a0ff, #1677ff); }
+.stage-icon-post { background: linear-gradient(135deg, #15bf7a, #00b578); }
 .stage-info {
   flex: 1;
   min-width: 0;
