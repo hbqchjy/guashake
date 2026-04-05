@@ -115,8 +115,6 @@ function normalizeDrugKey(value) {
 }
 
 function seedDrugRefsIfNeeded(db) {
-  const countRow = db.prepare('SELECT COUNT(1) AS count FROM drugs').get();
-  if (Number(countRow?.count || 0) > 0) return;
   if (!fs.existsSync(DRUG_SEED_PATH)) return;
 
   const payload = JSON.parse(fs.readFileSync(DRUG_SEED_PATH, 'utf8'));
@@ -128,7 +126,17 @@ function seedDrugRefsIfNeeded(db) {
       generic_name, form, spec, insurance_class,
       is_centralized, price_min, price_max, source, updated_at
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(generic_name, form, spec) DO UPDATE SET
+      insurance_class = excluded.insurance_class,
+      is_centralized = excluded.is_centralized,
+      price_min = excluded.price_min,
+      price_max = excluded.price_max,
+      source = excluded.source,
+      updated_at = excluded.updated_at
   `);
+  const selectDrugId = db.prepare('SELECT id FROM drugs WHERE generic_name = ? AND form = ? AND spec = ?');
+  const clearAliases = db.prepare('DELETE FROM drug_aliases WHERE drug_id = ?');
+  const clearScenarios = db.prepare('DELETE FROM drug_scenarios WHERE drug_id = ?');
   const insertAlias = db.prepare('INSERT INTO drug_aliases (drug_id, alias_name) VALUES (?, ?)');
   const insertScenario = db.prepare(
     'INSERT INTO drug_scenarios (drug_id, scenario_code, scenario_name) VALUES (?, ?, ?)'
@@ -137,7 +145,7 @@ function seedDrugRefsIfNeeded(db) {
 
   const tx = db.transaction(() => {
     items.forEach((item) => {
-      const result = insertDrug.run(
+      insertDrug.run(
         String(item.genericName || '').trim(),
         String(item.form || '').trim(),
         String(item.spec || '').trim(),
@@ -148,7 +156,15 @@ function seedDrugRefsIfNeeded(db) {
         String(item.source || 'seed').trim() || 'seed',
         String(item.updatedAt || now)
       );
-      const drugId = result.lastInsertRowid;
+      const row = selectDrugId.get(
+        String(item.genericName || '').trim(),
+        String(item.form || '').trim(),
+        String(item.spec || '').trim()
+      );
+      const drugId = row?.id;
+      if (!drugId) return;
+      clearAliases.run(drugId);
+      clearScenarios.run(drugId);
       const aliases = Array.isArray(item.aliases) ? item.aliases : [];
       aliases
         .map((alias) => String(alias || '').trim())
