@@ -419,6 +419,11 @@ function getStructuredProgressTotal(config = {}, candidateCount = 0) {
   return Math.max(minSteps, Math.min(maxSteps, Math.max(6, candidateCount + 3)));
 }
 
+function shouldDelayResultConfirmation(session, stepCount = 0) {
+  const structuredSteps = Number(stepCount || session?.followUp?.stepCount || 0);
+  return structuredSteps < 3;
+}
+
 function getAskedQuestionIds(session) {
   return Array.isArray(session.followUp?.askedQuestionIds) ? session.followUp.askedQuestionIds : [];
 }
@@ -1459,6 +1464,23 @@ app.post('/triage/answer', async (req, res) => {
   });
 
   if (nextQuestionState.done) {
+    if (shouldDelayResultConfirmation(updatedSession, stepCount)) {
+      return res.json({
+        done: false,
+        needsSupplement: true,
+        assistantReply: '现在还不急着给分析，我还想再确认一点关键信息。',
+        nextPrompt: {
+          type: 'text',
+          text: '你继续补充一下：大概持续多久了？最近是在加重、减轻，还是差不多？',
+        },
+        progress: nextQuestionState.progress,
+        followUpMeta: {
+          ...nextQuestionState.followUpMeta,
+          mode: 'delay-confirmation',
+          reason: '结构化信息仍偏少，继续补充后再生成分析',
+        },
+      });
+    }
     return res.json({
       done: false,
       needsConfirmation: true,
