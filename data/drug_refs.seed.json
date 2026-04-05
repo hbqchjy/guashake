@@ -1065,6 +1065,200 @@
           "name": "疼痛止痛"
         }
       ]
+    },
+    {
+      "genericName": "小儿氨酚黄那敏颗粒",
+      "aliases": [
+        "护彤"
+      ],
+      "form": "颗粒剂",
+      "spec": "6g*10袋",
+      "insuranceClass": "乙类",
+      "isCentralized": false,
+      "priceMin": 12,
+      "priceMax": 28,
+      "source": "local_reference",
+      "scenarios": [
+        {
+          "code": "cold",
+          "name": "感冒发热"
+        }
+      ]
+    },
+    {
+      "genericName": "氨咖黄敏胶囊",
+      "aliases": [
+        "速效伤风胶囊"
+      ],
+      "form": "胶囊剂",
+      "spec": "12粒",
+      "insuranceClass": "乙类",
+      "isCentralized": false,
+      "priceMin": 8,
+      "priceMax": 18,
+      "source": "local_reference",
+      "scenarios": [
+        {
+          "code": "cold",
+          "name": "感冒发热"
+        }
+      ]
+    },
+    {
+      "genericName": "板蓝根颗粒",
+      "aliases": [
+        "板蓝根"
+      ],
+      "form": "颗粒剂",
+      "spec": "10g*20袋",
+      "insuranceClass": "甲类",
+      "isCentralized": false,
+      "priceMin": 10,
+      "priceMax": 22,
+      "source": "local_reference",
+      "scenarios": [
+        {
+          "code": "cold",
+          "name": "感冒发热"
+        },
+        {
+          "code": "throat",
+          "name": "咳嗽咽痛"
+        }
+      ]
+    },
+    {
+      "genericName": "利巴韦林颗粒",
+      "aliases": [
+        "病毒唑颗粒"
+      ],
+      "form": "颗粒剂",
+      "spec": "50mg*12袋",
+      "insuranceClass": "乙类",
+      "isCentralized": false,
+      "priceMin": 10,
+      "priceMax": 24,
+      "source": "local_reference",
+      "scenarios": [
+        {
+          "code": "cold",
+          "name": "感冒发热"
+        }
+      ]
+    },
+    {
+      "genericName": "妥布霉素滴眼液",
+      "aliases": [
+        "托百士滴眼液"
+      ],
+      "form": "滴眼液",
+      "spec": "5ml",
+      "insuranceClass": "乙类",
+      "isCentralized": false,
+      "priceMin": 20,
+      "priceMax": 48,
+      "source": "local_reference",
+      "scenarios": [
+        {
+          "code": "eye",
+          "name": "眼部不适"
+        }
+      ]
+    },
+    {
+      "genericName": "羧甲基纤维素钠滴眼液",
+      "aliases": [
+        "润眼液"
+      ],
+      "form": "滴眼液",
+      "spec": "0.4ml*30支",
+      "insuranceClass": "乙类",
+      "isCentralized": false,
+      "priceMin": 22,
+      "priceMax": 58,
+      "source": "local_reference",
+      "scenarios": [
+        {
+          "code": "eye",
+          "name": "眼部不适"
+        }
+      ]
+    },
+    {
+      "genericName": "色甘酸钠滴眼液",
+      "aliases": [
+        "色甘酸钠"
+      ],
+      "form": "滴眼液",
+      "spec": "8ml",
+      "insuranceClass": "乙类",
+      "isCentralized": false,
+      "priceMin": 12,
+      "priceMax": 28,
+      "source": "local_reference",
+      "scenarios": [
+        {
+          "code": "eye",
+          "name": "眼部不适"
+        }
+      ]
+    },
+    {
+      "genericName": "酮洛芬凝胶",
+      "aliases": [
+        "扶他林乳胶剂"
+      ],
+      "form": "凝胶剂",
+      "spec": "20g",
+      "insuranceClass": "乙类",
+      "isCentralized": false,
+      "priceMin": 18,
+      "priceMax": 42,
+      "source": "local_reference",
+      "scenarios": [
+        {
+          "code": "pain",
+          "name": "疼痛止痛"
+        }
+      ]
+    },
+    {
+      "genericName": "布地奈德鼻喷雾剂",
+      "aliases": [
+        "雷诺考特"
+      ],
+      "form": "喷雾剂",
+      "spec": "120喷",
+      "insuranceClass": "乙类",
+      "isCentralized": false,
+      "priceMin": 35,
+      "priceMax": 86,
+      "source": "local_reference",
+      "scenarios": [
+        {
+          "code": "throat",
+          "name": "咳嗽咽痛"
+        }
+      ]
+    },
+    {
+      "genericName": "复方甲氧那明胶囊",
+      "aliases": [
+        "阿斯美"
+      ],
+      "form": "胶囊剂",
+      "spec": "12粒",
+      "insuranceClass": "乙类",
+      "isCentralized": false,
+      "priceMin": 16,
+      "priceMax": 38,
+      "source": "local_reference",
+      "scenarios": [
+        {
+          "code": "cough",
+          "name": "咳嗽咽痛"
+        }
+      ]
     }
   ]
 }

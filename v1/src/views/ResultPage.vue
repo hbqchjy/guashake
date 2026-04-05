@@ -129,7 +129,7 @@ const actionItems = computed(() => {
 const medicationLead = computed(() => {
   const refs = costEstimate.value?.expanded?.medicationPriceRefs || []
   if (!refs.length) return ''
-  return '价格参考按常见用药范围估算，具体以药店或医院实际价格为准。'
+  return '优先展示常见药与参考价。'
 })
 
 const medicationItems = computed(() => {
@@ -139,9 +139,9 @@ const medicationItems = computed(() => {
   const priceLines = refs.map((item) => {
     const name = item.name || item.category || '常见药物'
     const price = item.priceRange || item.price || ''
-    const source = item.source ? `（${item.source}）` : ''
-    const insurance = item.insuranceType ? `，${item.insuranceType}` : ''
-    return price ? `${name}${source}${insurance}：约 ${price}` : `${name}${source}${insurance}`
+    const source = item.source === '本地参考' ? '本地' : (item.source === '模型参考' ? '模型' : '')
+    const tags = [source, item.insuranceType].filter(Boolean).join(' / ')
+    return price ? `${name}${tags ? `（${tags}）` : ''}：${price}` : `${name}${tags ? `（${tags}）` : ''}`
   })
   const fallbackPriceLines = priceLines.length ? [] : buildMedicationFallbackPrices(advice)
   return Array.from(new Set([...advice, ...priceLines, ...fallbackPriceLines])).slice(0, 4)
