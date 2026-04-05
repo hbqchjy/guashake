@@ -46,6 +46,7 @@ function assert(condition, message) {
   assert(turn2.mode === 'question', 'second follow-up should switch to structured question');
   assert(turn2.nextQuestion && turn2.nextQuestion.id, 'structured question missing');
   assert(turn2.progress && turn2.progress.current === 1, 'structured progress should start at 1');
+  assert(turn2.progress.total >= 3 && turn2.progress.total <= 12, `structured total should be realistic, got ${turn2.progress.total}`);
 
   let current = turn2;
   for (let i = 1; i <= 2; i += 1) {
@@ -59,6 +60,10 @@ function assert(condition, message) {
     assert(!current.done, `should not finish after structured answer ${i}`);
     assert(!current.needsConfirmation, `should not ask for confirmation before 3 structured answers (${i})`);
     assert(!current.immediateResult, `should not jump to result before 3 structured answers (${i})`);
+    if (current.progress?.total) {
+      assert(current.progress.total >= current.progress.current, 'progress total should not be less than current');
+      assert(current.progress.total <= 12, `progress total should stay realistic, got ${current.progress.total}`);
+    }
   }
 
   console.log('smoke ok');

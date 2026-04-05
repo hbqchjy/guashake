@@ -414,10 +414,12 @@ function getFollowUpConfig(session) {
   };
 }
 
-function getStructuredProgressTotal(config = {}, candidateCount = 0) {
-  const minSteps = Number(config.minSteps || 6);
+function getStructuredProgressTotal(config = {}, candidateCount = 0, currentStep = 1) {
   const maxSteps = Number(config.maxSteps || 10);
-  return Math.max(minSteps, Math.min(maxSteps, Math.max(6, candidateCount + 3)));
+  const step = Math.max(1, Number(currentStep || 1));
+  const candidates = Math.max(1, Number(candidateCount || 1));
+  const estimatedTotal = step + Math.max(0, candidates - 1);
+  return Math.max(3, Math.min(maxSteps, estimatedTotal));
 }
 
 function shouldDelayResultConfirmation(session, stepCount = 0) {
@@ -757,7 +759,7 @@ async function resolveNextQuestion(session, options = {}) {
     };
   }
 
-  const targetTotal = Math.max(config.minSteps, Math.min(config.maxSteps, stepCount + candidates.length));
+  const targetTotal = getStructuredProgressTotal(config, candidates.length, stepCount + 1);
   return {
     nextQuestion: picked,
     done: false,
@@ -1741,7 +1743,7 @@ app.post('/triage/message', async (req, res) => {
       nextQuestion,
       progress: {
         current: 1,
-        total: getStructuredProgressTotal(followUpConfig, candidates.length),
+        total: getStructuredProgressTotal(followUpConfig, candidates.length, 1),
       },
       followUpMeta: {
         mode: 'forced-open-to-structured',
@@ -1800,7 +1802,7 @@ app.post('/triage/message', async (req, res) => {
         nextQuestion,
         progress: {
           current: 1,
-          total: getStructuredProgressTotal(followUpConfig, candidates.length),
+          total: getStructuredProgressTotal(followUpConfig, candidates.length, 1),
         },
         followUpMeta: {
           mode: 'guarded-open-to-structured',
@@ -1891,7 +1893,7 @@ app.post('/triage/message', async (req, res) => {
       nextQuestion,
       progress: {
         current: 1,
-        total: getStructuredProgressTotal(followUpConfig, candidates.length),
+        total: getStructuredProgressTotal(followUpConfig, candidates.length, 1),
       },
       followUpMeta: {
         mode: 'ai-open-to-structured',

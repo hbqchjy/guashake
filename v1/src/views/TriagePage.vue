@@ -539,6 +539,16 @@ async function selectOption(opt) {
     }
 
     if (res.needsConfirmation) {
+      if (answeredCount < 3) {
+        stage.value = 'supplement'
+        addBotMessage('现在还不急着出分析，至少再确认几个关键点会更稳妥。')
+        if (res.nextPrompt?.text) {
+          addBotMessage(res.nextPrompt.text)
+        } else {
+          addBotMessage('你继续补充一下：大概持续多久了？最近是在加重、减轻，还是差不多？')
+        }
+        return
+      }
       showSupplementChoice('信息差不多了，要不要现在生成分析结果？')
       return
     }

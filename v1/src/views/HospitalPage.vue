@@ -23,10 +23,10 @@
     <div class="content">
       <div class="hint-card" v-if="!result && !loading">
         <p v-if="mode === 'check'">
-          你可以先说这次最想和医生确认什么，也可以直接拍下检查单。小科会先帮你想好怎么说、怎么问，再帮你判断哪些检查更值得先做。
+          先说这次最想确认什么，或直接拍检查单。小科会先帮你整理怎么说、怎么问。
         </p>
         <p v-else>
-          你也可以直接拍下处方。小科会帮你区分核心用药和辅助用药，看看哪些地方值得再和医生确认。
+          直接拍处方。小科会帮你分清核心药和辅助药，再看哪些地方值得确认。
         </p>
       </div>
 
@@ -92,6 +92,7 @@
               </div>
               <div class="row-side">
                 <div class="row-price">{{ item.price }}</div>
+                <div class="row-source" v-if="item.source">{{ item.source }}</div>
                 <div class="row-badge" :class="item.badgeClass">{{ item.badge }}</div>
               </div>
             </div>
@@ -137,8 +138,9 @@ const checkRows = computed(() => {
   const items = result.value?.analysis?.items || []
   return items.slice(0, 6).map((item) => ({
     name: item.name || '检查项目',
-    reason: item.reason || '建议结合医生面诊结果再确认。',
+    reason: compactText(item.reason || '建议结合医生面诊结果再确认。', 26),
     price: item.priceRange || '价格待确认',
+    source: item.source || '',
     badge: normalizeCheckPriority(item.priority),
     badgeClass: normalizeCheckPriorityClass(item.priority),
   }))
@@ -148,9 +150,9 @@ const medicineRows = computed(() => {
   const medicines = result.value?.analysis?.medicines || []
   return medicines.slice(0, 6).map((item) => ({
     name: item.brandName ? `${item.name} / ${item.brandName}` : (item.name || '药品'),
-    reason: item.reason || '建议结合医生说明再确认。',
+    reason: compactText(item.reason || '建议结合医生说明再确认。', 26),
     price: item.priceRange || item.insuranceType || '价格待确认',
-    source: item.source || '',
+    source: compactSource(item.source),
     badge: normalizeMedicineNecessity(item.necessity),
     badgeClass: normalizeMedicineClass(item.necessity),
   }))
@@ -158,16 +160,16 @@ const medicineRows = computed(() => {
 
 const leadAdvice = computed(() => {
   const note = result.value?.analysis?.note
-  if (note) return note
+  if (note) return compactText(note, 42)
   return mode.value === 'check'
-    ? '先把检查顺序和必要性问清楚，再决定哪些项目当天就做。'
-    : '先把核心用药和辅助用药分清楚，再决定哪些地方需要和医生确认。'
+    ? '先问清检查顺序和必要性，再决定哪些项目当天做。'
+    : '先分清核心药和辅助药，再决定哪些地方要确认。'
 })
 
 const symptomScript = computed(() => {
-  if (triageCtx.value?.summaryForDoctor) return triageCtx.value.summaryForDoctor
-  if (triageCtx.value?.complaint) return `我这次主要是 ${triageCtx.value.complaint}，想先确认最需要先做什么检查或用药。`
-  return '我这次最难受的是现在这个症状，想先确认哪些检查或用药是最需要先处理的。'
+  if (triageCtx.value?.summaryForDoctor) return compactText(triageCtx.value.summaryForDoctor, 72)
+  if (triageCtx.value?.complaint) return `我这次主要是${triageCtx.value.complaint}，想先确认最需要先做什么检查或用药。`
+  return '我这次最难受的是这个症状，想先确认哪些检查或用药更需要先处理。'
 })
 
 const questionItems = computed(() => {
@@ -183,7 +185,7 @@ const questionItems = computed(() => {
         '有没有价格更合适、作用相近的替代方案？',
         '这次先用哪些药更关键，其他的是不是可以再确认？',
       ]
-  return Array.from(new Set([...script, ...defaults])).slice(0, 4)
+  return Array.from(new Set([...script, ...defaults].map((item) => compactText(item, 30)).filter(Boolean))).slice(0, 4)
 })
 
 const savingText = computed(() => {
@@ -193,8 +195,21 @@ const savingText = computed(() => {
 })
 
 const interactionNote = computed(() => {
-  return result.value?.analysis?.interactions || ''
+  return compactText(result.value?.analysis?.interactions || '', 36)
 })
+
+function compactText(text = '', max = 36) {
+  const clean = String(text || '').replace(/\s+/g, ' ').trim()
+  if (!clean) return ''
+  if (clean.length <= max) return clean.replace(/。$/, '')
+  return `${clean.slice(0, max).replace(/[，、；,.。]+$/, '')}…`
+}
+
+function compactSource(source = '') {
+  if (source === '本地参考') return '本地'
+  if (source === '模型参考') return '模型'
+  return source
+}
 
 function switchMode(m) {
   if (loading.value) return

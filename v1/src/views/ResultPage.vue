@@ -110,7 +110,9 @@ const analysisTitle = computed(() => {
 })
 
 const analysisSubtitle = computed(() => {
-  return result.value?.layeredOutput?.core?.text || result.value?.severityReason || '我先根据你这次描述，把当前最关键的判断整理出来。'
+  return shortenSentence(
+    result.value?.layeredOutput?.core?.text || result.value?.severityReason || '我先根据你这次描述，把当前最关键的判断整理出来。'
+  )
 })
 
 const actionItems = computed(() => {
@@ -120,9 +122,9 @@ const actionItems = computed(() => {
     ...(detail.visitAdvice || []),
     ...(detail.selfCareAdvice || []),
   ].filter(Boolean)
-  const uniq = Array.from(new Set(items))
+  const uniq = Array.from(new Set(items.map((item) => compactAdviceLine(item)).filter(Boolean)))
   if (uniq.length) return uniq.slice(0, 4)
-  if (core.text) return [core.text]
+  if (core.text) return [shortenSentence(core.text)]
   return []
 })
 
@@ -134,7 +136,7 @@ const medicationLead = computed(() => {
 
 const medicationItems = computed(() => {
   const detail = result.value?.layeredOutput?.detail || {}
-  const advice = (detail.medicationAdvice || []).filter(Boolean).slice(0, 4)
+  const advice = (detail.medicationAdvice || []).map((item) => compactAdviceLine(item)).filter(Boolean).slice(0, 4)
   const refs = (costEstimate.value?.expanded?.medicationPriceRefs || []).slice(0, 3)
   const priceLines = refs.map((item) => {
     const name = item.name || item.category || '常见药物'
@@ -214,6 +216,27 @@ function buildMedicationFallbackPrices(advice = []) {
     return ['常见外用止痛药：约 20~50 元']
   }
   return ['常见对症药：约 20~60 元']
+}
+
+function shortenSentence(text = '', max = 56) {
+  const clean = String(text || '').replace(/\s+/g, ' ').replace(/[。；]\s*/g, '，').trim()
+  if (!clean) return ''
+  if (clean.length <= max) return clean.replace(/，$/, '')
+  return `${clean.slice(0, max).replace(/[，、；,.]+$/, '')}…`
+}
+
+function compactAdviceLine(text = '') {
+  const clean = String(text || '').replace(/\s+/g, ' ').trim()
+  if (!clean) return ''
+  return shortenSentence(
+    clean
+      .replace(/^建议你?/, '')
+      .replace(/^可以先/, '先')
+      .replace(/^目前先/, '先')
+      .replace(/如症状明显加重.*$/, '症状加重及时就医')
+      .replace(/必要时及时就医/g, '必要时就医'),
+    42
+  )
 }
 
 onMounted(async () => {
