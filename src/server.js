@@ -480,12 +480,30 @@ function looksMedicalFollowup(text = '') {
 function hasEscalationSignal(text = '') {
   const value = String(text || '').trim();
   if (!value) return false;
+  if (hasDeescalationSignal(value)) {
+    const clarificationPatterns = [
+      /不是黑便/,
+      /不是便血/,
+      /不是呕血/,
+      /看错了/,
+      /并非黑便/,
+      /普通深褐色/,
+      /没有黑便/,
+      /没有便血/,
+      /没有呕血/,
+      /头晕也没有了/,
+      /已经没有了/,
+    ];
+    if (clarificationPatterns.some((pattern) => pattern.test(value))) {
+      return false;
+    }
+  }
   const hasPositiveKeyword = (source = '', keyword = '') => {
     const raw = String(source || '').toLowerCase();
     const token = String(keyword || '').toLowerCase();
     if (!raw || !token) return false;
     const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const deniedPattern = new RegExp(`(没有|无|否认|并无|未见|不是|并非)[^，。；;,.]{0,3}${escaped}`);
+    const deniedPattern = new RegExp(`(没有|无|否认|并无|未见|不是|并非|看错了|排除)[^，。；;,.]{0,10}${escaped}`);
     if (deniedPattern.test(raw)) return false;
     return raw.includes(token);
   };
@@ -502,7 +520,7 @@ function hasEscalationSignal(text = '') {
 function hasDeescalationSignal(text = '') {
   const value = String(text || '').trim();
   if (!value) return false;
-  return /(好转|缓解|减轻|不再|已经没有|否认|排除|没再出现|恢复正常|已经退烧|不疼了|不闷了)/.test(value);
+  return /(好转|缓解|减轻|不再|已经没有|没有了|否认|排除|没再出现|恢复正常|已经退烧|不疼了|不闷了|看错了|不是黑便|不是便血|不是呕血|普通深褐色)/.test(value);
 }
 
 function buildRoutingContextText(session = {}, latestText = '') {
