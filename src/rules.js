@@ -2040,9 +2040,10 @@ function shouldSkipQuestionByContext(session = {}, question = {}) {
   const pattern = SEMANTIC_SKIP_PATTERNS[slot];
   if (!pattern) return false;
   if (!pattern.test(text)) return false;
-  const questionText = String(question.text || '');
   const strictSlots = new Set(['duration', 'frequency', 'location', 'history', 'trend', 'riskSignal']);
-  if (strictSlots.has(slot)) return true;
+  // 这些关键槽位即便开放式文本里提到，也仍然优先保留结构化确认，避免“只说过一次就被视为问清楚”。
+  if (strictSlots.has(slot)) return false;
+  const questionText = String(question.text || '');
   return questionText.length > 0;
 }
 

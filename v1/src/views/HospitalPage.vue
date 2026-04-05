@@ -74,6 +74,7 @@
               </div>
               <div class="row-side">
                 <div class="row-price">{{ item.price }}</div>
+                <div class="row-source" v-if="item.source">{{ item.source }}</div>
                 <div class="row-badge" :class="item.badgeClass">{{ item.badge }}</div>
               </div>
             </div>
@@ -149,6 +150,7 @@ const medicineRows = computed(() => {
     name: item.brandName ? `${item.name} / ${item.brandName}` : (item.name || '药品'),
     reason: item.reason || '建议结合医生说明再确认。',
     price: item.priceRange || item.insuranceType || '价格待确认',
+    source: item.source || '',
     badge: normalizeMedicineNecessity(item.necessity),
     badgeClass: normalizeMedicineClass(item.necessity),
   }))
@@ -430,6 +432,11 @@ function normalizeMedicineClass(necessity) {
   font-size: var(--font-size-sm);
   color: var(--color-primary);
   font-weight: 600;
+}
+.row-source {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--color-text-secondary);
 }
 .row-badge {
   margin-top: 6px;

@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { findDrugRefsByText } = require('./store');
 
 const DEFAULT_BASE_URL = 'https://dashscope.aliyuncs.com/compatible-mode/v1';
 const DEFAULT_TEXT_MODEL = 'qwen3.5-plus-2026-02-15';
@@ -1114,6 +1115,26 @@ async function analyzeCheckSheet(ocrText, userContext = '') {
 async function analyzePrescription(ocrText, userContext = '') {
   if (!isConfigured() || !ocrText) return null;
 
+  const localDrugRefs = findDrugRefsByText(ocrText, 12);
+  const localDrugPrompt = localDrugRefs.length
+    ? [
+        '以下药品命中了本地参考数据，医保类别和价格优先使用这些信息：',
+        ...localDrugRefs.map((item) => {
+          const identity = [item.genericName, item.form, item.spec].filter(Boolean).join(' ');
+          const insuranceText = item.insuranceClass || '不确定';
+          const centralizedText = item.isCentralized ? '集采品种' : '非集采/未标记集采';
+          const priceText =
+            item.priceMin && item.priceMax
+              ? `${item.priceMin}~${item.priceMax}元`
+              : '价格待确认';
+          const scenarioText = item.scenarios?.length ? `；适用场景：${item.scenarios.join('、')}` : '';
+          return `- ${identity}：${insuranceText}，${centralizedText}，常见价 ${priceText}${scenarioText}`;
+        }),
+        '如果某药命中了本地参考数据：insuranceType 和 priceRange 优先以本地参考为准，source 写“本地参考”。',
+        '如果没有命中本地参考数据：可以基于常识补充，但 source 必须写“模型参考”，价格不确定时写“价格仅供参考”。',
+      ].join('\n')
+    : '';
+
   const prompt = [
     '你是药品信息助手，不做确诊，不替代医生，只帮患者理解处方。',
     '用户上传了一份处方，OCR 识别结果如下：',
@@ -1121,6 +1142,7 @@ async function analyzePrescription(ocrText, userContext = '') {
     ocrText.slice(0, 2000),
     '---',
     userContext ? `用户补充信息：${userContext}` : '',
+    localDrugPrompt,
     '',
     '请分析每种药品，输出 JSON：',
     '{',
@@ -1131,6 +1153,7 @@ async function analyzePrescription(ocrText, userContext = '') {
     '      "category": "核心用药|辅助用药|中成药",',
     '      "insuranceType": "甲类|乙类|自费|不确定",',
     '      "priceRange": "参考价格",',
+    '      "source": "本地参考|模型参考",',
     '      "necessity": "核心|辅助|证据有限",',
     '      "reason": "一句话说明"',
     '    }',
@@ -1158,12 +1181,80 @@ async function analyzePrescription(ocrText, userContext = '') {
 
   const parsed = extractJsonObject(raw);
   if (!parsed?.medicines) return null;
+  const medicines = Array.isArray(parsed.medicines) ? parsed.medicines.slice(0, 15) : [];
   return {
-    medicines: Array.isArray(parsed.medicines) ? parsed.medicines.slice(0, 15) : [],
+    medicines: applyPrescriptionDrugRefs(medicines, localDrugRefs),
     script: String(parsed.script || '').trim(),
     interactions: String(parsed.interactions || '').trim(),
     note: String(parsed.note || '').trim(),
   };
+}
+
+function toDrugPriceRange(priceMin, priceMax) {
+  const min = Number(priceMin || 0);
+  const max = Number(priceMax || 0);
+  if (!min && !max) return '';
+  if (min && max) return `${min}~${max}元`;
+  return `${min || max}元`;
+}
+
+function normalizeDrugToken(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[（(【\[].*?[)\]】]/g, '')
+    .replace(/[^a-z0-9\u4e00-\u9fa5]/g, '');
+}
+
+function matchDrugRefForMedicine(medicine, localDrugRefs = []) {
+  const tokens = [medicine?.name, medicine?.brandName]
+    .map((item) => normalizeDrugToken(item))
+    .filter(Boolean);
+  if (!tokens.length || !localDrugRefs.length) return null;
+
+  let best = null;
+  for (const ref of localDrugRefs) {
+    const names = [ref.genericName, ...(ref.aliases || [])]
+      .map((item) => ({ raw: item, normalized: normalizeDrugToken(item) }))
+      .filter((item) => item.normalized);
+    const hit = names.find((item) =>
+      tokens.some((token) => token.includes(item.normalized) || item.normalized.includes(token))
+    );
+    if (!hit) continue;
+    if (!best || hit.normalized.length > best.length) {
+      best = { ref, length: hit.normalized.length };
+    }
+  }
+  return best?.ref || null;
+}
+
+function applyPrescriptionDrugRefs(medicines = [], localDrugRefs = []) {
+  return medicines.map((medicine) => {
+    const matched = matchDrugRefForMedicine(medicine, localDrugRefs);
+    if (!matched) {
+      const source = String(medicine?.source || '').trim() || '模型参考';
+      const priceRange = String(medicine?.priceRange || '').trim() || '价格仅供参考';
+      return {
+        ...medicine,
+        source,
+        priceRange,
+      };
+    }
+
+    const priceRange = toDrugPriceRange(matched.priceMin, matched.priceMax) || String(medicine?.priceRange || '').trim();
+    return {
+      ...medicine,
+      name: medicine?.name || matched.genericName,
+      insuranceType: matched.insuranceClass || medicine?.insuranceType || '不确定',
+      priceRange: priceRange || '价格待确认',
+      source: '本地参考',
+      reason: [
+        String(medicine?.reason || '').trim(),
+        matched.isCentralized ? '本地参考显示为集采品种。' : '',
+      ]
+        .filter(Boolean)
+        .join(' '),
+    };
+  });
 }
 
 async function analyzeReport(file, userContext = '') {

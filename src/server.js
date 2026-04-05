@@ -1799,7 +1799,7 @@ app.post('/triage/message', async (req, res) => {
     });
   }
 
-  if (openPlan.collectMode === 'text' && openTurns >= 2 && candidates.length >= 2) {
+  if (openPlan.collectMode === 'text' && openTurns >= 2 && candidates.length >= 1) {
     const picked = candidates[0];
     const nextQuestion = {
       ...picked,
@@ -2530,7 +2530,7 @@ app.post('/api/analyze/prescription', upload.single('file'), async (req, res) =>
       ok: true,
       ocrText: ocrText.slice(0, 300),
       analysis: analysis || { medicines: [], script: '', interactions: '', note: '分析暂时不可用，请稍后重试' },
-      disclaimer: '以上分析仅供参考，用药请遵医嘱���切勿自行停药或换药。',
+      disclaimer: '以上分析仅供参考，用药请遵医嘱，切勿自行停药或换药。',
     });
   } catch (error) {
     console.error('[analyze/prescription]', error.message);

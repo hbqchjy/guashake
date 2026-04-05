@@ -1,7 +1,9 @@
 const Database = require('better-sqlite3');
 const path = require('path');
+const fs = require('fs');
 
 const DB_PATH = path.join(__dirname, '..', 'data', 'guashake.db');
+const DRUG_SEED_PATH = path.join(__dirname, '..', 'data', 'drug_refs.seed.json');
 
 let _db = null;
 
@@ -69,7 +71,100 @@ function initTables(db) {
       data TEXT NOT NULL,
       updated_at TEXT DEFAULT (datetime('now'))
     );
+
+    CREATE TABLE IF NOT EXISTS drugs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      generic_name TEXT NOT NULL,
+      form TEXT DEFAULT '',
+      spec TEXT DEFAULT '',
+      insurance_class TEXT DEFAULT '',
+      is_centralized INTEGER DEFAULT 0,
+      price_min REAL,
+      price_max REAL,
+      source TEXT DEFAULT 'seed',
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_drugs_identity
+      ON drugs(generic_name, form, spec);
+
+    CREATE TABLE IF NOT EXISTS drug_aliases (
+      drug_id INTEGER NOT NULL,
+      alias_name TEXT NOT NULL,
+      FOREIGN KEY (drug_id) REFERENCES drugs(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_drug_aliases_name ON drug_aliases(alias_name);
+
+    CREATE TABLE IF NOT EXISTS drug_scenarios (
+      drug_id INTEGER NOT NULL,
+      scenario_code TEXT NOT NULL,
+      scenario_name TEXT NOT NULL,
+      FOREIGN KEY (drug_id) REFERENCES drugs(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_drug_scenarios_drug ON drug_scenarios(drug_id);
   `);
+
+  seedDrugRefsIfNeeded(db);
+}
+
+function normalizeDrugKey(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[（(【\[].*?[)\]】]/g, '')
+    .replace(/[^a-z0-9\u4e00-\u9fa5]/g, '');
+}
+
+function seedDrugRefsIfNeeded(db) {
+  const countRow = db.prepare('SELECT COUNT(1) AS count FROM drugs').get();
+  if (Number(countRow?.count || 0) > 0) return;
+  if (!fs.existsSync(DRUG_SEED_PATH)) return;
+
+  const payload = JSON.parse(fs.readFileSync(DRUG_SEED_PATH, 'utf8'));
+  const items = Array.isArray(payload?.drugs) ? payload.drugs : [];
+  if (!items.length) return;
+
+  const insertDrug = db.prepare(`
+    INSERT INTO drugs (
+      generic_name, form, spec, insurance_class,
+      is_centralized, price_min, price_max, source, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  const insertAlias = db.prepare('INSERT INTO drug_aliases (drug_id, alias_name) VALUES (?, ?)');
+  const insertScenario = db.prepare(
+    'INSERT INTO drug_scenarios (drug_id, scenario_code, scenario_name) VALUES (?, ?, ?)'
+  );
+  const now = new Date().toISOString();
+
+  const tx = db.transaction(() => {
+    items.forEach((item) => {
+      const result = insertDrug.run(
+        String(item.genericName || '').trim(),
+        String(item.form || '').trim(),
+        String(item.spec || '').trim(),
+        String(item.insuranceClass || '').trim(),
+        item.isCentralized ? 1 : 0,
+        Number(item.priceMin || 0),
+        Number(item.priceMax || 0),
+        String(item.source || 'seed').trim() || 'seed',
+        String(item.updatedAt || now)
+      );
+      const drugId = result.lastInsertRowid;
+      const aliases = Array.isArray(item.aliases) ? item.aliases : [];
+      aliases
+        .map((alias) => String(alias || '').trim())
+        .filter(Boolean)
+        .forEach((alias) => insertAlias.run(drugId, alias));
+      const scenarios = Array.isArray(item.scenarios) ? item.scenarios : [];
+      scenarios.forEach((scenario) => {
+        const code = String(scenario.code || '').trim();
+        const name = String(scenario.name || '').trim();
+        if (!code || !name) return;
+        insertScenario.run(drugId, code, name);
+      });
+    });
+  });
+
+  tx();
 }
 
 // ── Sessions ──
@@ -282,6 +377,75 @@ function getQuickSymptomAnalytics() {
   return ensureQuickSymptomAnalytics();
 }
 
+function findDrugRefsByText(text, limit = 12) {
+  const normalizedText = normalizeDrugKey(text);
+  if (!normalizedText) return [];
+
+  const rows = getDb()
+    .prepare(`
+      SELECT
+        d.id,
+        d.generic_name,
+        d.form,
+        d.spec,
+        d.insurance_class,
+        d.is_centralized,
+        d.price_min,
+        d.price_max,
+        d.source,
+        GROUP_CONCAT(DISTINCT da.alias_name) AS aliases,
+        GROUP_CONCAT(DISTINCT ds.scenario_code) AS scenario_codes,
+        GROUP_CONCAT(DISTINCT ds.scenario_name) AS scenario_names
+      FROM drugs d
+      LEFT JOIN drug_aliases da ON da.drug_id = d.id
+      LEFT JOIN drug_scenarios ds ON ds.drug_id = d.id
+      GROUP BY d.id
+    `)
+    .all();
+
+  const matches = [];
+  for (const row of rows) {
+    const names = [
+      row.generic_name,
+      ...(String(row.aliases || '')
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean)),
+    ];
+    const normalizedNames = names
+      .map((item) => ({ raw: item, normalized: normalizeDrugKey(item) }))
+      .filter((item) => item.normalized);
+    const matchedName = normalizedNames
+      .sort((a, b) => b.normalized.length - a.normalized.length)
+      .find((item) => normalizedText.includes(item.normalized));
+    if (!matchedName) continue;
+
+    matches.push({
+      id: row.id,
+      genericName: row.generic_name,
+      form: row.form || '',
+      spec: row.spec || '',
+      insuranceClass: row.insurance_class || '不确定',
+      isCentralized: Boolean(row.is_centralized),
+      priceMin: Number(row.price_min || 0),
+      priceMax: Number(row.price_max || 0),
+      source: row.source || 'seed',
+      aliases: names,
+      scenarios: String(row.scenario_names || '')
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean),
+      matchedBy: matchedName.raw,
+      matchLength: matchedName.normalized.length,
+    });
+  }
+
+  return matches
+    .sort((a, b) => b.matchLength - a.matchLength)
+    .slice(0, Math.max(1, Number(limit) || 12))
+    .map(({ matchLength, ...item }) => item);
+}
+
 module.exports = {
   upsertSession,
   getSession,
@@ -299,4 +463,5 @@ module.exports = {
   trackSymptomClick,
   incrementConsultationCount,
   getQuickSymptomAnalytics,
+  findDrugRefsByText,
 };
