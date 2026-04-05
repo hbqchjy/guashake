@@ -479,6 +479,17 @@ function showQuestion(res) {
   addBotMessage(q.text || q.question, options)
 }
 
+function showSupplementChoice(message = '') {
+  stage.value = 'supplement'
+  addBotMessage(
+    message || '你可以继续补充，或者现在更新分析。',
+    [
+      { label: '更新分析', value: '__generate__' },
+      { label: '继续补充', value: '__continue__' },
+    ],
+  )
+}
+
 async function selectOption(opt) {
   const label = opt.label || opt
   const value = opt.value || opt
@@ -495,6 +506,7 @@ async function selectOption(opt) {
   }
 
   loading.value = true
+  const answeredCount = Number(step.value || 0)
 
   try {
     const res = await answerTriageQuestion({
@@ -504,12 +516,22 @@ async function selectOption(opt) {
     })
 
     if (res.complete || res.done || res.followUp?.completed) {
-      if (res.needsConfirmation) {
+      if (!res.urgentShortcut && answeredCount < 3) {
         stage.value = 'supplement'
-        addBotMessage('信息差不多了，要不要现在生成分析结果？', [
-          { label: '生成结果', value: '__generate__' },
-          { label: '我还想补充', value: '__continue__' },
-        ])
+        addBotMessage('现在还不急着出分析，至少再确认几个关键点会更稳妥。')
+        if (res.nextPrompt?.text) {
+          addBotMessage(res.nextPrompt.text)
+        } else {
+          addBotMessage('你继续补充一下：大概持续多久了？最近是在加重、减轻，还是差不多？')
+        }
+        return
+      }
+      if (res.needsConfirmation) {
+        showSupplementChoice('信息差不多了，要不要现在生成分析结果？')
+      } else if (res.needsSupplement) {
+        stage.value = 'supplement'
+        addBotMessage(res.assistantReply || '现在还不急着给分析，你继续补充一下关键变化。')
+        if (res.nextPrompt?.text) addBotMessage(res.nextPrompt.text)
       } else {
         goResult()
       }
@@ -517,11 +539,14 @@ async function selectOption(opt) {
     }
 
     if (res.needsConfirmation) {
+      showSupplementChoice('信息差不多了，要不要现在生成分析结果？')
+      return
+    }
+
+    if (res.needsSupplement) {
       stage.value = 'supplement'
-      addBotMessage('信息差不多了，要不要现在生成分析结果？', [
-        { label: '生成结果', value: '__generate__' },
-        { label: '我还想补充', value: '__continue__' },
-      ])
+      addBotMessage(res.assistantReply || '现在还不急着给分析，你继续补充一下关键变化。')
+      if (res.nextPrompt?.text) addBotMessage(res.nextPrompt.text)
       return
     }
 
@@ -554,27 +579,18 @@ async function supplement(text) {
       announceStructuredMode(res.reply || res.assistantReply)
       showQuestion(res)
     } else if (res.refreshSummary || res.affectsSummary || res.canRefreshSummary) {
-      stage.value = 'supplement'
       const promptText = res.affectsSummary || res.refreshSummary
         ? (res.reply || '根据你刚补充的新信息，当前分析可能会变化。要不要现在更新分析结果？')
         : (res.reply || '这条补充我已经并入当前咨询了。你可以继续补充，或者现在更新分析。')
-      addBotMessage(
-        promptText,
-        [
-          { label: '更新分析', value: '__generate__' },
-          { label: '继续补充', value: '__continue__' },
-        ],
-      )
+      showSupplementChoice(promptText)
     } else if (res.reply) {
       addBotMessage(res.reply)
+      showSupplementChoice('如果这些补充会影响判断，你可以随时更新分析；如果还想继续补充，也可以继续说。')
     } else if (res.assistantReply) {
       addBotMessage(res.assistantReply)
+      showSupplementChoice()
     } else {
-      stage.value = 'supplement'
-      addBotMessage('这条补充我已经记下了。你可以继续补充，或者直接更新分析。', [
-        { label: '更新分析', value: '__generate__' },
-        { label: '继续补充', value: '__continue__' },
-      ])
+      showSupplementChoice('这条补充我已经记下了。你可以继续补充，或者直接更新分析。')
     }
   } catch {
     addBotMessage('抱歉，请稍后重试。')

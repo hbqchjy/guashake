@@ -141,7 +141,8 @@ const medicationItems = computed(() => {
     const price = item.priceRange || item.price || ''
     return price ? `${name}：约 ${price}` : name
   })
-  return Array.from(new Set([...advice, ...priceLines])).slice(0, 4)
+  const fallbackPriceLines = priceLines.length ? [] : buildMedicationFallbackPrices(advice)
+  return Array.from(new Set([...advice, ...priceLines, ...fallbackPriceLines])).slice(0, 4)
 })
 
 const checkItems = computed(() => {
@@ -190,6 +191,27 @@ function formatRange(min, max) {
   if (min && max) return `${min}~${max}元`
   if (min || max) return `${min || max}元`
   return ''
+}
+
+function buildMedicationFallbackPrices(advice = []) {
+  const text = advice.join(' ')
+  if (!text) return []
+  if (/胃|抑酸|护胃|胃黏膜|止泻|腹泻/.test(text)) {
+    return ['常见护胃药：约 20~60 元', '常见止泻药：约 15~40 元']
+  }
+  if (/退热|发热/.test(text)) {
+    return ['常见退热药：约 15~35 元']
+  }
+  if (/止咳|化痰|含片|咽痛|咳嗽/.test(text)) {
+    return ['常见止咳化痰药：约 20~50 元', '常见含片：约 10~30 元']
+  }
+  if (/人工泪液|眼/.test(text)) {
+    return ['常见人工泪液：约 20~60 元']
+  }
+  if (/止痛|外用/.test(text)) {
+    return ['常见外用止痛药：约 20~50 元']
+  }
+  return ['常见对症药：约 20~60 元']
 }
 
 onMounted(async () => {
