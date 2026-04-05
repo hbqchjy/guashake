@@ -424,19 +424,86 @@ function getStructuredProgressTotal(config = {}, candidateCount = 0, currentStep
   return Math.max(TRIAGE_MIN_STRUCTURED_CONFIRMATIONS, Math.min(maxSteps, estimatedTotal));
 }
 
+const STRUCTURED_SLOT_FAMILY = new Map([
+  ['riskSignal', 'risk'],
+  ['infectionSigns', 'risk'],
+  ['neurologic', 'risk'],
+  ['visionChange', 'risk'],
+  ['bloodInUrine', 'risk'],
+  ['bowelChange', 'risk'],
+  ['breath', 'risk'],
+  ['feverVomiting', 'risk'],
+  ['location', 'location'],
+  ['problemType', 'location'],
+  ['pain', 'location'],
+  ['duration', 'timeline'],
+  ['timeline', 'timeline'],
+  ['frequency', 'timeline'],
+  ['severity', 'severity'],
+  ['associatedSymptoms', 'severity'],
+  ['mealRelation', 'trigger'],
+  ['activityRelation', 'trigger'],
+  ['triggerTime', 'trigger'],
+  ['foodTrigger', 'trigger'],
+  ['nightPattern', 'trigger'],
+  ['urinationPain', 'trigger'],
+  ['refluxBloating', 'associated'],
+  ['appetite', 'associated'],
+]);
+
+function getStructuredCoverage(session) {
+  const slotState = session?.followUp?.slotState || {};
+  const answeredSlots = Object.values(slotState)
+    .filter((item) => item?.slot && item?.answer && item?.source === 'answer');
+  const answeredCount = answeredSlots.length;
+  const highValueCount = answeredSlots.filter((item) => getStructuredQuestionPriority(item) <= 3).length;
+  const familySet = new Set(
+    answeredSlots
+      .map((item) => STRUCTURED_SLOT_FAMILY.get(String(item.slot || '').trim()) || '')
+      .filter(Boolean)
+  );
+  return {
+    answeredCount,
+    highValueCount,
+    familyCount: familySet.size,
+    families: Array.from(familySet),
+  };
+}
+
 function shouldDelayResultConfirmation(session, stepCount = 0) {
   const structuredSteps = Number(stepCount || session?.followUp?.stepCount || 0);
-  return structuredSteps < TRIAGE_MIN_STRUCTURED_CONFIRMATIONS;
+  if (structuredSteps < TRIAGE_MIN_STRUCTURED_CONFIRMATIONS) return true;
+  const coverage = getStructuredCoverage(session);
+  if (coverage.highValueCount < 2) return true;
+  if (coverage.familyCount < 2) return true;
+  return false;
 }
 
 function getConfirmationGuard(session, extra = {}) {
   const structuredSteps = Number(extra.stepCount || session?.followUp?.stepCount || 0);
   const openTurns = Number(extra.openTurns || session?.openTurns || 0);
+  const coverage = getStructuredCoverage(session);
   return {
     structuredSteps,
     openTurns,
-    blocked: structuredSteps < TRIAGE_MIN_STRUCTURED_CONFIRMATIONS,
+    coverage,
+    blocked: shouldDelayResultConfirmation(session, structuredSteps),
   };
+}
+
+function buildMissingConfirmationPrompt(session, confirmationGuard = {}) {
+  const families = new Set(Array.isArray(confirmationGuard.coverage?.families) ? confirmationGuard.coverage.families : []);
+  const missing = [];
+  if (!families.has('location')) missing.push('具体不舒服的位置，或者最主要的不舒服是什么');
+  if (!families.has('timeline')) missing.push('大概持续多久了，是持续不舒服还是一阵一阵');
+  if (!families.has('risk')) missing.push('有没有发热、黑便、呕吐、呼吸困难、明显加重这些危险信号');
+  if (!families.has('severity')) missing.push('现在是轻微、中等，还是已经明显影响吃饭、活动或睡觉');
+  if (!families.has('trigger')) missing.push('是吃饭、活动、夜里，还是上厕所前后会更明显');
+  const primary = missing.slice(0, 3);
+  if (!primary.length) {
+    return '我还想再确认一下：最近是在加重、减轻，还是差不多？有没有新的伴随症状？';
+  }
+  return `现在还不能直接出分析。我还想再确认一下：${primary.join('；')}？`;
 }
 
 function hasServerResultGuard(session) {
@@ -1623,13 +1690,15 @@ app.post('/triage/answer', async (req, res) => {
 
   if (nextQuestionState.done) {
     if (shouldDelayResultConfirmation(updatedSession, stepCount)) {
+      const confirmationGuard = getConfirmationGuard(updatedSession, { stepCount });
+      const guardPrompt = buildMissingConfirmationPrompt(updatedSession, confirmationGuard);
       return res.json({
         done: false,
         needsSupplement: true,
         assistantReply: '现在还不急着给分析，我还想再确认一点关键信息。',
         nextPrompt: {
           type: 'text',
-          text: '你继续补充一下：大概持续多久了？最近是在加重、减轻，还是差不多？',
+          text: guardPrompt,
         },
         progress: nextQuestionState.progress,
         followUpMeta: {
@@ -1943,9 +2012,10 @@ app.post('/triage/message', async (req, res) => {
     }
 
     if (confirmationGuard.blocked) {
+      const guardPrompt = buildMissingConfirmationPrompt(updatedSession, confirmationGuard);
       upsertSession(sessionId, {
         conversationStage: 'open',
-        openPromptText: '现在还不能直接出分析。我还想再确认一下：具体在什么位置？是持续不舒服，还是一阵一阵？有没有反酸、恶心、发热、黑便这些情况？',
+        openPromptText: guardPrompt,
         generationReady: false,
         summaryDirty: false,
         summaryImpactLevel: 'none',
@@ -1958,7 +2028,7 @@ app.post('/triage/message', async (req, res) => {
         assistantReply: openPlan.assistantReply || '现在信息还不够稳，我先不急着给结果。',
         nextPrompt: {
           type: 'text',
-          text: '现在还不能直接出分析。我还想再确认一下：具体在什么位置？是持续不舒服，还是一阵一阵？有没有反酸、恶心、发热、黑便这些情况？',
+          text: guardPrompt,
         },
         insight,
         currentFocus,
@@ -1997,9 +2067,10 @@ app.post('/triage/message', async (req, res) => {
     if (!picked) {
       const confirmationGuard = getConfirmationGuard(updatedSession, { openTurns });
       if (confirmationGuard.blocked) {
+        const guardPrompt = buildMissingConfirmationPrompt(updatedSession, confirmationGuard);
         upsertSession(sessionId, {
           conversationStage: 'open',
-          openPromptText: '现在还不能直接出分析。你继续补充一下：持续多久了、具体位置在哪里、有没有明显加重或伴随症状？',
+          openPromptText: guardPrompt,
           generationReady: false,
           summaryDirty: false,
           summaryImpactLevel: 'none',
@@ -2012,7 +2083,7 @@ app.post('/triage/message', async (req, res) => {
           assistantReply: '我还不想太早下结论，先把关键情况补齐。',
           nextPrompt: {
             type: 'text',
-            text: '现在还不能直接出分析。你继续补充一下：持续多久了、具体位置在哪里、有没有明显加重或伴随症状？',
+            text: guardPrompt,
           },
           insight,
           currentFocus,
