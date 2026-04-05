@@ -85,8 +85,21 @@
           <div class="bot-avatar bot-avatar-brand">
             <img :src="brandIcon" alt="小科" />
           </div>
-          <div class="bot-text">
-            <p v-html="msg.text"></p>
+          <div
+            class="bot-text"
+            :class="{ 'question-card': msg.options && msg.isLatest && !loading }"
+          >
+            <div
+              v-if="msg.options && msg.isLatest && !loading"
+              class="question-card-head"
+            >
+              <span class="question-card-tag">当前问题</span>
+              <span class="question-card-step">第 {{ step }} / {{ totalSteps }} 题</span>
+            </div>
+            <p
+              v-html="msg.text"
+              :class="{ 'question-text': msg.options && msg.isLatest && !loading }"
+            ></p>
             <div class="options" v-if="msg.options && msg.isLatest && !loading">
               <button
                 class="option-btn"
@@ -1034,10 +1047,46 @@ onBeforeUnmount(() => {
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
   width: min(100%, 680px);
 }
+.bot-text.question-card {
+  padding: 14px;
+  border-radius: 0 16px 16px 16px;
+  border: 1px solid rgba(0, 181, 120, 0.14);
+  box-shadow: 0 8px 20px rgba(0, 181, 120, 0.08);
+  background: linear-gradient(180deg, #ffffff 0%, #fbfefd 100%);
+}
+.question-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.question-card-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: var(--color-primary-light);
+  color: var(--color-primary-deep);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+}
+.question-card-step {
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  color: var(--color-primary);
+}
 .bot-text p {
   font-size: var(--font-size-md);
   line-height: 1.6;
   color: var(--color-text);
+}
+.question-text {
+  font-size: calc(var(--font-size-md) + 1px);
+  font-weight: 600;
+  line-height: 1.65;
 }
 
 .user-text {
@@ -1062,6 +1111,23 @@ onBeforeUnmount(() => {
   border-radius: 18px;
   padding: 8px 14px;
   font-size: var(--font-size-md);
+}
+.question-card .options {
+  flex-direction: column;
+  gap: 10px;
+}
+.question-card .option-btn {
+  width: 100%;
+  min-height: 46px;
+  justify-content: flex-start;
+  text-align: left;
+  padding: 0 14px;
+  border-radius: 14px;
+  background: #f5fbf8;
+  font-weight: 600;
+}
+.question-card .option-btn:active {
+  background: #e8f8f0;
 }
 
 .typing-dots {
