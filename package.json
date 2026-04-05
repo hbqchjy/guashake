@@ -8,6 +8,7 @@
     "dev": "node src/server.js"
   },
   "dependencies": {
+    "better-sqlite3": "^12.8.0",
     "china-area-data": "^5.0.1",
     "cors": "^2.8.5",
     "express": "^4.21.2",

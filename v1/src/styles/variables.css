@@ -1,0 +1,40 @@
+:root {
+  /* 主色 */
+  --color-primary: #00B578;
+  --color-primary-light: #E8F8F0;
+
+  /* 严重程度色彩体系 */
+  --color-observe: #00B578;
+  --color-self-treat: #1890FF;
+  --color-visit-soon: #FAAD14;
+  --color-visit-today: #FF4D4F;
+  --color-emergency: #333333;
+
+  /* 中性色 */
+  --color-text: #333333;
+  --color-text-secondary: #666666;
+  --color-text-hint: #999999;
+  --color-border: #EBEDF0;
+  --color-bg: #F7F8FA;
+  --color-white: #FFFFFF;
+
+  /* 间距 */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+
+  /* 圆角 */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+
+  /* 字体 */
+  --font-size-xs: 12px;
+  --font-size-sm: 13px;
+  --font-size-md: 14px;
+  --font-size-lg: 16px;
+  --font-size-xl: 18px;
+  --font-size-xxl: 22px;
+}

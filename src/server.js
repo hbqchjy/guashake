@@ -49,6 +49,9 @@ const {
   getStatus: getAiStatus,
   speechToText,
   synthesizeSpeech,
+  analyzeCheckSheet,
+  analyzePrescription,
+  analyzeReport,
 } = require('./ai');
 
 const app = express();
@@ -2329,6 +2332,98 @@ async function handleTtsRequest(req, res) {
 
 app.post('/api/tts', handleTtsRequest);
 app.get('/api/tts', handleTtsRequest);
+
+// ── 阶段二：检查单分析 ──
+app.post('/api/analyze/check-sheet', upload.single('file'), async (req, res) => {
+  try {
+    const file = req.file;
+    const userContext = String(req.body?.context || '').trim();
+    if (!file) {
+      return res.status(400).json({ ok: false, error: '请上传检查单图片' });
+    }
+
+    const { ocrFile: doOcr } = require('./ai');
+    const ocrText = await doOcr(file, '检查单');
+    if (!ocrText) {
+      return res.json({
+        ok: false,
+        error: 'OCR 未识别到文字，请确保图片清晰完整',
+        ocrText: '',
+      });
+    }
+
+    const analysis = await analyzeCheckSheet(ocrText, userContext);
+    return res.json({
+      ok: true,
+      ocrText: ocrText.slice(0, 300),
+      analysis: analysis || { items: [], script: '', savingEstimate: '', note: '分析暂时不可用，请稍后重试' },
+      disclaimer: '以上分析仅供参考，具体请遵医嘱。',
+    });
+  } catch (error) {
+    console.error('[analyze/check-sheet]', error.message);
+    return res.status(500).json({ ok: false, error: '分析失败，请重试' });
+  }
+});
+
+// ── 阶段二：处方分析 ──
+app.post('/api/analyze/prescription', upload.single('file'), async (req, res) => {
+  try {
+    const file = req.file;
+    const userContext = String(req.body?.context || '').trim();
+    if (!file) {
+      return res.status(400).json({ ok: false, error: '请上传处方图片' });
+    }
+
+    const { ocrFile: doOcr } = require('./ai');
+    const ocrText = await doOcr(file, '处方');
+    if (!ocrText) {
+      return res.json({
+        ok: false,
+        error: 'OCR 未识别到文字，请确保图片清晰完整',
+        ocrText: '',
+      });
+    }
+
+    const analysis = await analyzePrescription(ocrText, userContext);
+    return res.json({
+      ok: true,
+      ocrText: ocrText.slice(0, 300),
+      analysis: analysis || { medicines: [], script: '', interactions: '', note: '分析暂时不可用，请稍后重试' },
+      disclaimer: '以上分析仅供参考，用药请遵医嘱���切勿自行停药或换药。',
+    });
+  } catch (error) {
+    console.error('[analyze/prescription]', error.message);
+    return res.status(500).json({ ok: false, error: '分析失败，请重试' });
+  }
+});
+
+// ── 阶段三：报告解读 ──
+app.post('/api/analyze/report', upload.single('file'), async (req, res) => {
+  try {
+    const file = req.file;
+    const userContext = String(req.body?.context || '').trim();
+    if (!file) {
+      return res.status(400).json({ ok: false, error: '请上传检验报告图片' });
+    }
+
+    const analysis = await analyzeReport(file, userContext);
+    if (!analysis) {
+      return res.json({
+        ok: false,
+        error: '未能解析报告，请确保图片清晰完整',
+      });
+    }
+
+    return res.json({
+      ok: true,
+      analysis,
+      disclaimer: '以上解读仅供参考，具体诊断请咨询医生。',
+    });
+  } catch (error) {
+    console.error('[analyze/report]', error.message);
+    return res.status(500).json({ ok: false, error: '分析失败，请重试' });
+  }
+});
 
 app.get('*', (_req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));

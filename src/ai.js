@@ -1060,6 +1060,181 @@ async function interpretMedicalImage(file, label = '补充材料') {
   };
 }
 
+async function analyzeCheckSheet(ocrText, userContext = '') {
+  if (!isConfigured() || !ocrText) return null;
+
+  const prompt = [
+    '你是医疗费用顾问助手，不做确诊，只帮患者理解检查单。',
+    '用户上传了一份医生开出的检查单，OCR 识别结果如下：',
+    '---',
+    ocrText.slice(0, 2000),
+    '---',
+    userContext ? `用户补充信息：${userContext}` : '',
+    '',
+    '请分析每项检查，输出 JSON：',
+    '{',
+    '  "items": [',
+    '    {',
+    '      "name": "检查项目名",',
+    '      "priceRange": "参考价格区间",',
+    '      "priority": "必要|可等|问医生",',
+    '      "reason": "一句话说明为什么这个优先级"',
+    '    }',
+    '  ],',
+    '  "script": "建议对医生说的一句话",',
+    '  "savingEstimate": "预估可节省金额（如有可等项目）",',
+    '  "note": "整体建议（一两句话）"',
+    '}',
+    '',
+    '判断原则：',
+    '- 血常规、尿常规等基础化验通常"必要"',
+    '- CT/MRI 等大型检查，如果没有基础检查结果支撑，建议"可等"',
+    '- 肿瘤标志物等筛查项目，非急症时标记"问医生"',
+    '- 价格给常见范围，不确定就写"价格待确认"',
+    '只返回 JSON。',
+  ].filter(Boolean).join('\n');
+
+  const raw = await chatCompletions({
+    messages: [{ role: 'user', content: prompt }],
+    temperature: 0,
+    maxTokens: 1200,
+    route: 'summary',
+  });
+
+  const parsed = extractJsonObject(raw);
+  if (!parsed?.items) return null;
+  return {
+    items: Array.isArray(parsed.items) ? parsed.items.slice(0, 15) : [],
+    script: String(parsed.script || '').trim(),
+    savingEstimate: String(parsed.savingEstimate || '').trim(),
+    note: String(parsed.note || '').trim(),
+  };
+}
+
+async function analyzePrescription(ocrText, userContext = '') {
+  if (!isConfigured() || !ocrText) return null;
+
+  const prompt = [
+    '你是药品信息助手，不做确诊，不替代医生，只帮患者理解处方。',
+    '用户上传了一份处方，OCR 识别结果如下：',
+    '---',
+    ocrText.slice(0, 2000),
+    '---',
+    userContext ? `用户补充信息：${userContext}` : '',
+    '',
+    '请分析每种药品，输出 JSON：',
+    '{',
+    '  "medicines": [',
+    '    {',
+    '      "name": "药品通用名",',
+    '      "brandName": "商品名（如能识别）",',
+    '      "category": "核心用药|辅助用药|中成药",',
+    '      "insuranceType": "甲类|乙类|自费|不确定",',
+    '      "priceRange": "参考价格",',
+    '      "necessity": "核心|辅助|证据有限",',
+    '      "reason": "一句话说明"',
+    '    }',
+    '  ],',
+    '  "script": "建议问医生的一句话",',
+    '  "interactions": "药物相互作用提醒（如有）",',
+    '  "note": "整体用药建议（一两句话）"',
+    '}',
+    '',
+    '判断原则：',
+    '- 抗生素、降压药等对症核心药标记"核心"',
+    '- 辅助用药（如某些中成药注射剂）标记"辅助"',
+    '- 临床证据薄弱的标记"证据有限"',
+    '- 自费药重点标出',
+    '- 永远用"可能""建议"措辞，不说"必须""不能用"',
+    '只返回 JSON。',
+  ].filter(Boolean).join('\n');
+
+  const raw = await chatCompletions({
+    messages: [{ role: 'user', content: prompt }],
+    temperature: 0,
+    maxTokens: 1200,
+    route: 'summary',
+  });
+
+  const parsed = extractJsonObject(raw);
+  if (!parsed?.medicines) return null;
+  return {
+    medicines: Array.isArray(parsed.medicines) ? parsed.medicines.slice(0, 15) : [],
+    script: String(parsed.script || '').trim(),
+    interactions: String(parsed.interactions || '').trim(),
+    note: String(parsed.note || '').trim(),
+  };
+}
+
+async function analyzeReport(file, userContext = '') {
+  if (!isConfigured() || !file?.path || !fs.existsSync(file.path) || !isImageFile(file)) {
+    return null;
+  }
+
+  const mimeType = file.mimetype || detectMimeFromName(file.originalname || 'upload.png');
+  const base64 = fs.readFileSync(file.path).toString('base64');
+  const dataUrl = `data:${mimeType};base64,${base64}`;
+
+  const prompt = [
+    '你是检验报告解读助手，不做确诊，只帮患者看懂报告。',
+    userContext ? `用户补充信息：${userContext}` : '',
+    '',
+    '请分析这份检验报告图片，输出 JSON：',
+    '{',
+    '  "reportType": "报告类型（如血常规、尿常规、肝功能等）",',
+    '  "overallStatus": "大部分正常|部分异常|多项异常",',
+    '  "abnormalCount": 异常项目数量,',
+    '  "items": [',
+    '    {',
+    '      "name": "指标名",',
+    '      "value": "检测值",',
+    '      "unit": "单位",',
+    '      "reference": "参考范围",',
+    '      "status": "正常|偏高|偏低|异常",',
+    '      "explanation": "一句话通俗解释（仅异常项需要）"',
+    '    }',
+    '  ],',
+    '  "summary": "一段话总结（通俗易懂，50字以内）",',
+    '  "suggestions": ["建议1", "建议2"],',
+    '  "followUpDays": 建议复查天数（0表示无需复查）',
+    '}',
+    '',
+    '要求：',
+    '- items 按异常优先排序，正常的放后面',
+    '- 异常项必须有 explanation',
+    '- 用"可能提示""建议"措辞，不用"确诊""一定"',
+    '- 解释用老百姓能听懂的话',
+    '只返回 JSON。',
+  ].filter(Boolean).join('\n');
+
+  const raw = await chatCompletions({
+    model: getConfig().visionModel,
+    messages: [
+      {
+        role: 'user',
+        content: [
+          { type: 'image_url', image_url: { url: dataUrl } },
+          { type: 'text', text: prompt },
+        ],
+      },
+    ],
+    temperature: 0,
+    maxTokens: 2000,
+  });
+
+  const parsed = extractJsonObject(raw);
+  if (!parsed?.items) return null;
+  return {
+    reportType: String(parsed.reportType || '').trim(),
+    overallStatus: String(parsed.overallStatus || '').trim(),
+    abnormalCount: Number(parsed.abnormalCount || 0),
+    items: Array.isArray(parsed.items) ? parsed.items.slice(0, 30) : [],
+    summary: String(parsed.summary || '').trim(),
+    suggestions: Array.isArray(parsed.suggestions) ? parsed.suggestions.filter(Boolean).slice(0, 5) : [],
+    followUpDays: Number(parsed.followUpDays || 0),
+  };
+}
+
 module.exports = {
   getStatus,
   isConfigured,
@@ -1077,4 +1252,7 @@ module.exports = {
   rewriteTriageResult,
   ocrFile,
   interpretMedicalImage,
+  analyzeCheckSheet,
+  analyzePrescription,
+  analyzeReport,
 };
