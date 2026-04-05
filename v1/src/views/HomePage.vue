@@ -12,7 +12,7 @@
         </div>
       </div>
       <div class="header-right" @click="goLogin">
-        <img class="user-entry-icon" :src="brandIcon" alt="我的" />
+        <van-icon name="user-circle-o" size="42" color="#1f1f1f" />
       </div>
     </header>
 

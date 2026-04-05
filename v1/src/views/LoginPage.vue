@@ -4,7 +4,7 @@
 
     <div class="login-content">
       <div class="login-logo">
-        <span class="logo-icon">&#x1F3E5;</span>
+        <img class="logo-icon" :src="brandIcon" alt="小科" />
         <h2>小科</h2>
         <p>登录后可保存就诊记录</p>
       </div>
@@ -50,6 +50,7 @@ const router = useRouter()
 const phone = ref('')
 const password = ref('')
 const loading = ref(false)
+const brandIcon = `${import.meta.env.BASE_URL}icon.svg`
 
 async function onSubmit() {
   loading.value = true
@@ -82,9 +83,12 @@ async function onSubmit() {
   padding: var(--spacing-xl) 0;
 }
 .logo-icon {
-  font-size: 48px;
   display: block;
+  width: 56px;
+  height: 56px;
   margin-bottom: var(--spacing-sm);
+  margin-left: auto;
+  margin-right: auto;
 }
 .login-logo h2 {
   font-size: var(--font-size-xxl);
