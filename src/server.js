@@ -413,6 +413,12 @@ function getFollowUpConfig(session) {
   };
 }
 
+function getStructuredProgressTotal(config = {}, candidateCount = 0) {
+  const minSteps = Number(config.minSteps || 6);
+  const maxSteps = Number(config.maxSteps || 10);
+  return Math.max(minSteps, Math.min(maxSteps, Math.max(6, candidateCount + 3)));
+}
+
 function getAskedQuestionIds(session) {
   return Array.isArray(session.followUp?.askedQuestionIds) ? session.followUp.askedQuestionIds : [];
 }
@@ -1623,6 +1629,7 @@ app.post('/triage/message', async (req, res) => {
   const openPlan = await planOpenInterviewTurn(updatedSession, text, candidates, {
     openTurns,
   }).catch(() => null);
+  const followUpConfig = getFollowUpConfig(updatedSession);
 
   if (!openPlan) {
     return res.json({
@@ -1700,11 +1707,51 @@ app.post('/triage/message', async (req, res) => {
       nextQuestion,
       progress: {
         current: 1,
-        total: Math.max(3, Math.min(6, candidates.length + 1)),
+        total: getStructuredProgressTotal(followUpConfig, candidates.length),
       },
       followUpMeta: {
         mode: 'ai-open-to-structured',
         reason: openPlan.reason || '开放式信息已足够，开始进入精准提问',
+      },
+      insight,
+      currentFocus,
+    });
+  }
+
+  if (openPlan.collectMode === 'text' && openTurns >= 2 && candidates.length >= 2) {
+    const picked = candidates[0];
+    const nextQuestion = {
+      ...picked,
+      text: picked.text,
+      options: picked.options,
+    };
+    upsertSession(sessionId, {
+      conversationStage: 'structured',
+      followUp: {
+        ...(updatedSession.followUp || {}),
+        currentQuestionId: nextQuestion.id,
+        completed: false,
+      },
+      followUpMeta: {
+        mode: 'forced-open-to-structured',
+        reason: '开放式信息已积累两轮，切换到选择题确认关键点',
+        targetSlot: nextQuestion.slot || nextQuestion.id,
+        targetSlotLabel: nextQuestion.slotLabel || nextQuestion.slot || nextQuestion.id,
+      },
+    });
+    return res.json({
+      ok: true,
+      intentType,
+      mode: 'question',
+      assistantReply: openPlan.assistantReply || '我已经大概有方向了，再回答几个选择题，我会更准确。',
+      nextQuestion,
+      progress: {
+        current: 1,
+        total: getStructuredProgressTotal(followUpConfig, candidates.length),
+      },
+      followUpMeta: {
+        mode: 'forced-open-to-structured',
+        reason: '开放式信息已积累两轮，切换到选择题确认关键点',
       },
       insight,
       currentFocus,

@@ -48,11 +48,11 @@
       </section>
 
       <div class="actions">
-        <van-button block round type="primary" @click="saveScreenshot">
-          截图保存
+        <van-button block round type="primary" @click="continueAnalysis">
+          补充信息继续分析
         </van-button>
-        <van-button block round plain type="primary" @click="goHospital" style="margin-top: 12px;">
-          我在医院
+        <van-button block round plain type="primary" @click="saveAnalysis" style="margin-top: 12px;">
+          保存分析
         </van-button>
       </div>
     </template>
@@ -63,7 +63,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { showToast } from 'vant'
-import { getTriageResult, getCostEstimate } from '../api'
+import { getTriageResult, getCostEstimate, saveArchiveRecord } from '../api'
 
 const props = defineProps({ sessionId: String })
 const router = useRouter()
@@ -163,6 +163,17 @@ const riskItems = computed(() => {
   return Array.from(new Set(items.filter(Boolean))).slice(0, 5)
 })
 
+const archiveTitle = computed(() => {
+  const now = new Date()
+  const dateLabel = `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`
+  const type = String(
+    result.value?.layeredOutput?.core?.possibleTypes?.[0]
+    || analysisTitle.value
+    || '问诊分析',
+  ).replace(/\s+/g, ' ').trim()
+  return `${dateLabel} ${type}`.trim()
+})
+
 function formatRange(min, max) {
   if (min && max) return `${min}~${max}元`
   if (min || max) return `${min || max}元`
@@ -192,22 +203,38 @@ onMounted(async () => {
   }
 })
 
-function saveScreenshot() {
-  showToast('请使用手机截屏功能保存此页面')
+function continueAnalysis() {
+  const sid = props.sessionId || route.params.sessionId
+  if (!sid) return
+  router.push(`/triage?sessionId=${sid}&mode=supplement`)
 }
 
-function goHospital() {
-  if (result.value) {
+async function saveAnalysis() {
+  const userId = localStorage.getItem('userId')
+  const sid = props.sessionId || route.params.sessionId
+  if (!userId) {
+    showToast('请先登录后保存分析')
+    router.push('/login')
+    return
+  }
+  try {
     const ctx = {
-      sessionId: props.sessionId || route.params.sessionId,
+      sessionId: sid,
       complaint: localStorage.getItem('currentComplaint') || '',
       summaryForDoctor: analysisSubtitle.value,
       checks: checkItems.value.map(c => c.name),
       timestamp: Date.now(),
     }
     localStorage.setItem('triageContext', JSON.stringify(ctx))
+    await saveArchiveRecord({
+      userId,
+      sessionId: sid,
+      summary: archiveTitle.value,
+    })
+    showToast('分析已保存')
+  } catch {
+    showToast('保存失败，请稍后重试')
   }
-  router.push('/hospital')
 }
 </script>
 

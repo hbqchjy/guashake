@@ -2,9 +2,15 @@
   <div class="page triage-page">
     <van-nav-bar title="我不舒服" left-arrow @click-left="$router.push('/')" />
 
-    <div class="progress-bar" v-if="step > 0 && totalSteps > 0">
-      <div class="progress-fill" :style="{ width: progressPercent + '%' }"></div>
-      <span class="progress-text">第 {{ step }} / {{ totalSteps }} 步</span>
+    <div class="followup-banner" v-if="showFollowupBanner">
+      <div class="followup-head">
+        <span class="followup-title">精准分析中</span>
+        <span class="followup-step">第 {{ step }} / {{ totalSteps }} 题</span>
+      </div>
+      <div class="followup-sub">再回答几个选择题，我会把分析结果收得更准。</div>
+      <div class="followup-track">
+        <div class="followup-fill" :style="{ width: progressPercent + '%' }"></div>
+      </div>
     </div>
 
     <div class="chat-area" ref="chatArea">
@@ -125,7 +131,12 @@
 
       <div class="composer">
         <button class="icon-btn" type="button" @click="toggleComposerMode" :aria-label="composerMode === 'text' ? '切换语音' : '切换键盘'">
-          <van-icon :name="composerMode === 'text' ? 'volume-o' : 'chat-o'" size="20" />
+          <van-icon v-if="composerMode === 'text'" name="volume-o" size="20" />
+          <svg v-else viewBox="0 0 24 24" class="keyboard-icon" aria-hidden="true">
+            <rect x="2.5" y="5.5" width="19" height="13" rx="3"></rect>
+            <path d="M6 10.2h.01M9 10.2h.01M12 10.2h.01M15 10.2h.01M18 10.2h.01"></path>
+            <path d="M6 13.8h.01M9 13.8h.01M12 13.8h5.8"></path>
+          </svg>
         </button>
 
         <div class="input-slot">
@@ -186,7 +197,7 @@
 
 <script setup>
 import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { showToast } from 'vant'
 import {
   createTriageSession,
@@ -195,9 +206,11 @@ import {
   sendTriageSupplement,
   uploadTriageFile,
   startTriageWithFile,
+  getTriageState,
 } from '../api'
 
 const router = useRouter()
+const route = useRoute()
 const chatArea = ref(null)
 const reportInput = ref(null)
 const cameraInput = ref(null)
@@ -219,6 +232,7 @@ const composerMode = ref('text')
 const speechListening = ref(false)
 const mediaRecorder = ref(null)
 const mediaChunks = ref([])
+const hasShownStructuredIntro = ref(false)
 
 const primarySymptoms = [
   { text: '胃不舒服' },
@@ -262,12 +276,17 @@ const symptomGroups = [
 const inputPlaceholder = computed(() => {
   if (stage.value === 'init') return '直接描述哪里不舒服'
   if (stage.value === 'open') return '继续描述你的情况'
+  if (stage.value === 'supplement') return '补充新的变化、病史或检查情况'
   return '补充上面没提到的信息'
 })
 
 const progressPercent = computed(() => {
   if (totalSteps.value <= 0) return 0
   return Math.min((step.value / totalSteps.value) * 100, 100)
+})
+
+const showFollowupBanner = computed(() => {
+  return (stage.value === 'structured' || stage.value === 'supplement') && step.value > 0 && totalSteps.value > 0
 })
 
 const hasTypedText = computed(() => composerMode.value === 'text' && !!inputText.value.trim())
@@ -321,7 +340,7 @@ async function sendText() {
     await startSession(text)
   } else if (stage.value === 'open') {
     await continueOpen(text)
-  } else if (stage.value === 'structured') {
+  } else if (stage.value === 'structured' || stage.value === 'supplement') {
     await supplement(text)
   }
 }
@@ -355,8 +374,7 @@ async function startSession(complaint) {
 
     if (res.nextQuestion) {
       stage.value = 'structured'
-      if (res.assistantReply) addBotMessage(res.assistantReply)
-      else addBotMessage('为了更准确地帮你分析，需要你回答几个问题。')
+      announceStructuredMode(res.assistantReply)
       showQuestion(res)
       return
     }
@@ -382,7 +400,7 @@ async function continueOpen(text) {
     })
 
     if (res.needsConfirmation) {
-      stage.value = 'structured'
+      stage.value = 'supplement'
       if (res.assistantReply) addBotMessage(res.assistantReply)
       addBotMessage('信息差不多了，要不要现在生成分析结果？', [
         { label: '生成结果', value: '__generate__' },
@@ -399,8 +417,7 @@ async function continueOpen(text) {
 
     if (res.mode === 'question' && res.nextQuestion) {
       stage.value = 'structured'
-      if (res.assistantReply) addBotMessage(res.assistantReply)
-      else addBotMessage('为了更准确地帮你分析，需要你回答几个问题。')
+      announceStructuredMode(res.assistantReply)
       showQuestion(res)
       return
     }
@@ -443,8 +460,8 @@ async function selectOption(opt) {
     return
   }
   if (value === '__continue__') {
-    stage.value = 'open'
-    addBotMessage('好的，继续说说你的情况。')
+    stage.value = 'supplement'
+    addBotMessage('好的，你继续补充新的情况、变化、病史或检查结果，我会据此更新分析。')
     return
   }
 
@@ -459,6 +476,7 @@ async function selectOption(opt) {
 
     if (res.complete || res.done || res.followUp?.completed) {
       if (res.needsConfirmation) {
+        stage.value = 'supplement'
         addBotMessage('信息差不多了，要不要现在生成分析结果？', [
           { label: '生成结果', value: '__generate__' },
           { label: '我还想补充', value: '__continue__' },
@@ -470,6 +488,7 @@ async function selectOption(opt) {
     }
 
     if (res.needsConfirmation) {
+      stage.value = 'supplement'
       addBotMessage('信息差不多了，要不要现在生成分析结果？', [
         { label: '生成结果', value: '__generate__' },
         { label: '我还想补充', value: '__continue__' },
@@ -502,11 +521,28 @@ async function supplement(text) {
       return
     }
     if (res.nextQuestion) {
+      stage.value = 'structured'
+      announceStructuredMode(res.reply || res.assistantReply)
       showQuestion(res)
+    } else if (res.refreshSummary || res.affectsSummary) {
+      stage.value = 'supplement'
+      addBotMessage(
+        res.reply || '根据你刚补充的新信息，当前分析可能会变化。要不要现在更新分析结果？',
+        [
+          { label: '更新分析', value: '__generate__' },
+          { label: '继续补充', value: '__continue__' },
+        ],
+      )
     } else if (res.reply) {
       addBotMessage(res.reply)
     } else if (res.assistantReply) {
       addBotMessage(res.assistantReply)
+    } else {
+      stage.value = 'supplement'
+      addBotMessage('这条补充我已经记下了。你可以继续补充，或者直接更新分析。', [
+        { label: '更新分析', value: '__generate__' },
+        { label: '继续补充', value: '__continue__' },
+      ])
     }
   } catch {
     addBotMessage('抱歉，请稍后重试。')
@@ -556,7 +592,7 @@ async function pickFile(event, label) {
         addBotMessage(res.nextPrompt.text)
       } else if (res.nextQuestion) {
         stage.value = 'structured'
-        addBotMessage('为了更准确地帮你分析，需要你回答几个问题。')
+        announceStructuredMode()
         showQuestion(res)
       }
     } else {
@@ -595,6 +631,7 @@ async function startVoiceCapture() {
     const recorder = new recorderClass(stream, mimeType ? { mimeType } : undefined)
     mediaRecorder.value = recorder
     speechListening.value = true
+    playCue('start')
 
     recorder.ondataavailable = (evt) => {
       if (evt.data?.size) mediaChunks.value.push(evt.data)
@@ -614,6 +651,7 @@ async function startVoiceCapture() {
 
 function stopVoiceCapture() {
   if (!speechListening.value) return
+  playCue('stop')
   try {
     mediaRecorder.value?.stop()
   } catch {
@@ -634,7 +672,6 @@ async function transcribeAudio(blob) {
     }
     const transcript = data.text.trim()
     inputText.value = ''
-    composerMode.value = 'text'
     loading.value = false
     addUserMessage(transcript)
     if (stage.value === 'init') {
@@ -642,7 +679,7 @@ async function transcribeAudio(blob) {
       await startSession(transcript)
     } else if (stage.value === 'open') {
       await continueOpen(transcript)
-    } else if (stage.value === 'structured') {
+    } else if (stage.value === 'structured' || stage.value === 'supplement') {
       await supplement(transcript)
     }
     return
@@ -650,6 +687,80 @@ async function transcribeAudio(blob) {
     showToast('语音识别失败，请重试')
   } finally {
     loading.value = false
+  }
+}
+
+function announceStructuredMode(message = '') {
+  if (!hasShownStructuredIntro.value) {
+    addBotMessage(message || '为了更准确地帮你分析，我再确认几个选择题。')
+    hasShownStructuredIntro.value = true
+    return
+  }
+  if (message) addBotMessage(message)
+}
+
+async function restoreSession() {
+  const resumeId = String(route.query.sessionId || '').trim()
+  const resumeMode = String(route.query.mode || '').trim()
+  if (!resumeId) return
+  loading.value = true
+  try {
+    const state = await getTriageState(resumeId)
+    sessionId.value = resumeId
+    localStorage.setItem('currentSessionId', resumeId)
+    step.value = state.progress?.current || 0
+    totalSteps.value = state.progress?.total || 0
+
+    if (resumeMode === 'supplement' || state.hasResult) {
+      stage.value = 'supplement'
+      addBotMessage('继续补充新的情况、检查结果或身体变化，我会根据新信息更新分析。')
+      return
+    }
+
+    if (state.currentQuestion) {
+      stage.value = 'structured'
+      hasShownStructuredIntro.value = true
+      showQuestion({
+        nextQuestion: state.currentQuestion,
+        progress: state.progress,
+      })
+      return
+    }
+
+    if (state.currentPrompt?.text) {
+      stage.value = 'open'
+      addBotMessage(state.currentPrompt.text)
+      return
+    }
+
+    stage.value = 'open'
+    addBotMessage('继续说说你这次最不舒服的地方，我会接着往下分析。')
+  } catch {
+    showToast('恢复当前咨询失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+function playCue(type = 'start') {
+  const AudioCtx = window.AudioContext || window.webkitAudioContext
+  if (!AudioCtx) return
+  try {
+    const ctx = new AudioCtx()
+    const oscillator = ctx.createOscillator()
+    const gain = ctx.createGain()
+    oscillator.type = 'sine'
+    oscillator.frequency.value = type === 'start' ? 740 : 520
+    gain.gain.setValueAtTime(0.0001, ctx.currentTime)
+    gain.gain.exponentialRampToValueAtTime(0.045, ctx.currentTime + 0.01)
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.12)
+    oscillator.connect(gain)
+    gain.connect(ctx.destination)
+    oscillator.start()
+    oscillator.stop(ctx.currentTime + 0.12)
+    oscillator.onended = () => ctx.close().catch(() => {})
+  } catch {
+    // ignore
   }
 }
 
@@ -672,6 +783,7 @@ function handleDocumentClick(event) {
 
 onMounted(() => {
   document.addEventListener('click', handleDocumentClick)
+  restoreSession()
 })
 
 onBeforeUnmount(() => {
@@ -687,22 +799,46 @@ onBeforeUnmount(() => {
   background: var(--color-bg);
 }
 
-.progress-bar {
-  position: relative;
-  height: 3px;
-  background: var(--color-border);
+.followup-banner {
+  margin: 10px var(--spacing-md) 0;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #f5fcf8 0%, #edf9f2 100%);
+  border: 1px solid rgba(0, 181, 120, 0.14);
 }
-.progress-fill {
+.followup-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.followup-title {
+  font-size: var(--font-size-md);
+  font-weight: 700;
+  color: var(--color-primary-deep);
+}
+.followup-step {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-primary);
+}
+.followup-sub {
+  margin-top: 4px;
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+}
+.followup-track {
+  margin-top: 10px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(0, 181, 120, 0.12);
+  overflow: hidden;
+}
+.followup-fill {
   height: 100%;
-  background: var(--color-primary);
+  background: linear-gradient(90deg, var(--color-primary), var(--color-primary-deep));
   transition: width 0.3s ease;
-}
-.progress-text {
-  position: absolute;
-  right: var(--spacing-md);
-  top: 6px;
-  font-size: var(--font-size-xs);
-  color: var(--color-text-hint);
 }
 
 .chat-area {
@@ -904,7 +1040,8 @@ onBeforeUnmount(() => {
   position: relative;
   background: var(--color-white);
   border-top: 1px solid var(--color-border);
-  padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+  padding: 12px 14px calc(18px + env(safe-area-inset-bottom));
+  box-shadow: 0 -6px 18px rgba(16, 24, 40, 0.04);
 }
 
 .plus-menu {
@@ -947,8 +1084,8 @@ onBeforeUnmount(() => {
 
 .icon-btn,
 .send-btn {
-  width: 34px;
-  height: 34px;
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
   border: 0;
   background: transparent;
@@ -978,8 +1115,9 @@ onBeforeUnmount(() => {
 
 .input-slot :deep(.van-field) {
   background: #f2f3f5;
-  border-radius: 20px;
-  padding: 8px 14px;
+  border-radius: 22px;
+  min-height: 46px;
+  padding: 10px 16px;
 }
 
 .input-slot :deep(.van-field__control) {
@@ -989,8 +1127,8 @@ onBeforeUnmount(() => {
 
 .voice-capture {
   width: 100%;
-  height: 40px;
-  border-radius: 20px;
+  height: 46px;
+  border-radius: 22px;
   border: 0;
   background: #f2f3f5;
   color: var(--color-text);
@@ -999,6 +1137,16 @@ onBeforeUnmount(() => {
 .voice-capture.active {
   background: #e7f7ef;
   color: var(--color-primary);
+}
+
+.keyboard-icon {
+  width: 20px;
+  height: 20px;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 @media (max-width: 420px) {
