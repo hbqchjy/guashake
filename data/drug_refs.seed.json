@@ -1259,6 +1259,166 @@
           "name": "咳嗽咽痛"
         }
       ]
+    },
+    {
+      "genericName": "替米沙坦片",
+      "aliases": [
+        "美卡素",
+        "替米沙坦"
+      ],
+      "form": "片剂",
+      "spec": "80mg*7片",
+      "insuranceClass": "甲类",
+      "isCentralized": true,
+      "priceMin": 12,
+      "priceMax": 38,
+      "source": "local_reference",
+      "scenarios": [
+        {
+          "code": "hypertension",
+          "name": "高血压"
+        }
+      ]
+    },
+    {
+      "genericName": "非洛地平缓释片",
+      "aliases": [
+        "波依定",
+        "非洛地平"
+      ],
+      "form": "缓释片",
+      "spec": "5mg*10片",
+      "insuranceClass": "甲类",
+      "isCentralized": true,
+      "priceMin": 12,
+      "priceMax": 34,
+      "source": "local_reference",
+      "scenarios": [
+        {
+          "code": "hypertension",
+          "name": "高血压"
+        }
+      ]
+    },
+    {
+      "genericName": "卡维地洛片",
+      "aliases": [
+        "达利全",
+        "卡维地洛"
+      ],
+      "form": "片剂",
+      "spec": "10mg*12片",
+      "insuranceClass": "乙类",
+      "isCentralized": true,
+      "priceMin": 10,
+      "priceMax": 28,
+      "source": "local_reference",
+      "scenarios": [
+        {
+          "code": "hypertension",
+          "name": "高血压"
+        }
+      ]
+    },
+    {
+      "genericName": "阿利沙坦酯片",
+      "aliases": [
+        "信立坦",
+        "阿利沙坦酯"
+      ],
+      "form": "片剂",
+      "spec": "240mg*7片",
+      "insuranceClass": "乙类",
+      "isCentralized": true,
+      "priceMin": 28,
+      "priceMax": 68,
+      "source": "local_reference",
+      "scenarios": [
+        {
+          "code": "hypertension",
+          "name": "高血压"
+        }
+      ]
+    },
+    {
+      "genericName": "瑞格列奈片",
+      "aliases": [
+        "诺和龙",
+        "瑞格列奈"
+      ],
+      "form": "片剂",
+      "spec": "1mg*30片",
+      "insuranceClass": "乙类",
+      "isCentralized": true,
+      "priceMin": 18,
+      "priceMax": 42,
+      "source": "local_reference",
+      "scenarios": [
+        {
+          "code": "diabetes",
+          "name": "糖尿病"
+        }
+      ]
+    },
+    {
+      "genericName": "伏格列波糖片",
+      "aliases": [
+        "倍欣",
+        "伏格列波糖"
+      ],
+      "form": "片剂",
+      "spec": "0.2mg*30片",
+      "insuranceClass": "乙类",
+      "isCentralized": true,
+      "priceMin": 22,
+      "priceMax": 54,
+      "source": "local_reference",
+      "scenarios": [
+        {
+          "code": "diabetes",
+          "name": "糖尿病"
+        }
+      ]
+    },
+    {
+      "genericName": "利格列汀片",
+      "aliases": [
+        "欧唐宁",
+        "利格列汀"
+      ],
+      "form": "片剂",
+      "spec": "5mg*7片",
+      "insuranceClass": "乙类",
+      "isCentralized": true,
+      "priceMin": 36,
+      "priceMax": 92,
+      "source": "local_reference",
+      "scenarios": [
+        {
+          "code": "diabetes",
+          "name": "糖尿病"
+        }
+      ]
+    },
+    {
+      "genericName": "甘精胰岛素注射液",
+      "aliases": [
+        "来得时",
+        "甘精胰岛素"
+      ],
+      "form": "注射液",
+      "spec": "3ml:300单位",
+      "insuranceClass": "乙类",
+      "isCentralized": true,
+      "priceMin": 58,
+      "priceMax": 138,
+      "source": "local_reference",
+      "scenarios": [
+        {
+          "code": "diabetes",
+          "name": "糖尿病"
+        }
+      ]
     }
   ]
 }
