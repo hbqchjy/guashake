@@ -10,6 +10,7 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue',
     'PingFang SC', 'Microsoft YaHei', sans-serif;
   font-size: var(--font-size-md);
+  line-height: 1.6;
   color: var(--color-text);
   background: var(--color-bg);
   -webkit-font-smoothing: antialiased;
@@ -24,6 +25,15 @@ body {
   --van-button-primary-border-color: #00B578;
   --van-nav-bar-background: #FFFFFF;
   --van-nav-bar-title-text-color: #333333;
+  --van-font-size-xs: var(--font-size-xs);
+  --van-font-size-sm: var(--font-size-sm);
+  --van-font-size-md: var(--font-size-md);
+  --van-font-size-lg: var(--font-size-lg);
+  --van-nav-bar-title-font-size: var(--font-size-lg);
+  --van-cell-font-size: var(--font-size-md);
+  --van-field-input-text-font-size: var(--font-size-md);
+  --van-button-default-font-size: var(--font-size-md);
+  --van-button-small-font-size: var(--font-size-sm);
 }
 
 /* 页面容器 */

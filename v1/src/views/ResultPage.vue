@@ -241,7 +241,7 @@ function goHospital() {
 }
 .summary-main {
   margin-top: 6px;
-  font-size: 22px;
+  font-size: 26px;
   line-height: 1.35;
   font-weight: 700;
 }

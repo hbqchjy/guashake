@@ -31,10 +31,10 @@
   --radius-lg: 16px;
 
   /* 字体 */
-  --font-size-xs: 12px;
-  --font-size-sm: 13px;
-  --font-size-md: 14px;
-  --font-size-lg: 16px;
-  --font-size-xl: 18px;
-  --font-size-xxl: 22px;
+  --font-size-xs: 13px;
+  --font-size-sm: 15px;
+  --font-size-md: 17px;
+  --font-size-lg: 19px;
+  --font-size-xl: 22px;
+  --font-size-xxl: 26px;
 }
