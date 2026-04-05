@@ -13,6 +13,18 @@
       </div>
     </div>
 
+    <div class="decision-banner" v-if="showDecisionBanner">
+      <div class="decision-head">
+        <span class="decision-title">{{ decisionTitle }}</span>
+        <span class="decision-tag">{{ decisionTag }}</span>
+      </div>
+      <div class="decision-sub">{{ decisionText }}</div>
+      <div class="decision-actions">
+        <button class="decision-btn primary" type="button" @click="goResult">{{ decisionPrimaryText }}</button>
+        <button class="decision-btn" type="button" @click="keepSupplementing">继续补充</button>
+      </div>
+    </div>
+
     <div class="chat-area" ref="chatArea">
       <div class="resume-banner" v-if="showResumeBanner">
         <div class="resume-label">当前正在补充</div>
@@ -253,6 +265,10 @@ const mediaRecorder = ref(null)
 const mediaChunks = ref([])
 const hasShownStructuredIntro = ref(false)
 const resumeNotice = ref('')
+const generationReady = ref(false)
+const summaryDirty = ref(false)
+const summaryDirtyLevel = ref('none')
+const decisionNotice = ref('')
 const ttsAudio = ref(null)
 const ttsQueue = ref([])
 const ttsPlaying = ref(false)
@@ -320,6 +336,19 @@ const showResumeBanner = computed(() => {
   return stage.value === 'supplement' && !!resumeLabel.value
 })
 
+const showDecisionBanner = computed(() => generationReady.value || summaryDirty.value)
+const decisionTitle = computed(() => (summaryDirty.value ? '这条补充可能会影响当前分析' : '现在可以生成分析了'))
+const decisionTag = computed(() => {
+  if (summaryDirty.value) return summaryDirtyLevel.value === 'major' ? '建议尽快更新' : '可随时更新'
+  return '准备生成'
+})
+const decisionText = computed(() => {
+  if (decisionNotice.value) return decisionNotice.value
+  if (summaryDirty.value) return '你可以继续补充，也可以现在更新分析。'
+  return '如果上面还有没提到的信息，也可以继续补充。'
+})
+const decisionPrimaryText = computed(() => (summaryDirty.value ? '更新分析' : '生成结果'))
+
 const hasTypedText = computed(() => composerMode.value === 'text' && !!inputText.value.trim())
 
 const voiceButtonText = computed(() => {
@@ -337,6 +366,32 @@ function addBotMessage(text, options = []) {
 function addUserMessage(text) {
   messages.value.push({ role: 'user', text })
   scrollBottom()
+}
+
+function clearDecisionState() {
+  generationReady.value = false
+  summaryDirty.value = false
+  summaryDirtyLevel.value = 'none'
+  decisionNotice.value = ''
+}
+
+function setGenerationReady(note = '') {
+  generationReady.value = true
+  summaryDirty.value = false
+  summaryDirtyLevel.value = 'none'
+  decisionNotice.value = note || '如果上面还有没提到的信息，也可以继续补充。'
+}
+
+function setSummaryDirty(note = '', level = 'minor') {
+  generationReady.value = false
+  summaryDirty.value = true
+  summaryDirtyLevel.value = level || 'minor'
+  decisionNotice.value = note || '根据你刚补充的新信息，当前分析可能会变化。'
+}
+
+function keepSupplementing() {
+  stage.value = 'supplement'
+  addBotMessage('好的，你继续补充新的情况、变化、病史或检查结果，我会据此更新分析。')
 }
 
 async function scrollBottom() {
@@ -383,6 +438,7 @@ async function sendText() {
 async function startSession(complaint) {
   loading.value = true
   try {
+    clearDecisionState()
     const res = await createTriageSession({ chiefComplaint: complaint })
     sessionId.value = res.sessionId
     localStorage.setItem('draftSessionId', res.sessionId)
@@ -438,6 +494,7 @@ async function continueOpen(text) {
 
     if (res.needsConfirmation) {
       stage.value = 'supplement'
+      setGenerationReady('信息差不多了。你可以先生成分析，也可以继续补充。')
       if (res.assistantReply) addBotMessage(res.assistantReply)
       addBotMessage('信息差不多了，要不要现在生成分析结果？', [
         { label: '生成结果', value: '__generate__' },
@@ -447,6 +504,7 @@ async function continueOpen(text) {
     }
 
     if (res.mode === 'immediate_result') {
+      clearDecisionState()
       if (res.assistantReply) addBotMessage(res.assistantReply)
       goResult()
       return
@@ -454,6 +512,7 @@ async function continueOpen(text) {
 
     if (res.mode === 'question' && res.nextQuestion) {
       stage.value = 'structured'
+      clearDecisionState()
       announceStructuredMode(res.assistantReply)
       showQuestion(res)
       return
@@ -478,6 +537,7 @@ async function continueOpen(text) {
 function showQuestion(res) {
   const q = res.nextQuestion
   if (!q) return
+  clearDecisionState()
   currentQuestionId.value = q.id || ''
   step.value = res.progress?.current || step.value + 1
   totalSteps.value = res.progress?.total || totalSteps.value
@@ -489,6 +549,11 @@ function showQuestion(res) {
 
 function showSupplementChoice(message = '') {
   stage.value = 'supplement'
+  if (/更新分析/.test(message) || /影响当前分析/.test(message)) {
+    setSummaryDirty(message || '你可以继续补充，或者现在更新分析。')
+  } else {
+    setGenerationReady(message || '你可以继续补充，或者现在生成分析。')
+  }
   addBotMessage(
     message || '你可以继续补充，或者现在更新分析。',
     [
@@ -508,8 +573,7 @@ async function selectOption(opt) {
     return
   }
   if (value === '__continue__') {
-    stage.value = 'supplement'
-    addBotMessage('好的，你继续补充新的情况、变化、病史或检查结果，我会据此更新分析。')
+    keepSupplementing()
     return
   }
 
@@ -526,6 +590,7 @@ async function selectOption(opt) {
     if (res.complete || res.done || res.followUp?.completed) {
       if (!res.urgentShortcut && answeredCount < 3) {
         stage.value = 'supplement'
+        clearDecisionState()
         addBotMessage('现在还不急着出分析，至少再确认几个关键点会更稳妥。')
         if (res.nextPrompt?.text) {
           addBotMessage(res.nextPrompt.text)
@@ -538,6 +603,7 @@ async function selectOption(opt) {
         showSupplementChoice('信息差不多了，要不要现在生成分析结果？')
       } else if (res.needsSupplement) {
         stage.value = 'supplement'
+        clearDecisionState()
         addBotMessage(res.assistantReply || '现在还不急着给分析，你继续补充一下关键变化。')
         if (res.nextPrompt?.text) addBotMessage(res.nextPrompt.text)
       } else {
@@ -549,6 +615,7 @@ async function selectOption(opt) {
     if (res.needsConfirmation) {
       if (answeredCount < 3) {
         stage.value = 'supplement'
+        clearDecisionState()
         addBotMessage('现在还不急着出分析，至少再确认几个关键点会更稳妥。')
         if (res.nextPrompt?.text) {
           addBotMessage(res.nextPrompt.text)
@@ -563,6 +630,7 @@ async function selectOption(opt) {
 
     if (res.needsSupplement) {
       stage.value = 'supplement'
+      clearDecisionState()
       addBotMessage(res.assistantReply || '现在还不急着给分析，你继续补充一下关键变化。')
       if (res.nextPrompt?.text) addBotMessage(res.nextPrompt.text)
       return
@@ -588,27 +656,37 @@ async function supplement(text) {
       supplement: text,
     })
     if (res.forceImmediateResult) {
+      clearDecisionState()
       if (res.reply) addBotMessage(res.reply)
       goResult()
       return
     }
     if (res.nextQuestion) {
       stage.value = 'structured'
+      clearDecisionState()
       announceStructuredMode(res.reply || res.assistantReply)
       showQuestion(res)
     } else if (res.refreshSummary || res.affectsSummary || res.canRefreshSummary) {
       const promptText = res.affectsSummary || res.refreshSummary
         ? (res.reply || '根据你刚补充的新信息，当前分析可能会变化。要不要现在更新分析结果？')
         : (res.reply || '这条补充我已经并入当前咨询了。你可以继续补充，或者现在更新分析。')
+      if (res.affectsSummary || res.refreshSummary) {
+        setSummaryDirty(promptText, res.impactLevel || 'minor')
+      } else {
+        setGenerationReady(promptText)
+      }
       showSupplementChoice(promptText)
     } else if (res.reply) {
       addBotMessage(res.reply)
-      showSupplementChoice('如果这些补充会影响判断，你可以随时更新分析；如果还想继续补充，也可以继续说。')
+      if (generationReady.value || summaryDirty.value) return
+      setGenerationReady('如果这些补充会影响判断，你可以随时更新分析；如果还想继续补充，也可以继续说。')
     } else if (res.assistantReply) {
       addBotMessage(res.assistantReply)
-      showSupplementChoice()
+      if (generationReady.value || summaryDirty.value) return
+      setGenerationReady('这条补充我已经记下了。你可以继续补充，或者直接更新分析。')
     } else {
-      showSupplementChoice('这条补充我已经记下了。你可以继续补充，或者直接更新分析。')
+      if (generationReady.value || summaryDirty.value) return
+      setGenerationReady('这条补充我已经记下了。你可以继续补充，或者直接更新分析。')
     }
   } catch {
     addBotMessage('抱歉，请稍后重试。')
@@ -789,6 +867,9 @@ async function restoreSession() {
 
     if (resumeMode === 'supplement' || state.hasResult) {
       stage.value = 'supplement'
+      setSummaryDirty(
+        resumeNotice.value || '继续补充新的情况、检查结果或身体变化，我会根据新信息更新分析。'
+      )
       addBotMessage(
         resumeNotice.value || '继续补充新的情况、检查结果或身体变化，我会根据新信息更新分析。',
         resumeNotice.value
@@ -929,6 +1010,7 @@ function stopBotSpeech(removeNode = false) {
 
 function goResult() {
   stage.value = 'done'
+  clearDecisionState()
   showInput.value = false
   showPlusMenu.value = false
   addBotMessage('分析完成，正在生成结果...')
@@ -1008,6 +1090,59 @@ onBeforeUnmount(() => {
   height: 100%;
   background: linear-gradient(90deg, var(--color-primary), var(--color-primary-deep));
   transition: width 0.3s ease;
+}
+
+.decision-banner {
+  margin: 10px var(--spacing-md) 0;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #fffdf5;
+  border: 1px solid rgba(250, 173, 20, 0.24);
+}
+.decision-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.decision-title {
+  font-size: var(--font-size-md);
+  font-weight: 700;
+  color: var(--color-text);
+}
+.decision-tag {
+  flex-shrink: 0;
+  font-size: var(--font-size-xs);
+  color: #8f6200;
+  background: #fff3d6;
+  border-radius: 999px;
+  padding: 3px 8px;
+}
+.decision-sub {
+  margin-top: 6px;
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+}
+.decision-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.decision-btn {
+  flex: 1;
+  min-height: 38px;
+  border: 1px solid rgba(0, 181, 120, 0.16);
+  border-radius: 10px;
+  background: var(--color-white);
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+.decision-btn.primary {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-white);
 }
 
 .chat-area {

@@ -292,6 +292,10 @@ onMounted(async () => {
 function continueAnalysis() {
   const sid = props.sessionId || route.params.sessionId
   if (!sid) return
+  sessionStorage.setItem(
+    'triageResumeNotice',
+    '你现在是在原分析基础上继续补充。补充的新信息会影响这次分析结果。',
+  )
   router.push({
     path: '/triage',
     query: {
