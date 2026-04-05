@@ -377,6 +377,8 @@ async function startSession(complaint) {
   try {
     const res = await createTriageSession({ chiefComplaint: complaint })
     sessionId.value = res.sessionId
+    localStorage.setItem('draftSessionId', res.sessionId)
+    localStorage.setItem('draftComplaint', complaint)
     localStorage.setItem('currentSessionId', res.sessionId)
     localStorage.setItem('currentComplaint', complaint)
 
@@ -616,6 +618,8 @@ async function pickFile(event, label) {
       const res = await startTriageWithFile(file, label)
       sessionId.value = res.sessionId
       stage.value = res.conversationStage || 'structured'
+      localStorage.setItem('draftSessionId', res.sessionId)
+      localStorage.setItem('draftComplaint', res.chiefComplaint || label)
       localStorage.setItem('currentSessionId', res.sessionId)
       localStorage.setItem('currentComplaint', res.chiefComplaint || label)
 
@@ -743,6 +747,7 @@ async function restoreSession() {
   try {
     const state = await getTriageState(resumeId)
     sessionId.value = resumeId
+    localStorage.setItem('draftSessionId', resumeId)
     localStorage.setItem('currentSessionId', resumeId)
     step.value = state.progress?.current || 0
     totalSteps.value = state.progress?.total || 0
@@ -813,6 +818,8 @@ function goResult() {
   showInput.value = false
   showPlusMenu.value = false
   addBotMessage('分析完成，正在生成结果...')
+  localStorage.removeItem('draftSessionId')
+  localStorage.removeItem('draftComplaint')
   localStorage.setItem('currentSessionId', sessionId.value)
   setTimeout(() => {
     router.push(`/result/${sessionId.value}`)

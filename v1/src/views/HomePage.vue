@@ -20,6 +20,17 @@
     <section class="stage-section">
       <p class="stage-hint">你现在处于哪个阶段？</p>
 
+      <div class="resume-card" v-if="showResumeCard" @click="resumeDraft">
+        <div class="resume-icon">
+          <van-icon name="replay" size="20" color="#fff" />
+        </div>
+        <div class="resume-info">
+          <h3>继续上次咨询</h3>
+          <p>{{ draftComplaint || '回到上次未完成的问诊' }}</p>
+        </div>
+        <van-icon name="arrow" class="stage-arrow" />
+      </div>
+
       <div class="stage-card stage-pre" @click="goTriage">
         <div class="stage-icon stage-icon-pre">
           <svg viewBox="0 0 24 24" aria-hidden="true" class="stage-icon-svg">
@@ -112,15 +123,37 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { getArchiveList } from '../api'
+import { getArchiveList, getTriageState } from '../api'
 
 const router = useRouter()
 const recentRecords = ref([])
 const loadingRecords = ref(false)
 const nickname = ref(localStorage.getItem('nickname') || '')
 const brandIcon = `${import.meta.env.BASE_URL}icon.svg`
+const draftSessionId = ref('')
+const draftComplaint = ref('')
+const showResumeCard = ref(false)
 
 onMounted(async () => {
+  const cachedDraftId = localStorage.getItem('draftSessionId') || ''
+  const cachedDraftComplaint = localStorage.getItem('draftComplaint') || ''
+  if (cachedDraftId) {
+    try {
+      const state = await getTriageState(cachedDraftId)
+      if (!state.hasResult) {
+        draftSessionId.value = cachedDraftId
+        draftComplaint.value = cachedDraftComplaint || state.currentPrompt?.text || '上次未完成咨询'
+        showResumeCard.value = true
+      } else {
+        localStorage.removeItem('draftSessionId')
+        localStorage.removeItem('draftComplaint')
+      }
+    } catch {
+      localStorage.removeItem('draftSessionId')
+      localStorage.removeItem('draftComplaint')
+    }
+  }
+
   const userId = localStorage.getItem('userId')
   if (userId) {
     loadingRecords.value = true
@@ -139,6 +172,16 @@ function formatDate(dateStr) {
 }
 
 function goTriage() { router.push('/triage') }
+function resumeDraft() {
+  if (!draftSessionId.value) return
+  router.push({
+    path: '/triage',
+    query: {
+      sessionId: draftSessionId.value,
+      title: draftComplaint.value,
+    },
+  })
+}
 function goHospital() { router.push('/hospital') }
 function goReport() { router.push('/report') }
 function goRecords() { router.push('/records') }
@@ -238,6 +281,42 @@ function goResult(record) {
   cursor: pointer;
   transition: transform 0.15s ease;
   border-left: 4px solid transparent;
+}
+.resume-card {
+  display: flex;
+  align-items: center;
+  background: linear-gradient(180deg, #f5fcf8 0%, #eef8f2 100%);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-md);
+  margin-bottom: var(--spacing-sm);
+  border: 1px solid rgba(0, 181, 120, 0.14);
+  cursor: pointer;
+}
+.resume-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-right: 14px;
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-deep));
+}
+.resume-info {
+  flex: 1;
+  min-width: 0;
+}
+.resume-info h3 {
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  color: var(--color-text);
+}
+.resume-info p {
+  margin-top: 5px;
+  font-size: var(--font-size-sm);
+  line-height: 1.6;
+  color: var(--color-text-secondary);
 }
 .stage-card:active {
   transform: scale(0.98);

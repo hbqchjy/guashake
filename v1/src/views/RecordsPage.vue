@@ -36,7 +36,14 @@
           >
             发送到当前对话
           </van-button>
-          <van-icon v-else name="arrow" color="#ccc" />
+          <div v-else class="record-actions">
+            <van-button size="small" round plain type="primary" @click.stop="shareRecord(record)">
+              分享
+            </van-button>
+            <van-button size="small" round plain type="danger" :loading="deletingId === record.id" @click.stop="removeRecord(record)">
+              删除
+            </van-button>
+          </div>
         </div>
       </div>
     </div>
@@ -46,14 +53,15 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { showToast } from 'vant'
-import { getArchiveList, getArchiveContext, createArchiveContextSession, sendTriageSupplement } from '../api'
+import { showConfirmDialog, showToast } from 'vant'
+import { getArchiveList, getArchiveContext, createArchiveContextSession, sendTriageSupplement, deleteArchiveRecord } from '../api'
 
 const router = useRouter()
 const route = useRoute()
 const records = ref([])
 const loading = ref(true)
 const sendingId = ref('')
+const deletingId = ref('')
 const contextMode = computed(() => String(route.query.mode || '') === 'context')
 const currentSessionId = computed(() => String(route.query.sessionId || '').trim())
 
@@ -148,6 +156,54 @@ async function sendToContext(record) {
     sendingId.value = ''
   }
 }
+
+async function shareRecord(record) {
+  const shareUrl = record.sessionId
+    ? `${window.location.origin}/v1/result/${record.sessionId}`
+    : `${window.location.origin}/v1/records`
+  const shareText = record.summary || record.chiefComplaint || record.likelyType || '小科问诊分析'
+  if (navigator.share) {
+    try {
+      await navigator.share({
+        title: shareText,
+        text: shareText,
+        url: shareUrl,
+      })
+      return
+    } catch {
+      // ignore cancellation
+    }
+  }
+  try {
+    await navigator.clipboard.writeText(shareUrl)
+    showToast('链接已复制，可发送给家属')
+  } catch {
+    showToast('请使用浏览器或微信的分享功能')
+  }
+}
+
+async function removeRecord(record) {
+  const userId = localStorage.getItem('userId')
+  if (!userId) return
+  try {
+    await showConfirmDialog({
+      title: '删除记录',
+      message: '删除后无法恢复，确定删除这条记录吗？',
+    })
+  } catch {
+    return
+  }
+  deletingId.value = record.id
+  try {
+    const res = await deleteArchiveRecord(userId, record.id)
+    records.value = res.records || []
+    showToast('已删除')
+  } catch {
+    showToast('删除失败')
+  } finally {
+    deletingId.value = ''
+  }
+}
 </script>
 
 <style scoped>
@@ -204,9 +260,15 @@ async function sendToContext(record) {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
 }
 .record-date {
   font-size: var(--font-size-xs);
   color: var(--color-text-hint);
+}
+.record-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 </style>
