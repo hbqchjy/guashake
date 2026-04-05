@@ -21,7 +21,11 @@
 
       <div class="stage-card stage-pre" @click="goTriage">
         <div class="stage-icon stage-icon-pre">
-          <van-icon name="warning-o" size="24" />
+          <svg viewBox="0 0 24 24" aria-hidden="true" class="stage-icon-svg">
+            <path d="M14 14.8V5.8a2 2 0 1 0-4 0v9a4.5 4.5 0 1 0 4 0Z" />
+            <path d="M12 11v6" />
+            <path d="M12 18.2a1.2 1.2 0 1 0 0 .01" />
+          </svg>
         </div>
         <div class="stage-info">
           <h3>我不舒服</h3>
@@ -32,7 +36,11 @@
 
       <div class="stage-card stage-during" @click="goHospital">
         <div class="stage-icon stage-icon-during">
-          <van-icon name="records-o" size="24" />
+          <svg viewBox="0 0 24 24" aria-hidden="true" class="stage-icon-svg">
+            <path d="M5.5 7.5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-9a2 2 0 0 1-2-2Z" />
+            <path d="M12 8.5v7" />
+            <path d="M8.5 12h7" />
+          </svg>
         </div>
         <div class="stage-info">
           <h3>我在医院</h3>
@@ -43,7 +51,12 @@
 
       <div class="stage-card stage-post" @click="goReport">
         <div class="stage-icon stage-icon-post">
-          <van-icon name="description" size="24" />
+          <svg viewBox="0 0 24 24" aria-hidden="true" class="stage-icon-svg">
+            <path d="M7 4.8h6.4l3.6 3.6v10.8a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-13a2 2 0 0 1 2-2Z" />
+            <path d="M13.4 4.8v3.6H17" />
+            <path d="M9 12h6" />
+            <path d="M9 15.5h6" />
+          </svg>
         </div>
         <div class="stage-info">
           <h3>我看完了</h3>
@@ -235,6 +248,15 @@ function goResult(record) {
   flex-shrink: 0;
   color: #fff;
   margin-right: 14px;
+}
+.stage-icon-svg {
+  width: 24px;
+  height: 24px;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 .stage-icon-pre { background: linear-gradient(135deg, #ffb84d, #ff8f1f); }
 .stage-icon-during { background: linear-gradient(135deg, #19a0ff, #1677ff); }
