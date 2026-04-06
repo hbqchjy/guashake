@@ -1690,23 +1690,57 @@ app.post('/triage/answer', async (req, res) => {
 
   if (nextQuestionState.done) {
     if (shouldDelayResultConfirmation(updatedSession, stepCount)) {
+      // 尝试用宽松过滤重新获取候选题（忽略 open/init 来源的 slot 填充）
+      const fallbackQuestion = getFallbackNextQuestion(updatedSession);
+      if (fallbackQuestion) {
+        upsertSession(sessionId, {
+          followUp: {
+            ...(updatedSession.followUp || {}),
+            currentQuestionId: fallbackQuestion.id,
+            completed: false,
+          },
+          followUpMeta: {
+            mode: 'delay-fallback',
+            reason: '结构化确认不足，从候选题中补充追问',
+          },
+        });
+        const targetTotal = getStructuredProgressTotal(
+          getFollowUpConfig(updatedSession),
+          0,
+          stepCount + 1,
+        );
+        return res.json({
+          done: false,
+          nextQuestion: fallbackQuestion,
+          progress: { current: stepCount + 1, total: targetTotal },
+          followUpMeta: {
+            mode: 'delay-fallback',
+            reason: '结构化确认不足，从候选题中补充追问',
+          },
+        });
+      }
+      // 实在没有候选题了，降低门槛放行
       const confirmationGuard = getConfirmationGuard(updatedSession, { stepCount });
-      const guardPrompt = buildMissingConfirmationPrompt(updatedSession, confirmationGuard);
-      return res.json({
-        done: false,
-        needsSupplement: true,
-        assistantReply: '现在还不急着给分析，我还想再确认一点关键信息。',
-        nextPrompt: {
-          type: 'text',
-          text: guardPrompt,
-        },
-        progress: nextQuestionState.progress,
-        followUpMeta: {
-          ...nextQuestionState.followUpMeta,
-          mode: 'delay-confirmation',
-          reason: '结构化信息仍偏少，继续补充后再生成分析',
-        },
-      });
+      if (stepCount >= 1 && confirmationGuard.coverage?.familyCount >= 1) {
+        // 至少答了1题且覆盖1个家族，不再死等，允许生成
+      } else {
+        const guardPrompt = buildMissingConfirmationPrompt(updatedSession, confirmationGuard);
+        return res.json({
+          done: false,
+          needsSupplement: true,
+          assistantReply: '现在还不急着给分析，我还想再确认一点关键信息。',
+          nextPrompt: {
+            type: 'text',
+            text: guardPrompt,
+          },
+          progress: nextQuestionState.progress,
+          followUpMeta: {
+            ...nextQuestionState.followUpMeta,
+            mode: 'delay-confirmation',
+            reason: '结构化信息仍偏少，继续补充后再生成分析',
+          },
+        });
+      }
     }
     upsertSession(sessionId, {
       generationReady: true,

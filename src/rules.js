@@ -2034,7 +2034,10 @@ const SEMANTIC_SKIP_PATTERNS = {
 function shouldSkipQuestionByContext(session = {}, question = {}) {
   const slot = String(question.slot || '').trim();
   if (!slot) return false;
-  if (session.followUp?.slotState?.[slot]?.answer) return true;
+  // 只有通过结构化选择题确认过的 slot 才跳过；
+  // 开放对话 / 补充 / 初始分析推测出的 slot 仍需结构化确认，避免候选题过早耗尽导致死循环。
+  const slotEntry = session.followUp?.slotState?.[slot];
+  if (slotEntry?.answer && slotEntry?.source === 'answer') return true;
   const text = getSessionTextForSemanticSkip(session);
   if (!text) return false;
   const pattern = SEMANTIC_SKIP_PATTERNS[slot];
